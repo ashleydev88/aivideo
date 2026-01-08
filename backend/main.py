@@ -46,6 +46,60 @@ STYLE_PROMPT = (
     "Scenes can depict diverse professionals, office environments, or metaphorical objects (diagrams, devices, tools) as appropriate."
 )
 
+# --- DURATION STRATEGIES ---
+DURATION_STRATEGIES = {
+    3: {
+        "purpose": "Executive briefing - need to know NOW",
+        "topic_count": "3-4 essential topics",
+        "slide_range": "8-12 slides",
+        "avg_slide_duration": "18-22 seconds",
+        "depth_level": "Surface - what, why, critical actions only",
+        "focus": "Compliance essentials, immediate actions, biggest risks",
+        "slides_per_topic": "2-3 slides per topic",
+        "content_priorities": ["Must-know compliance requirements", "Immediate actions required", "Biggest consequences of non-compliance"]
+    },
+    5: {
+        "purpose": "Quick orientation - foundational understanding",
+        "topic_count": "4-5 core topics",
+        "slide_range": "13-18 slides",
+        "avg_slide_duration": "18-24 seconds",
+        "depth_level": "Foundational - what, why, basic how",
+        "focus": "Core concepts, basic procedures, common scenarios",
+        "slides_per_topic": "3-4 slides per topic",
+        "content_priorities": ["Key policy principles", "Basic procedures", "Most common scenarios", "Where to get help"]
+    },
+    10: {
+        "purpose": "Comprehensive training - working knowledge",
+        "topic_count": "6-8 key topics",
+        "slide_range": "28-35 slides",
+        "avg_slide_duration": "18-25 seconds",
+        "depth_level": "Applied - what, why, how, with examples",
+        "focus": "Detailed procedures, multiple examples, practical application",
+        "slides_per_topic": "4-5 slides per topic",
+        "content_priorities": ["Complete procedures step-by-step", "Real-world examples", "Common mistakes to avoid", "Decision-making frameworks"]
+    },
+    15: {
+        "purpose": "Deep dive - mastery level",
+        "topic_count": "8-11 detailed topics",
+        "slide_range": "42-52 slides",
+        "avg_slide_duration": "18-28 seconds",
+        "depth_level": "Comprehensive - what, why, how, when, edge cases",
+        "focus": "All aspects covered, edge cases, decision trees, complex scenarios",
+        "slides_per_topic": "5-6 slides per topic",
+        "content_priorities": ["All procedures in detail", "Edge cases and exceptions", "Complex scenarios", "Integration with other policies", "Legal/regulatory context"]
+    },
+    20: {
+        "purpose": "Expert certification - complete mastery",
+        "topic_count": "10-13 comprehensive topics",
+        "slide_range": "55-68 slides",
+        "avg_slide_duration": "18-30 seconds",
+        "depth_level": "Exhaustive - everything including rare situations, legal context, interconnections",
+        "focus": "Exhaustive coverage, rare scenarios, legal nuances, cross-policy implications",
+        "slides_per_topic": "5-7 slides per topic",
+        "content_priorities": ["Exhaustive policy coverage", "Rare and complex scenarios", "Legal and regulatory details", "Cross-policy interactions", "Advanced decision-making", "Change management"]
+    }
+}
+
 app = FastAPI()
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -83,6 +137,31 @@ class ScriptRequest(BaseModel):
     learning_objective: str # Added for context
 
 # --- HELPERS ---
+def extract_json_from_response(text_content):
+    """
+    Robustly extract JSON from a model response which may contain markdown code blocks or other text.
+    """
+    try:
+        # Try direct parsing first
+        return json.loads(text_content)
+    except json.JSONDecodeError:
+        pass
+
+    # Clean up markdown code blocks
+    cleaned_text = text_content.strip()
+    if "```json" in cleaned_text:
+        cleaned_text = cleaned_text.split("```json")[1].split("```")[0]
+    elif "```" in cleaned_text:
+        cleaned_text = cleaned_text.split("```")[1].split("```")[0]
+    
+    cleaned_text = cleaned_text.strip()
+    
+    try:
+        return json.loads(cleaned_text)
+    except json.JSONDecodeError:
+        print(f"❌ JSON Parsing Failed. Raw content sample: {text_content[:200]}...")
+        raise
+
 def upload_asset(file_content, filename, content_type):
     if not file_content: return None 
     bucket = "course-assets"
@@ -291,7 +370,7 @@ Review this video script and check:
 2. COHERENCE: Does each slide transition logically? (Flag jarring jumps)
 3. ACCURACY: Are there specific policy details, or just generic advice? (Rate 1-10)
 4. IMAGE DIVERSITY: Are image prompts varied and specific? (Flag repetitive prompts)
-5. DURATION: Does math check out? ({context_package['target_slides']} slides × 15s = {context_package['duration']}min)
+5. DURATION: Does the math check out? (Sum of all slide durations should be within -5% to +15% of total target duration {context_package['duration']}min). note: Individual slides can range 10s-60s.
 
 TOPICS TO COVER:
 {json.dumps(context_package['topics'], indent=2)}
@@ -316,10 +395,11 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
     try:
         completion = client.messages.create(
             model="claude-sonnet-4-5-20250929",
-            max_tokens=2048,
+            max_tokens=20000,
             messages=[{"role": "user", "content": validation_prompt}]
         )
-        return json.loads(completion.content[0].text)
+        res_text = completion.content[0].text
+        return extract_json_from_response(res_text)
     except Exception as e:
         print(f"   ⚠️ Validation Error: {e}")
         # Default to approved if validation fails to run, to avoid blocking
@@ -485,57 +565,8 @@ async def upload_policy(file: UploadFile = File(...)):
 async def generate_plan(request: PlanRequest):
     print("🧠 Generating Topic Plan...")
     
-    # Define strategies for prompt logic
-    duration_strategies = {
-        3: {
-            "purpose": "Executive briefing - need to know NOW",
-            "topic_count": "3-4 essential topics",
-            "slide_range": "12-15 slides",
-            "depth_level": "Surface - what, why, critical actions only",
-            "focus": "Compliance essentials, immediate actions, biggest risks",
-            "slide_per_topic": "3-4 slides per topic",
-            "content_priorities": ["Must-know compliance requirements", "Immediate actions required", "Biggest consequences of non-compliance"]
-        },
-        5: {
-            "purpose": "Quick orientation - foundational understanding",
-            "topic_count": "4-6 core topics",
-            "slide_range": "18-25 slides",
-            "depth_level": "Foundational - what, why, basic how",
-            "focus": "Core concepts, basic procedures, common scenarios",
-            "slide_per_topic": "3-4 slides per topic",
-            "content_priorities": ["Key policy principles", "Basic procedures", "Most common scenarios", "Where to get help"]
-        },
-        10: {
-            "purpose": "Comprehensive training - working knowledge",
-            "topic_count": "6-9 key topics",
-            "slide_range": "35-45 slides",
-            "depth_level": "Applied - what, why, how, with examples",
-            "focus": "Detailed procedures, multiple examples, practical application",
-            "slide_per_topic": "4-5 slides per topic",
-            "content_priorities": ["Complete procedures step-by-step", "Real-world examples", "Common mistakes to avoid", "Decision-making frameworks"]
-        },
-        15: {
-            "purpose": "Deep dive - mastery level",
-            "topic_count": "9-12 detailed topics",
-            "slide_range": "50-65 slides",
-            "depth_level": "Comprehensive - what, why, how, when, edge cases",
-            "focus": "All aspects covered, edge cases, decision trees, complex scenarios",
-            "slide_per_topic": "5-6 slides per topic",
-            "content_priorities": ["All procedures in detail", "Edge cases and exceptions", "Complex scenarios", "Integration with other policies", "Legal/regulatory context"]
-        },
-        20: {
-            "purpose": "Expert certification - complete mastery",
-            "topic_count": "10-14 comprehensive topics",
-            "slide_range": "65-85 slides",
-            "depth_level": "Exhaustive - everything including rare situations, legal context, interconnections",
-            "focus": "Exhaustive coverage, rare scenarios, legal nuances, cross-policy implications",
-            "slide_per_topic": "5-7 slides per topic",
-            "content_priorities": ["Exhaustive policy coverage", "Rare and complex scenarios", "Legal and regulatory details", "Cross-policy interactions", "Advanced decision-making", "Change management"]
-        }
-    }
-    
     # Select strategy based on duration (default to 5 if not found)
-    strategy = duration_strategies.get(request.duration, duration_strategies[5])
+    strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
 
     prompt = (
         f"You are an expert instructional designer creating a learning path for a {request.duration}-minute video course.\n\n"
@@ -548,14 +579,14 @@ async def generate_plan(request: PlanRequest):
         f"3. Create topics following the DURATION STRATEGY FRAMEWORK below\n\n"
         f"DURATION STRATEGY FRAMEWORK:\n\n"
         f"{request.duration} MINUTE VIDEO STRATEGY:\n"
-        f"{json.dumps(duration_strategies, indent=2)}[{request.duration}]\n\n"
+        f"{json.dumps(DURATION_STRATEGIES, indent=2)}[{request.duration}]\n\n"
         f"TOPIC SELECTION INSTRUCTIONS:\n"
         f"Using the strategy for {request.duration}-minute videos:\n"
         f"- Create {strategy['topic_count']} topics\n"
         f"- Target {strategy['slide_range']} total slides\n"
         f"- Achieve {strategy['depth_level']} depth\n"
         f"- Focus on: {strategy['focus']}\n"
-        f"- Allocate approximately {strategy['slide_per_topic']} per topic\n"
+        f"- Allocate approximately {strategy['slides_per_topic']} per topic\n"
         f"- Prioritize: {strategy['content_priorities']}\n\n"
         f"Each topic should:\n"
         f"- Have clear learning value appropriate to the duration tier\n"
@@ -596,17 +627,18 @@ async def generate_plan(request: PlanRequest):
         f"- Topics must be specific to the policy content, not generic compliance topics\n"
         f"- Shorter durations should focus on critical/high-impact information\n"
         f"- Longer durations should cover more topics AND go deeper on each topic\n"
+        f"- The 'complexity' field is CRITICAL for pacing. Be realistic.\n"
     )
     
     try:
         completion = client.messages.create(
             model="claude-sonnet-4-5-20250929",
-            max_tokens=4096,
+            max_tokens=20000,
             messages=[{"role": "user", "content": prompt}]
         )
         # Parse JSON from response
         res_text = completion.content[0].text
-        data = json.loads(res_text)
+        data = extract_json_from_response(res_text)
         
         # Extract fields with safe defaults
         topics = data.get("topics", [])
@@ -633,73 +665,13 @@ async def generate_plan(request: PlanRequest):
 async def generate_script(request: ScriptRequest, background_tasks: BackgroundTasks):
     print("✍️ Generating Full Script...")
     
-    # Calculate approx slide count (3 mins = 180s. 15s per slide = 12 slides)
-    target_slides = request.duration * 4 
+    # Calculate approx slide count (3 slides per minute as per new rules)
+    target_slides = request.duration * 3
     
     # Create Context Package
     topics_list = [t.dict() for t in request.topics]
-    # Define strategies for prompt logic (Duplicated to ensure context availability)
-    duration_strategies = {
-        3: {
-            "purpose": "Executive briefing",
-            "instructions": """
-- Focus ONLY on what employees absolutely must know
-- Skip background/history unless critical
-- Use imperatives: "Do this", "Don't do that", "Report to..."
-- Minimal examples - just enough to clarify
-- No edge cases or exceptions
-"""
-        },
-        5: {
-            "purpose": "Quick orientation",
-            "instructions": """
-- Brief context/background (1-2 slides max)
-- Core procedures explained step-by-step
-- 1-2 examples per major topic
-- Mention where to find more info
-- Common mistakes briefly noted
-"""
-        },
-        10: {
-            "purpose": "Comprehensive training",
-            "instructions": """
-- Full context and rationale
-- Detailed step-by-step procedures
-- 2-3 examples per major topic including scenarios
-- Common mistakes with explanations
-- Decision-making guidance ("If X, then Y")
-- Resources and next steps
-"""
-        },
-        15: {
-            "purpose": "Deep dive",
-            "instructions": """
-- Comprehensive context including legal/regulatory background
-- All procedures with detailed steps
-- Multiple examples including edge cases
-- Complex scenarios with decision trees
-- Integration with other policies/systems
-- Troubleshooting guidance
-- Advanced tips and best practices
-"""
-        },
-        20: {
-            "purpose": "Expert certification",
-            "instructions": """
-- Exhaustive coverage of all aspects
-- Historical context and evolution of policy
-- All procedures with rationale for each step
-- Extensive examples including rare situations
-- Complex decision frameworks
-- Cross-policy implications
-- Change management and transition guidance
-- Advanced troubleshooting
-- Legal/regulatory deep dive
-"""
-        }
-    }
     
-    strategy = duration_strategies.get(request.duration, duration_strategies[5])
+    strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
     
     context_package = {
         "policy_text": request.policy_text,
@@ -720,13 +692,57 @@ DURATION-SPECIFIC DEPTH REQUIREMENTS:
 
 Your script is for a {context_package['duration']}-MINUTE video with strategy tier: {context_package['strategy_tier']}
 
-Apply these depth requirements:
-{strategy['instructions']}
+FOCUS & DEPTH:
+- Depth Level: {strategy['depth_level']}
+- Primary Focus: {strategy['focus']}
+- Content Priorities: {', '.join(strategy['content_priorities'])}
 
 SLIDE ALLOCATION FOR {context_package['duration']} MINUTES:
-- Target: {context_package['target_slides']} slides total
+- Target: {context_package['target_slides']} slides total (approx 20s each)
 - Average: {avg_slides_per_topic} per topic
-- Allow flexibility: Simple topics may need fewer, complex topics may need more
+- Topic Count: {len(topics_list)} topics
+- Use 'complexity' field in topics to weigh slide allocation (Complex = more slides).
+
+SLIDE DURATION RULES:
+Vary slide duration based on content complexity and cognitive load:
+
+Duration Guidelines:
+- 10000-14000ms (10-14s): Quick transitions, single impactful statements, topic bridges
+- 15000-22000ms (15-22s): Standard teaching slides with one clear concept
+- 23000-30000ms (23-30s): Explanations with examples, procedures with steps
+- 31000-45000ms (31-45s): Complex scenarios, stories, multi-step processes
+- 46000-60000ms (46-60s): Deep procedures (only for 15-20 min videos)
+
+Target Average: 20 seconds per slide (3 slides per minute)
+
+Word Count to Duration Formula:
+- Speaking pace: 2.5 words per second (150 words per minute)
+- 20 words = 8 seconds = 8000ms (too fast, add thinking time)
+- 30 words = 12 seconds = 14000ms (add 2s thinking time)
+- 45 words = 18 seconds = 20000ms (add 2s thinking time)
+- 60 words = 24 seconds = 26000ms (add 2s thinking time)
+- 75 words = 30 seconds = 32000ms (add 2s thinking time)
+- 100 words = 40 seconds = 42000ms (add 2s thinking time)
+
+ALWAYS add 1-3 seconds of "thinking time" beyond pure narration time to allow:
+- Visual text reading
+- Image processing
+- Concept absorption
+- Mental transition to next slide
+
+NARRATION LENGTH GUIDELINES:
+- Quick slides: 20-35 words (with thinking time = 12-16s)
+- Standard slides: 40-55 words (with thinking time = 18-24s)
+- Detailed slides: 60-75 words (with thinking time = 26-32s)
+- Complex slides: 80-100 words (with thinking time = 35-45s)
+- Very complex: 100-130 words (only for 15-20 min videos, with thinking time = 45-55s)
+
+Pacing Strategy:
+- Start with moderate pace (18-22s slides) to establish rhythm
+- Vary throughout to maintain engagement
+- Use quick slides (12-14s) after complex slides to give mental break
+- Never put two 40+ second slides back-to-back
+- Aim for 80% of slides in the 16-26 second range
 """
 
     base_prompt = (
@@ -734,7 +750,7 @@ SLIDE ALLOCATION FOR {context_package['duration']} MINUTES:
         f"CONTEXT:\n"
         f"- Course Title: {context_package['title']}\n"
         f"- Learning Objective: {context_package['learning_objective']}\n"
-        f"- Duration: {context_package['duration']} minutes ({context_package['target_slides']} slides at ~15s each)\n"
+        f"- Duration: {context_package['duration']} minutes ({context_package['target_slides']} slides target)\n"
         f"- Original Policy Content: {context_package['policy_text']}\n"
         f"- Approved Topics: {json.dumps(context_package['topics'])}\n\n"
         f"VISUAL STYLE GUIDE: {context_package['style_guide']}\n\n"
@@ -748,12 +764,13 @@ SLIDE ALLOCATION FOR {context_package['duration']} MINUTES:
         f"4. COHERENCE: Each slide must connect to the previous one. Use transitional phrases.\n"
         f"5. SPECIFICITY: Include concrete examples, numbers, or scenarios from the policy when relevant.\n\n"
         f"NARRATION RULES (text field):\n"
-        f"- 30-40 words per slide (reads naturally in 12-15 seconds)\n"
+        f"- Follow the NARRATION LENGTH GUIDELINES above intimately.\n"
         f"- Conversational but professional tone\n"
         f"- Use \"you\" to address learner directly\n"
         f"- Vary sentence structure (questions, statements, imperatives)\n"
         f"- First slide: Hook with a relatable problem or surprising fact\n"
-        f"- Last slide: Actionable summary with next steps\n\n"
+        f"- Last slide: Actionable summary with next steps\n"
+        f"- TIMING: You MUST format the 'duration' field in milliseconds strictly according to the SLIDE DURATION RULES based on your word count and complexity.\n"
         f"VISUAL TEXT RULES (visual_text field):\n"
         f"- Support narration, don't duplicate it\n"
         f"- Use markdown: # for headers, > for quotes, - for lists\n"
@@ -777,9 +794,9 @@ SLIDE ALLOCATION FOR {context_package['duration']} MINUTES:
         f"- Specify diversity in every human image\n"
         f"- Include environmental context (office, outdoor, home office, etc.)\n\n"
         f"DURATION CALCULATION:\n"
-        f"- Each slide is exactly 15000 milliseconds\n"
-        f"- Must total {context_package['target_slides']} slides\n"
-        f"- Validate: {context_package['target_slides']} × 15000ms = {context_package['duration'] * 60000}ms\n\n"
+        f"- Use the SLIDE DURATION RULES to determine exact duration for each slide in milliseconds.\n"
+        f"- Total duration must sum up to approx {context_package['duration'] * 60000}ms (within 10% margin).\n"
+        f"- Validate: Sum of all slide durations = Target Total Duration.\n\n"
         f"OUTPUT FORMAT (JSON):\n"
         f"{{\n"
         f"  \"script\": [\n"
@@ -812,11 +829,11 @@ SLIDE ALLOCATION FOR {context_package['duration']} MINUTES:
             # Generate
             completion = client.messages.create(
                 model="claude-sonnet-4-5-20250929",
-                max_tokens=8192,
+                max_tokens=20000,
                 messages=messages
             )
             res_text = completion.content[0].text
-            data = json.loads(res_text)
+            data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
             
             # Validation
