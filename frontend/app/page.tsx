@@ -56,7 +56,12 @@ const RichTextRenderer = ({ text }: { text: string }) => {
               </div>
             )}
             <p className="text-slate-700 font-medium text-xl leading-relaxed">
-              {trimmed.replace(/^-/, '').trim()}
+              {trimmed.replace(/^-/, '').trim().split(/(\*\*.*?\*\*)/).map((part, index) => {
+                if (part.startsWith('**') && part.endsWith('**')) {
+                  return <strong key={index} className="text-slate-900 font-bold">{part.slice(2, -2)}</strong>;
+                }
+                return <span key={index}>{part}</span>;
+              })}
             </p>
           </div>
         );
@@ -187,7 +192,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
           </div>
         )}
 
-        <audio ref={audioRef} src={currentSlide?.audio} onEnded={handleNext} preload="auto" />
+        <audio ref={audioRef} src={currentSlide?.audio} preload="auto" />
 
         {!hasStarted && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
