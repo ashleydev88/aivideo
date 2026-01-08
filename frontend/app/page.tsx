@@ -15,6 +15,13 @@ interface Slide {
   layout?: 'split' | 'text_only' | 'image_only';
 }
 
+export interface Topic {
+  id: number;
+  title: string;
+  purpose: string;
+  key_points: string[];
+}
+
 const RichTextRenderer = ({ text }: { text: string }) => {
   if (!text) return null;
   const lines = text.split('\n');
@@ -62,9 +69,9 @@ interface CourseHistoryItem {
   id: string;
   created_at: string;
   status: string;
-  name: string;
+  name?: string;
   metadata?: {
-    topics: string[];
+    topics: Topic[];
     style: string;
   }
 }
@@ -230,8 +237,9 @@ export default function Page() {
   const [policyText, setPolicyText] = useState("");
   const [duration, setDuration] = useState(3);
   const [style, setStyle] = useState("Business Illustration");
-  const [topics, setTopics] = useState<string[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
   const [title, setTitle] = useState("New Course"); // NEW: Title State
+  const [learningObjective, setLearningObjective] = useState(""); // NEW: LO State
   const [courseId, setCourseId] = useState<string | null>(null);
 
   // Playback State
@@ -289,19 +297,27 @@ export default function Page() {
       const data = await res.json();
       setTopics(data.topics || []);
       setTitle(data.title || "New Course"); // Capture Title
+      setLearningObjective(data.learning_objective || ""); // Capture LO
       setView("planning");
     } catch (e) { console.error(e); }
     finally { setIsLoading(false); }
   };
 
   // --- STEP 3: START DESIGNING (Generate Script) ---
-  const handleStartDesigning = async (finalTopics: string[]) => {
+  const handleStartDesigning = async (finalTopics: Topic[]) => {
     setIsLoading(true);
     try {
       const res = await fetch("http://127.0.0.1:8000/generate-script", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topics: finalTopics, style: style, duration: duration, title: title }) // Send Title
+        body: JSON.stringify({
+          topics: finalTopics,
+          style: style,
+          duration: duration,
+          title: title,
+          policy_text: policyText, // Send Policy
+          learning_objective: learningObjective // Send LO
+        })
       });
       const data = await res.json();
       if (data.status === "started") {
@@ -388,7 +404,7 @@ export default function Page() {
                  ${courseId === item.id ? "bg-blue-900/30 border-blue-500" : "bg-gray-900 hover:bg-gray-800"}`}
             >
               <div className="font-semibold text-gray-300 truncate">
-                {item.name || item.metadata?.topics?.[0] || "Untitled Course"}
+                {item.name || (item.metadata?.topics && item.metadata.topics.length > 0 ? item.metadata.topics[0].title : "Untitled Course")}
               </div>
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(item.created_at).toLocaleDateString()}
@@ -418,6 +434,7 @@ export default function Page() {
               topics={topics}
               duration={duration}
               initialTitle={title}
+              initialLearningObjective={learningObjective}
               onBack={() => setView("setup")}
               onNext={(t, newTitle) => { setTitle(newTitle); handleStartDesigning(t); }}
               isLoading={isLoading}

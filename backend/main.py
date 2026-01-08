@@ -10,8 +10,7 @@ from fastapi import FastAPI, BackgroundTasks, File, UploadFile, Form, HTTPExcept
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client
-from openai import OpenAI
-from openai import OpenAI
+from anthropic import Anthropic
 import replicate
 from dotenv import load_dotenv
 import utils.parser as parser
@@ -25,7 +24,7 @@ from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 # 1. LOAD SECRETS
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ELEVEN_LABS_API_KEY = os.getenv("ELEVEN_LABS_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
@@ -33,6 +32,9 @@ REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 # --- CONFIGURATION ---
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
+
+# --- CONFIGURATION FLAGS ---
+ENABLE_SCRIPT_VALIDATION = True  # Set to False to skip validation 
 
 # --- STYLE ---
 STYLE_PROMPT = (
@@ -45,7 +47,7 @@ STYLE_PROMPT = (
 )
 
 app = FastAPI()
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = Anthropic(api_key=ANTHROPIC_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app.add_middleware(
@@ -63,11 +65,22 @@ class PlanRequest(BaseModel):
     policy_text: str
     duration: int # Minutes
 
+class Topic(BaseModel):
+    id: int
+    title: str
+    purpose: str
+    key_points: list[str]
+    complexity: str = "moderate" # Default
+    estimated_slides: int = 3 # Default
+    depth_notes: str = "" # Default
+
 class ScriptRequest(BaseModel):
-    topics: list[str]
+    topics: list[Topic]
     style: str
     duration: int # Minutes
-    title: str = "Untitled Course" # New field with default
+    title: str = "Untitled Course"
+    policy_text: str # Added for context
+    learning_objective: str # Added for context
 
 # --- HELPERS ---
 def upload_asset(file_content, filename, content_type):
@@ -262,6 +275,57 @@ def render_slide_visual(image_path, text_content, layout="split"):
     return output_path
 
 
+def validate_script(script_output, context_package):
+    """
+    Validates script quality before proceeding to media generation.
+    Returns: dict with 'approved' (bool), 'issues' (list), 'suggestions' (list)
+    """
+    print("   🕵️ Validating Script Quality...")
+    
+    validation_prompt = f"""
+You are a quality assurance reviewer for e-learning content.
+
+Review this video script and check:
+
+1. COMPLETENESS: Does it cover the key points from the topics? (List any gaps)
+2. COHERENCE: Does each slide transition logically? (Flag jarring jumps)
+3. ACCURACY: Are there specific policy details, or just generic advice? (Rate 1-10)
+4. IMAGE DIVERSITY: Are image prompts varied and specific? (Flag repetitive prompts)
+5. DURATION: Does math check out? ({context_package['target_slides']} slides × 15s = {context_package['duration']}min)
+
+TOPICS TO COVER:
+{json.dumps(context_package['topics'], indent=2)}
+
+SCRIPT:
+{json.dumps(script_output, indent=2)}
+
+OUTPUT (JSON):
+{{
+  "approved": true or false,
+  "completeness_score": 1-10,
+  "coherence_score": 1-10,
+  "accuracy_score": 1-10,
+  "image_diversity_score": 1-10,
+  "issues": ["issue 1", "issue 2"],
+  "suggestions": ["suggestion 1"]
+}}
+
+Approve (true) if all scores are 7+. Otherwise set approved to false.
+"""
+    
+    try:
+        completion = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": validation_prompt}]
+        )
+        return json.loads(completion.content[0].text)
+    except Exception as e:
+        print(f"   ⚠️ Validation Error: {e}")
+        # Default to approved if validation fails to run, to avoid blocking
+        return {"approved": True, "issues": ["Validation mechanism failed"], "suggestions": []}
+
+
 # --- WORKER 1: DRAFT COURSE GENERATION ---
 # --- WORKER 1: DRAFT COURSE GENERATION ---
 def generate_course_assets(course_id: str, script_plan: list, style_prompt: str):
@@ -420,37 +484,150 @@ async def upload_policy(file: UploadFile = File(...)):
 @app.post("/generate-plan")
 async def generate_plan(request: PlanRequest):
     print("🧠 Generating Topic Plan...")
+    
+    # Define strategies for prompt logic
+    duration_strategies = {
+        3: {
+            "purpose": "Executive briefing - need to know NOW",
+            "topic_count": "3-4 essential topics",
+            "slide_range": "12-15 slides",
+            "depth_level": "Surface - what, why, critical actions only",
+            "focus": "Compliance essentials, immediate actions, biggest risks",
+            "slide_per_topic": "3-4 slides per topic",
+            "content_priorities": ["Must-know compliance requirements", "Immediate actions required", "Biggest consequences of non-compliance"]
+        },
+        5: {
+            "purpose": "Quick orientation - foundational understanding",
+            "topic_count": "4-6 core topics",
+            "slide_range": "18-25 slides",
+            "depth_level": "Foundational - what, why, basic how",
+            "focus": "Core concepts, basic procedures, common scenarios",
+            "slide_per_topic": "3-4 slides per topic",
+            "content_priorities": ["Key policy principles", "Basic procedures", "Most common scenarios", "Where to get help"]
+        },
+        10: {
+            "purpose": "Comprehensive training - working knowledge",
+            "topic_count": "6-9 key topics",
+            "slide_range": "35-45 slides",
+            "depth_level": "Applied - what, why, how, with examples",
+            "focus": "Detailed procedures, multiple examples, practical application",
+            "slide_per_topic": "4-5 slides per topic",
+            "content_priorities": ["Complete procedures step-by-step", "Real-world examples", "Common mistakes to avoid", "Decision-making frameworks"]
+        },
+        15: {
+            "purpose": "Deep dive - mastery level",
+            "topic_count": "9-12 detailed topics",
+            "slide_range": "50-65 slides",
+            "depth_level": "Comprehensive - what, why, how, when, edge cases",
+            "focus": "All aspects covered, edge cases, decision trees, complex scenarios",
+            "slide_per_topic": "5-6 slides per topic",
+            "content_priorities": ["All procedures in detail", "Edge cases and exceptions", "Complex scenarios", "Integration with other policies", "Legal/regulatory context"]
+        },
+        20: {
+            "purpose": "Expert certification - complete mastery",
+            "topic_count": "10-14 comprehensive topics",
+            "slide_range": "65-85 slides",
+            "depth_level": "Exhaustive - everything including rare situations, legal context, interconnections",
+            "focus": "Exhaustive coverage, rare scenarios, legal nuances, cross-policy implications",
+            "slide_per_topic": "5-7 slides per topic",
+            "content_priorities": ["Exhaustive policy coverage", "Rare and complex scenarios", "Legal and regulatory details", "Cross-policy interactions", "Advanced decision-making", "Change management"]
+        }
+    }
+    
+    # Select strategy based on duration (default to 5 if not found)
+    strategy = duration_strategies.get(request.duration, duration_strategies[5])
+
     prompt = (
-        f"Review the following policy document text and create a concise learning path/topic list for a {request.duration} minute video course. "
-        f"Also generate a catchy, professional title for the course. "
-        f"The topics should be ordered logically from introduction to conclusion. "
-        f"Prioritize the most critical information suitable for the duration. "
-        f"Output a JSON object with keys: \n"
-        f"- 'topics': list of strings\n"
-        f"- 'title': string (max 60 chars)\n\n"
-        f"Policy Text:\n{request.policy_text}" # Full document
+        f"You are an expert instructional designer creating a learning path for a {request.duration}-minute video course.\n\n"
+        f"CONTEXT:\n"
+        f"Policy Document: {request.policy_text}\n"
+        f"Video Duration: {request.duration} minutes\n\n"
+        f"YOUR TASK:\n"
+        f"1. Generate a compelling course title that captures the core value proposition\n"
+        f"2. Identify ONE primary learning objective (what should learners be able to do after?)\n"
+        f"3. Create topics following the DURATION STRATEGY FRAMEWORK below\n\n"
+        f"DURATION STRATEGY FRAMEWORK:\n\n"
+        f"{request.duration} MINUTE VIDEO STRATEGY:\n"
+        f"{json.dumps(duration_strategies, indent=2)}[{request.duration}]\n\n"
+        f"TOPIC SELECTION INSTRUCTIONS:\n"
+        f"Using the strategy for {request.duration}-minute videos:\n"
+        f"- Create {strategy['topic_count']} topics\n"
+        f"- Target {strategy['slide_range']} total slides\n"
+        f"- Achieve {strategy['depth_level']} depth\n"
+        f"- Focus on: {strategy['focus']}\n"
+        f"- Allocate approximately {strategy['slide_per_topic']} per topic\n"
+        f"- Prioritize: {strategy['content_priorities']}\n\n"
+        f"Each topic should:\n"
+        f"- Have clear learning value appropriate to the duration tier\n"
+        f"- Build logically on previous topics\n"
+        f"- Contain specific key points from the policy (not generic advice)\n"
+        f"- Indicate complexity level (simple/moderate/complex) to help allocate slides later\n\n"
+        f"COMPLEXITY GUIDELINES:\n"
+        f"- simple: Definitions, single concepts, straightforward rules (1-3 slides)\n"
+        f"- moderate: Procedures with steps, concepts with examples (3-5 slides)\n"
+        f"- complex: Multi-step processes, scenarios, decision trees, edge cases (5-8 slides)\n\n"
+        f"OUTPUT FORMAT (JSON):\n"
+        f"{{\n"
+        f"  \"title\": \"Course title appropriate for {request.duration}-minute depth\",\n"
+        f"  \"learning_objective\": \"After this course, you will be able to...\",\n"
+        f"  \"duration\": {request.duration},\n"
+        f"  \"strategy_tier\": \"{strategy['purpose']}\",\n"
+        f"  \"topics\": [\n"
+        f"    {{\n"
+        f"      \"id\": 1,\n"
+        f"      \"title\": \"Topic name\",\n"
+        f"      \"purpose\": \"Why this matters in the learning journey\",\n"
+        f"      \"complexity\": \"simple|moderate|complex\",\n"
+        f"      \"key_points\": [\n"
+        f"        \"Specific point from policy 1\",\n"
+        f"        \"Specific point from policy 2\",\n"
+        f"        \"Specific point from policy 3\"\n"
+        f"      ],\n"
+        f"      \"estimated_slides\": 3,\n"
+        f"      \"depth_notes\": \"What level of detail this topic should cover for this duration\"\n"
+        f"    }}\n"
+        f"  ],\n"
+        f"  \"total_estimated_slides\": 0\n"
+        f"}}\n\n"
+        f"CONSTRAINTS:\n"
+        f"- First topic MUST be an engaging hook/introduction that sets context\n"
+        f"- Last topic MUST be actionable summary/next steps\n"
+        f"- Total estimated slides should be within {strategy['slide_range']}\n"
+        f"- Topics must be specific to the policy content, not generic compliance topics\n"
+        f"- Shorter durations should focus on critical/high-impact information\n"
+        f"- Longer durations should cover more topics AND go deeper on each topic\n"
     )
     
     try:
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={ "type": "json_object" }
+        completion = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}]
         )
         # Parse JSON from response
-        res_text = completion.choices[0].message.content
+        res_text = completion.content[0].text
         data = json.loads(res_text)
-        topics = data.get("topics", data.get("list", [])) 
-        title = data.get("title", "New Course")
         
-        # Fallback if model returns just the list in root
-        if not topics and isinstance(data, list):
-             topics = data
-             
-        return {"topics": topics, "title": title}
+        # Extract fields with safe defaults
+        topics = data.get("topics", [])
+        title = data.get("title", "New Course")
+        learning_objective = data.get("learning_objective", "Understand the policy key points.")
+        
+        return {
+            "title": title,
+            "learning_objective": learning_objective,
+            "topics": topics
+        }
+
     except Exception as e:
         print(f"❌ Planning Error: {e}")
-        return {"topics": ["Introduction", "Key Policy Points", "Compliance", "Summary"], "title": "Policy Overview"} # Fallback
+        # Fallback structure
+        fallback_topics = [
+            {"id": 1, "title": "Introduction", "purpose": "Welcome", "key_points": ["Overview"]},
+            {"id": 2, "title": "Policy Highlights", "purpose": "Core content", "key_points": ["Main rule"]},
+            {"id": 3, "title": "Summary", "purpose": "Wrap up", "key_points": ["Review"]}
+        ]
+        return {"topics": fallback_topics, "title": "Policy Overview", "learning_objective": "Understand the basics."}
 
 @app.post("/generate-script")
 async def generate_script(request: ScriptRequest, background_tasks: BackgroundTasks):
@@ -459,38 +636,229 @@ async def generate_script(request: ScriptRequest, background_tasks: BackgroundTa
     # Calculate approx slide count (3 mins = 180s. 15s per slide = 12 slides)
     target_slides = request.duration * 4 
     
-    prompt = (
-        f"Create a detailed video course script based on these topics: {request.topics}. "
-        f"The course duration is {request.duration} minutes. "
-        f"Target approximately {target_slides} slides/scenes. "
-        f"The tone should be professional, engaging, and clear. \n"
-        f"Input Rules:\n"
-        f"1. VISUAL LAYOUTS: Distribute slide layouts approximately: 70% 'split' (text left, image right), 15% 'text_only' (big centered text), 15% 'image_only' (full screen visual, no text). Choose 'text_only' for strong statements and 'image_only' for impactful visual moments.\n"
-        f"2. VISUAL TEXT: Use markdown for text. Use '#' for Main Headers, quote marks '\"' or '>' for quotes, and '-' for list items.\n"
-        f"3. IMAGERY: Varied subjects (minimalist people, close-ups of objects like laptops/documents, abstract flow charts, office settings). Do not just show people talking.\n\n"
-        f"Output a JSON object with a key 'script' containing a list of objects. Each object must have:\n"
-        f"- 'text': The spoken narration (approx 30-40 words per slide).\n"
-        f"- 'visual_text': The formatted text to appear on screen (markdown supported).\n"
-        f"- 'layout': One of ['split', 'text_only', 'image_only'].\n"
-        f"- 'prompt': A detailed, creative image generation prompt matching the scene description. \n"
-        f"- 'duration': Duration in milliseconds (approx 15000).\n"
+    # Create Context Package
+    topics_list = [t.dict() for t in request.topics]
+    # Define strategies for prompt logic (Duplicated to ensure context availability)
+    duration_strategies = {
+        3: {
+            "purpose": "Executive briefing",
+            "instructions": """
+- Focus ONLY on what employees absolutely must know
+- Skip background/history unless critical
+- Use imperatives: "Do this", "Don't do that", "Report to..."
+- Minimal examples - just enough to clarify
+- No edge cases or exceptions
+"""
+        },
+        5: {
+            "purpose": "Quick orientation",
+            "instructions": """
+- Brief context/background (1-2 slides max)
+- Core procedures explained step-by-step
+- 1-2 examples per major topic
+- Mention where to find more info
+- Common mistakes briefly noted
+"""
+        },
+        10: {
+            "purpose": "Comprehensive training",
+            "instructions": """
+- Full context and rationale
+- Detailed step-by-step procedures
+- 2-3 examples per major topic including scenarios
+- Common mistakes with explanations
+- Decision-making guidance ("If X, then Y")
+- Resources and next steps
+"""
+        },
+        15: {
+            "purpose": "Deep dive",
+            "instructions": """
+- Comprehensive context including legal/regulatory background
+- All procedures with detailed steps
+- Multiple examples including edge cases
+- Complex scenarios with decision trees
+- Integration with other policies/systems
+- Troubleshooting guidance
+- Advanced tips and best practices
+"""
+        },
+        20: {
+            "purpose": "Expert certification",
+            "instructions": """
+- Exhaustive coverage of all aspects
+- Historical context and evolution of policy
+- All procedures with rationale for each step
+- Extensive examples including rare situations
+- Complex decision frameworks
+- Cross-policy implications
+- Change management and transition guidance
+- Advanced troubleshooting
+- Legal/regulatory deep dive
+"""
+        }
+    }
+    
+    strategy = duration_strategies.get(request.duration, duration_strategies[5])
+    
+    context_package = {
+        "policy_text": request.policy_text,
+        "title": request.title,
+        "learning_objective": request.learning_objective,
+        "topics": topics_list,
+        "duration": request.duration,
+        "target_slides": target_slides,
+        "style_guide": STYLE_PROMPT,
+        "strategy_tier": strategy["purpose"]
+    }
+    
+    # Calculate slides per topic average
+    avg_slides_per_topic = math.floor(target_slides / len(topics_list)) if topics_list else 3
+    
+    depth_requirements = f"""
+DURATION-SPECIFIC DEPTH REQUIREMENTS:
+
+Your script is for a {context_package['duration']}-MINUTE video with strategy tier: {context_package['strategy_tier']}
+
+Apply these depth requirements:
+{strategy['instructions']}
+
+SLIDE ALLOCATION FOR {context_package['duration']} MINUTES:
+- Target: {context_package['target_slides']} slides total
+- Average: {avg_slides_per_topic} per topic
+- Allow flexibility: Simple topics may need fewer, complex topics may need more
+"""
+
+    base_prompt = (
+        f"You are an expert video course scriptwriter creating engaging, comprehensive e-learning content.\n\n"
+        f"CONTEXT:\n"
+        f"- Course Title: {context_package['title']}\n"
+        f"- Learning Objective: {context_package['learning_objective']}\n"
+        f"- Duration: {context_package['duration']} minutes ({context_package['target_slides']} slides at ~15s each)\n"
+        f"- Original Policy Content: {context_package['policy_text']}\n"
+        f"- Approved Topics: {json.dumps(context_package['topics'])}\n\n"
+        f"VISUAL STYLE GUIDE: {context_package['style_guide']}\n\n"
+        f"{depth_requirements}\n\n"
+        f"YOUR TASK:\n"
+        f"Create a complete video script that transforms policy content into an engaging learning experience.\n\n"
+        f"CONTENT RULES:\n"
+        f"1. ACCURACY: Extract specific facts, procedures, and requirements from the policy. Don't generalize.\n"
+        f"2. COMPREHENSIVENESS: Cover all key points identified in topics, with sufficient depth for learner retention.\n"
+        f"3. ENGAGEMENT: Use storytelling techniques - scenarios, questions, \"imagine if...\" moments.\n"
+        f"4. COHERENCE: Each slide must connect to the previous one. Use transitional phrases.\n"
+        f"5. SPECIFICITY: Include concrete examples, numbers, or scenarios from the policy when relevant.\n\n"
+        f"NARRATION RULES (text field):\n"
+        f"- 30-40 words per slide (reads naturally in 12-15 seconds)\n"
+        f"- Conversational but professional tone\n"
+        f"- Use \"you\" to address learner directly\n"
+        f"- Vary sentence structure (questions, statements, imperatives)\n"
+        f"- First slide: Hook with a relatable problem or surprising fact\n"
+        f"- Last slide: Actionable summary with next steps\n\n"
+        f"VISUAL TEXT RULES (visual_text field):\n"
+        f"- Support narration, don't duplicate it\n"
+        f"- Use markdown: # for headers, > for quotes, - for lists\n"
+        f"- Maximum 3 bullet points or 15 words for 'split' layout\n"
+        f"- text_only: One impactful statement (5-10 words)\n"
+        f"- image_only: Empty string \"\"\n\n"
+        f"LAYOUT DISTRIBUTION:\n"
+        f"- 70% 'split': Main teaching slides (text left, image right)\n"
+        f"- 15% 'text_only': Key principles, memorable quotes, strong statements\n"
+        f"- 15% 'image_only': Emotional moments, scene-setters, transitions\n"
+        f"- First slide should be 'split' or 'image_only' with title\n"
+        f"- Last slide should be 'text_only' or 'split' with clear takeaway\n\n"
+        f"IMAGE PROMPT RULES (prompt field):\n"
+        f"CRITICAL: Each prompt must be detailed and contextually specific.\n\n"
+        f"Template: \"Professional e-learning illustration: [SUBJECT] [ACTION/CONTEXT]. [VISUAL STYLE from guide]. [SPECIFIC DETAILS: clothing, setting, objects, composition]. [MOOD/EMOTION]. High quality, well-lit, modern corporate aesthetic.\"\n\n"
+        f"Examples:\n"
+        f"✅ GOOD: \"Professional e-learning illustration: Diverse team of three reviewing documents at modern conference table. Medium shot showing hands pointing at papers, laptop visible. Business casual attire, bright office with plants. Collaborative and focused mood. High quality, natural lighting, modern corporate aesthetic.\"\n\n"
+        f"❌ BAD: \"People in meeting\"\n\n"
+        f"- Vary subjects: Don't show the same scene twice\n"
+        f"- Match emotional tone to content (concerned for risks, optimistic for benefits)\n"
+        f"- Specify diversity in every human image\n"
+        f"- Include environmental context (office, outdoor, home office, etc.)\n\n"
+        f"DURATION CALCULATION:\n"
+        f"- Each slide is exactly 15000 milliseconds\n"
+        f"- Must total {context_package['target_slides']} slides\n"
+        f"- Validate: {context_package['target_slides']} × 15000ms = {context_package['duration'] * 60000}ms\n\n"
+        f"OUTPUT FORMAT (JSON):\n"
+        f"{{\n"
+        f"  \"script\": [\n"
+        f"    {{\n"
+        f"      \"slide_number\": 1,\n"
+        f"      \"text\": \"Narration text here...\",\n"
+        f"      \"visual_text\": \"# Markdown text here\",\n"
+        f"      \"layout\": \"split\",\n"
+        f"      \"prompt\": \"Detailed image generation prompt...\",\n"
+        f"      \"duration\": 15000\n"
+        f"    }}\n"
+        f"  ]\n"
+        f"}}\n\n"
+        f"FINAL CHECKLIST (validate before outputting):\n"
+        f"☐ Exactly {context_package['target_slides']} slides\n"
+        f"☐ Covers all topics from the learning path\n"
+        f"☐ Each slide has 30-40 word narration\n"
+        f"☐ Image prompts are detailed and varied\n"
+        f"☐ Layout distribution approximately matches 70/15/15\n"
+        f"☐ Story flows logically from hook to conclusion\n"
+        f"☐ Policy-specific information is included (not generic advice)\n"
     )
 
     try:
-        completion = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={ "type": "json_object" }
-        )
-        res_text = completion.choices[0].message.content
-        data = json.loads(res_text)
-        script_plan = data.get("script", [])
+        messages = [{"role": "user", "content": base_prompt}]
+        script_plan = []
+        max_retries = 2
         
+        for attempt in range(max_retries):
+            # Generate
+            completion = client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=8192,
+                messages=messages
+            )
+            res_text = completion.content[0].text
+            data = json.loads(res_text)
+            script_plan = data.get("script", [])
+            
+            # Validation
+            if not ENABLE_SCRIPT_VALIDATION:
+                break
+                
+            validation_result = validate_script(script_plan, context_package)
+            
+            if validation_result['approved']:
+                print("   ✅ Script Validation Passed")
+                break
+            
+            # If failed
+            print(f"   ⚠️ Script Validation Failed (Attempt {attempt+1}/{max_retries})")
+            print(f"      Issues: {validation_result.get('issues', [])}")
+            
+            if attempt < max_retries - 1:
+                # Add context for retry
+                messages.append({"role": "assistant", "content": res_text})
+                feedback = (
+                    f"CRITICAL QUALITY FEEDBACK - REVISION REQUIRED:\n"
+                    f"The script above failed validation checks. Please rewrite sections or the whole script to address these issues:\n"
+                    f"ISSUES: {json.dumps(validation_result.get('issues', []))}\n"
+                    f"SUGGESTIONS: {json.dumps(validation_result.get('suggestions', []))}\n"
+                    f"Constraint Reminder: Must be exactly {context_package['target_slides']} slides and cover all specific policy details."
+                )
+                messages.append({"role": "user", "content": feedback})
+            else:
+                print("   ⚠️ Max retries reached. Proceeding with best effort.")
+
         # Create DB Entry
+        metadata = {
+            "topics": topics_list, 
+            "style": request.style
+        }
+        if ENABLE_SCRIPT_VALIDATION and 'validation_result' in locals():
+            metadata["validation_last_result"] = validation_result
+
         response = supabase.table("courses").insert({
             "status": "generating_script", 
             "name": request.title,
-            "metadata": {"topics": request.topics, "style": request.style}
+            "metadata": metadata
         }).execute()
         course_id = response.data[0]['id']
         

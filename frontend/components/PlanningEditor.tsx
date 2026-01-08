@@ -1,75 +1,135 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { LayoutList, ArrowRight, Wand2, Type } from 'lucide-react';
+import { LayoutList, ArrowRight, Wand2, Type, Target, ListChecks, Lightbulb } from 'lucide-react';
 
-export default function PlanningEditor({ topics, duration, initialTitle, onBack, onNext, isLoading }:
-    { topics: string[], duration: number, initialTitle: string, onBack: () => void, onNext: (t: string[], title: string) => void, isLoading: boolean }) {
+interface Topic {
+    id: number;
+    title: string;
+    purpose: string;
+    key_points: string[];
+}
 
-    const [editedTopics, setTopics] = useState<string[]>(topics);
+export default function PlanningEditor({ topics, duration, initialTitle, initialLearningObjective, onBack, onNext, isLoading }:
+    { topics: Topic[], duration: number, initialTitle: string, initialLearningObjective: string, onBack: () => void, onNext: (t: Topic[], title: string) => void, isLoading: boolean }) {
+
+    const [editedTopics, setTopics] = useState<Topic[]>(topics);
     const [title, setTitle] = useState(initialTitle);
+    const [learningObjective, setLearningObjective] = useState(initialLearningObjective);
 
-    // Sync from props if they change (e.g. delayed load)
+    // Sync from props
     useEffect(() => {
         if (topics && topics.length > 0) setTopics(topics);
         if (initialTitle) setTitle(initialTitle);
-    }, [topics, initialTitle]);
+        if (initialLearningObjective) setLearningObjective(initialLearningObjective);
+    }, [topics, initialTitle, initialLearningObjective]);
 
-    const handleChange = (index: number, val: string) => {
+    const handleTopicChange = (index: number, field: keyof Topic, val: string | string[]) => {
         const newTopics = [...editedTopics];
-        newTopics[index] = val;
+        newTopics[index] = { ...newTopics[index], [field]: val };
         setTopics(newTopics);
     };
 
     return (
-        <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-8 duration-700">
+        <div className="w-full max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 pb-20">
             <div className="text-center space-y-2">
                 <h1 className="text-3xl font-bold text-white">Course Plan Review</h1>
-                <p className="text-gray-400">Our AI has extracted these key topics from your policy. Edit as needed.</p>
+                <p className="text-gray-400">Review the AI-generated learning path and objectives.</p>
             </div>
 
-            <div className="bg-gray-800/80 p-8 rounded-2xl border border-gray-700 shadow-2xl backdrop-blur-sm space-y-6">
+            <div className="bg-gray-800/80 p-8 rounded-2xl border border-gray-700 shadow-2xl backdrop-blur-sm space-y-8">
 
-                {/* Title Input */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-blue-300">
-                        <Type size={20} />
-                        <span className="font-semibold text-lg">Course Title</span>
+                {/* Course Metadata Section */}
+                <div className="space-y-6">
+                    {/* Title */}
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-blue-300">
+                            <Type size={20} />
+                            <span className="font-semibold text-lg">Course Title</span>
+                        </div>
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            className="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-3 text-2xl font-bold text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-gray-600"
+                        />
                     </div>
-                    <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        className="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-3 text-2xl font-bold text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-gray-600"
-                        placeholder="Enter course title..."
-                    />
+
+                    {/* Learning Objective */}
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-green-300">
+                            <Target size={20} />
+                            <span className="font-semibold text-lg">Learning Objective</span>
+                        </div>
+                        <textarea
+                            value={learningObjective}
+                            onChange={(e) => setLearningObjective(e.target.value)}
+                            className="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-3 text-gray-200 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all min-h-[80px]"
+                        />
+                    </div>
                 </div>
 
                 <div className="h-px bg-gray-700/50"></div>
 
-                <div className="flex items-center gap-2 mb-2 text-blue-300">
+                {/* Topics Header */}
+                <div className="flex items-center gap-2 text-purple-300">
                     <LayoutList size={20} />
-                    <span className="font-semibold text-lg">{duration} Minute Course Structure</span>
+                    <span className="font-semibold text-lg">{duration} Minute Course Structure ({editedTopics.length} Modules)</span>
                 </div>
 
-                <div className="space-y-3">
+                {/* Topics-List */}
+                <div className="space-y-6">
                     {editedTopics.map((topic, i) => (
-                        <div key={i} className="flex gap-4 items-center group">
-                            <div className="w-8 h-8 rounded-full bg-blue-900/50 flex items-center justify-center text-blue-400 font-mono text-sm border border-blue-800">
-                                {i + 1}
+                        <div key={i} className="bg-gray-900/40 border border-gray-700 rounded-xl p-6 space-y-4 hover:border-gray-600 transition-colors">
+
+                            {/* Topic Header: Number & Title */}
+                            <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 rounded-full bg-blue-900/50 flex items-center justify-center text-blue-400 font-mono text-sm border border-blue-800 shrink-0">
+                                    {i + 1}
+                                </div>
+                                <input
+                                    type="text"
+                                    value={topic.title}
+                                    onChange={(e) => handleTopicChange(i, 'title', e.target.value)}
+                                    className="flex-1 bg-transparent border-b border-transparent focus:border-blue-500 focus:bg-gray-900/50 text-xl font-bold text-white px-2 py-1 transition-all focus:outline-none"
+                                    placeholder="Topic Title"
+                                />
                             </div>
-                            <input
-                                type="text"
-                                value={topic}
-                                onChange={(e) => handleChange(i, e.target.value)}
-                                className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-3 text-gray-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
-                            />
+
+                            {/* Details Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pl-12">
+
+                                {/* Purpose */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 font-semibold">
+                                        <Lightbulb size={14} /> Purpose
+                                    </div>
+                                    <textarea
+                                        value={topic.purpose}
+                                        onChange={(e) => handleTopicChange(i, 'purpose', e.target.value)}
+                                        className="w-full bg-gray-900/30 border border-gray-700/50 rounded p-3 text-sm text-gray-300 focus:border-blue-500/50 focus:outline-none min-h-[80px]"
+                                    />
+                                </div>
+
+                                {/* Key Points */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 font-semibold">
+                                        <ListChecks size={14} /> Key Points
+                                    </div>
+                                    <textarea
+                                        value={topic.key_points.join('\n')}
+                                        onChange={(e) => handleTopicChange(i, 'key_points', e.target.value.split('\n'))}
+                                        className="w-full bg-gray-900/30 border border-gray-700/50 rounded p-3 text-sm text-gray-300 focus:border-blue-500/50 focus:outline-none min-h-[80px]"
+                                        placeholder="One point per line"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     ))}
                 </div>
             </div>
 
-            <div className="flex justify-between items-center pt-4">
-                <button onClick={onBack} disabled={isLoading} className="text-gray-500 hover:text-white transition-colors">
+            <div className="flex justify-between items-center pt-4 sticky bottom-8 bg-gray-900/90 p-4 rounded-xl border border-gray-800 backdrop-blur-md">
+                <button onClick={onBack} disabled={isLoading} className="text-gray-500 hover:text-white transition-colors px-4">
                     ← Back to Setup
                 </button>
                 <button

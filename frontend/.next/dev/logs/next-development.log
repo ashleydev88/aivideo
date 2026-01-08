@@ -1,15 +1,2 @@
-[00:00:02.108] Server  LOG     ✓ Ready in 1481ms
-[00:04:28.786] Server  LOG     ✓ Compiled in 662ms
-[00:42:20.855] Server  LOG     ✓ Compiled in 371ms
-[00:47:22.184] Server  LOG     ✓ Compiled in 70ms
-[00:47:22.439] Browser ERROR   uncaughtError: ReferenceError: Can't find variable: useEffect
-[00:47:30.705] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
-[00:47:30.709] Server  LOG     ✓ Compiled in 82ms
-[00:47:31.873] Browser ERROR   {}
-[00:56:33.085] Browser ERROR   Autoplay blocked: {}
-[01:20:47.716] Server  LOG     ✓ Compiled in 187ms
-[01:21:13.761] Server  LOG     ✓ Compiled in 283ms
-[01:25:20.897] Browser ERROR   Initial play failed {}
-[01:25:28.610] Browser ERROR   Autoplay blocked: {}
-[01:25:33.718] Browser ERROR   Initial play failed {}
-[01:25:39.552] Browser ERROR   Autoplay blocked: {}
+[00:00:01.998] Server  LOG     ✓ Ready in 1461ms
+[00:06:53.041] Server  LOG     ✓ Compiled in 171ms
