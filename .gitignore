@@ -1,0 +1,29 @@
+# General
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Backend (Python)
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+backend/.env
+backend/.venv
+backend/venv
+backend/env
+*.pyc
+
+# Frontend (Node/Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/build/
+frontend/dist/
+frontend/.npm
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Root
+.env
