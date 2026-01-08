@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 import utils.parser as parser
 import json
 import math
+import re
 
 # --- MOVIEPY IMPORTS ---
 # Ensure you have run: pip install "moviepy<2.0"
@@ -245,6 +246,7 @@ def render_slide_visual(image_path, text_content, layout="split"):
             
             title_font = ImageFont.truetype(bold_path, title_size) 
             body_font = ImageFont.truetype(reg_path, base_size)
+            bold_body_font = ImageFont.truetype(bold_path, base_size) # New: For inline bolding
             quote_font = ImageFont.truetype(reg_path, base_size) # Could be Italic if available
         else:
             raise OSError("Fonts missing")
@@ -252,6 +254,7 @@ def render_slide_visual(image_path, text_content, layout="split"):
         print("   ⚠️ Using default font (fonts failed to load).")
         title_font = ImageFont.load_default()
         body_font = ImageFont.load_default()
+        bold_body_font = ImageFont.load_default()
         quote_font = ImageFont.load_default()
 
     # 2. Process Image
@@ -334,17 +337,25 @@ def render_slide_visual(image_path, text_content, layout="split"):
 
             # Standard Bullet / Text
             else:
+                # Calculate pixel width limit
+                if layout == "split":
+                    # Text area: 0 to 960
+                    # Margin 120. Right padding 80 -> 960 - 120 - 80 = 760
+                    max_width_px = 760 
+                else: 
+                     # text_only: 1920 width
+                    max_width_px = 1920 - x_margin - 200
+
                 clean_line = line.replace("-", "").strip()
-                wrapper = textwrap.TextWrapper(width=max_width)
-                wrapped = wrapper.wrap(clean_line)
                 
                 # Bullet
                 if line.startswith("-") and reg_path:
                     draw.text((x_margin - 40, y_cursor), "•", font=body_font, fill=accent_color)
                 
-                for w_line in wrapped:
-                    draw.text((x_margin, y_cursor), w_line, font=body_font, fill=text_color)
-                    y_cursor += (body_font.size * 1.4)
+                # Draw with markdown support
+                y_cursor = draw_markdown_text(
+                    draw, x_margin, y_cursor, clean_line, max_width_px, body_font, bold_body_font, text_color
+                )
                 
                 y_cursor += 30
 
@@ -352,6 +363,57 @@ def render_slide_visual(image_path, text_content, layout="split"):
     output_path = image_path.replace(".jpg", "_rendered.jpg")
     canvas.save(output_path)
     return output_path
+
+def draw_markdown_text(draw, x_start, y_start, text, max_width_px, font_reg, font_bold, fill_color):
+    """
+    Draws text with support for **bold** markdown, handling wrapping based on pixel width.
+    Returns the next y-coordinate.
+    """
+    line_height = font_reg.size * 1.4
+    
+    # 1. Parse Tokens: list of (word_str, is_bold)
+    # Split by bold markers
+    parts = re.split(r'(\*\*.*?\*\*)', text)
+    tokens = [] 
+    
+    for part in parts:
+        is_bold = part.startswith("**") and part.endswith("**")
+        clean_part = part[2:-2] if is_bold else part
+        
+        # Split by space to get words, keeping spaces for reconstruction
+        # We start by splitting by space
+        words = clean_part.split(' ')
+        for i, w in enumerate(words):
+            if i < len(words) - 1:
+                token_text = w + " "
+            else:
+                token_text = w
+            
+            if token_text:
+                tokens.append((token_text, is_bold))
+    
+    # 2. Draw Tokens with Wrapping
+    curr_x = x_start
+    curr_y = y_start
+    
+    for word, is_bold in tokens:
+        font = font_bold if is_bold else font_reg
+        w_len = draw.textlength(word, font=font)
+        
+        # Check wrap
+        if curr_x + w_len > x_start + max_width_px:
+            # New Line
+            curr_x = x_start
+            curr_y += line_height
+            word_clean = word.lstrip() # Remove leading space on new line
+            w_len = draw.textlength(word_clean, font=font)
+            draw.text((curr_x, curr_y), word_clean, font=font, fill=fill_color)
+            curr_x += w_len
+        else:
+            draw.text((curr_x, curr_y), word, font=font, fill=fill_color)
+            curr_x += w_len
+            
+    return curr_y + line_height
 
 
 def validate_script(script_output, context_package):
@@ -413,28 +475,44 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str)
     
     final_slides = []
     
-    for i, slide in enumerate(script_plan):
-        supabase.table("courses").update({"status": f"Drafting Slide {i+1} of {len(script_plan)}..."}).eq("id", course_id).execute()
-        
-        # 1. Audio
-        audio_data = generate_audio(slide["text"])
-        audio_filename = f"narration_{i}_{int(time.time())}.mp3" # Timestamp to avoid collisions
-        audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg")
-        
-        # 2. Image
-        full_prompt = f"{style_prompt}. {slide['prompt']}"
-        image_data = generate_image_imagen(full_prompt)
-        image_filename = f"visual_{i}_{int(time.time())}.jpg"
-        image_url = upload_asset(image_data, image_filename, "image/jpeg")
-        
-        final_slides.append({
-            "id": i + 1,
-            "image": image_url,
-            "audio": audio_url,
-            "visual_text": slide.get("visual_text", ""),
-            "duration": slide.get("duration", 15000),
-            "layout": slide.get("layout", "split")
-        })
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for i, slide in enumerate(script_plan):
+            supabase.table("courses").update({"status": f"Drafting Slide {i+1} of {len(script_plan)}..."}).eq("id", course_id).execute()
+            
+            # 1. Audio
+            audio_data = generate_audio(slide["text"])
+            
+            # Calculate Duration
+            duration_ms = slide.get("duration", 15000)
+            if audio_data:
+                try:
+                    temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
+                    with open(temp_audio_path, "wb") as f:
+                        f.write(audio_data)
+                    
+                    clip = AudioFileClip(temp_audio_path)
+                    duration_ms = int((clip.duration * 1000) + 1500) # Audio + 1.5s Buffer
+                    clip.close()
+                except Exception as e:
+                    print(f"   ⚠️ Duration Calc Error: {e}")
+
+            audio_filename = f"narration_{i}_{int(time.time())}.mp3" # Timestamp to avoid collisions
+            audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg")
+            
+            # 2. Image
+            full_prompt = f"{style_prompt}. {slide['prompt']}"
+            image_data = generate_image_imagen(full_prompt)
+            image_filename = f"visual_{i}_{int(time.time())}.jpg"
+            image_url = upload_asset(image_data, image_filename, "image/jpeg")
+            
+            final_slides.append({
+                "id": i + 1,
+                "image": image_url,
+                "audio": audio_url,
+                "visual_text": slide.get("visual_text", ""),
+                "duration": duration_ms,
+                "layout": slide.get("layout", "split")
+            })
 
     supabase.table("courses").update({"slide_data": final_slides, "status": "completed"}).eq("id", course_id).execute()
     print("✅ Draft Course Completed")
