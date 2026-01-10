@@ -1,2 +1,58 @@
-[00:00:01.764] Server  LOG     ✓ Ready in 1390ms
-[00:00:06.939] Browser ERROR   {}
+[00:00:02.867] Server  WARN    ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[00:00:03.204] Server  LOG     ✓ Ready in 2.6s
+[00:02:43.648] Server  LOG     ✓ Compiled in 1169ms
+[00:03:07.875] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:03:08.415] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <body
++                           className="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__var..."
+-                           className="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__var..."
+                          >
+                  ...
+
+[00:07:35.389] Server  LOG     ✓ Compiled in 0ms
+[00:09:35.496] Server  LOG     ✓ Compiled in 176ms
+[00:21:11.225] Server  LOG     ✓ Compiled in 1470ms
+[00:21:27.750] Server  LOG     ✓ Compiled in 261ms
+[00:21:29.025] Browser ERROR   uncaughtError: Error: br is a void element tag and must neither have `children` nor use `dangerouslySetInnerHTML`.
+[00:21:30.092] Browser ERROR   uncaughtError: Error: br is a void element tag and must neither have `children` nor use `dangerouslySetInnerHTML`.
+[00:21:33.884] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:21:33.897] Server  LOG     ✓ Compiled in 545ms
+[00:21:33.902] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:21:36.761] Server  ERROR   ⨯ Error: br is a self-closing tag and must neither have `children` nor use `dangerouslySetInnerHTML`.
+[00:21:36.848] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:21:36.849] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:21:38.256] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:21:38.485] Browser ERROR   uncaughtError: Error: br is a void element tag and must neither have `children` nor use `dangerouslySetInnerHTML`.
+[00:21:41.305] Server  ERROR   ⨯ Error: br is a self-closing tag and must neither have `children` nor use `dangerouslySetInnerHTML`.
+[00:21:48.306] Browser ERROR   uncaughtError: Error: br is a void element tag and must neither have `children` nor use `dangerouslySetInnerHTML`.
+[00:21:49.580] Server  LOG     ✓ Compiled in 291ms
+[00:21:51.274] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:21:59.638] Server  LOG     ✓ Compiled in 344ms
