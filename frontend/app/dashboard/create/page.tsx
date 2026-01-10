@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { CheckCircle2, LayoutDashboard, LogOut, ChevronRight, PlayCircle } from 'lucide-react';
+import { CheckCircle2, PlayCircle } from 'lucide-react';
 import SetupForm from '@/components/SetupForm';
 import PlanningEditor from '@/components/PlanningEditor';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // --- INTERFACES ---
 interface Slide {
@@ -25,6 +25,7 @@ export interface Topic {
 }
 
 const RichTextRenderer = ({ text }: { text: string }) => {
+    // ... (keep RichTextRenderer as is)
     if (!text) return null;
     const lines = text.split('\n');
     // Filter out empty lines to get accurate count for animation delays
@@ -91,17 +92,6 @@ const RichTextRenderer = ({ text }: { text: string }) => {
         </div>
     );
 };
-
-interface CourseHistoryItem {
-    id: string;
-    created_at: string;
-    status: string;
-    name?: string;
-    metadata?: {
-        topics: Topic[];
-        style: string;
-    }
-}
 
 // Ken Burns effect variations
 const KEN_BURNS_EFFECTS = [
@@ -282,6 +272,8 @@ export default function DashboardCreatePage() {
     const router = useRouter();
     const supabase = createClient();
     const [session, setSession] = useState<any>(null);
+    const searchParams = useSearchParams();
+    const initialId = searchParams.get('id');
 
     // Data State
     const [policyText, setPolicyText] = useState("");
@@ -298,42 +290,32 @@ export default function DashboardCreatePage() {
     const [statusText, setStatusText] = useState("Initializing...");
     const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
     const [isExporting, setIsExporting] = useState(false);
-    const [history, setHistory] = useState<CourseHistoryItem[]>([]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
-            if (session) {
-                fetchHistory(session.access_token);
-            }
         });
 
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
-            if (session) {
-                fetchHistory(session.access_token);
-            }
         });
 
         return () => subscription.unsubscribe();
     }, []);
 
-    const fetchHistory = async (token: string) => {
-        try {
-            const res = await fetch("http://127.0.0.1:8000/history", {
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            });
-            const data = await res.json();
-            if (Array.isArray(data)) setHistory(data);
-        } catch (e) {
-            console.error(e);
-            setHistory([]);
+    // NEW: Load from ID if Present
+    useEffect(() => {
+        if (initialId && session) {
+            // Wait for session to be ready to avoid issues, but loadFromHistory relies on component state mostly
+            // However, we should probably check if history is loaded? 
+            // Better: Just call loadFromHistory.
+            loadFromHistory(initialId);
         }
-    };
+    }, [initialId, session]);
+
+
 
     // --- STEP 1: UPLOAD & PARSE ---
     const handleStartPlanning = async (file: File, d: number, s: string) => {
@@ -414,7 +396,17 @@ export default function DashboardCreatePage() {
     const pollStatus = (id: string) => {
         const interval = setInterval(async () => {
             try {
-                const res = await fetch(`http://127.0.0.1:8000/status/${id}`);
+                // IMPORTANT: Add auth header here if needed, or ensuring public status endpoint?
+                // The backend route /status/{course_id} requires Authorization header in latest backend?
+                // Let's check backend/main.py. Yes: async def get_status(course_id: str, authorization: str = Header(None)):
+                // We need to pass the token.
+
+                const headers: any = {};
+                if (session?.access_token) {
+                    headers['Authorization'] = `Bearer ${session.access_token}`;
+                }
+
+                const res = await fetch(`http://127.0.0.1:8000/status/${id}`, { headers });
                 const data = await res.json();
 
                 if (data.video_url) {
@@ -430,7 +422,7 @@ export default function DashboardCreatePage() {
                     setSlides(data.data);
                     setIsLoading(false);
                     setView("playing");
-                    if (session) fetchHistory(session.access_token);
+
                     clearInterval(interval);
                 }
             } catch (e) { console.error(e); }
@@ -467,147 +459,87 @@ export default function DashboardCreatePage() {
         }
     };
 
-    const handleSignOut = async () => {
-        await supabase.auth.signOut();
-        router.refresh();
-    };
+
+
+
 
     if (!session) {
-        // Handled by middleware mostly, but good for flicker protection
         return <div className="min-h-screen bg-white flex items-center justify-center text-teal-700">Loading Auth...</div>;
     }
 
     return (
-        <main className="flex min-h-screen bg-white font-sans text-slate-900">
+        <div className="relative w-full h-full min-h-[calc(100vh-4rem)]">
+            {/* Background Gradients */}
+            <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80 pointer-events-none" aria-hidden="true">
+                <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-teal-200 to-slate-200 opacity-60 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"></div>
+            </div>
 
-            {/* SIDEBAR */}
-            <div className="w-72 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 z-20">
-                <div className="p-6">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-8 h-8 rounded bg-teal-700 flex items-center justify-center text-white font-bold">C</div>
-                        <span className="text-xl font-bold text-slate-900 tracking-tight">ComplianceVideo</span>
-                    </div>
-
+            {/* Country Toggle - Positioned in content area top right */}
+            <div className="absolute top-0 right-0 z-20">
+                <div className="flex items-center bg-white/80 backdrop-blur-md rounded-full p-1 border border-slate-200 shadow-sm">
                     <button
-                        onClick={() => setView("setup")}
-                        className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-3 px-4 rounded-lg transition shadow-sm hover:shadow flex items-center justify-center gap-2 mb-8 group"
+                        onClick={() => setCountry("USA")}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full transition-all text-sm font-bold ${country === "USA" ? "bg-teal-50 text-teal-700 shadow-sm ring-1 ring-teal-200" : "text-slate-400 hover:text-slate-600"
+                            }`}
                     >
-                        <span>+</span> Create New
+                        <span className="text-base">🇺🇸</span> USA
                     </button>
-
-                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-2">Library</div>
-
-                    <div className="space-y-1">
-                        {history.map((item) => (
-                            <button
-                                key={item.id}
-                                onClick={() => loadFromHistory(item.id)}
-                                className={`w-full text-left p-3 rounded-lg text-sm transition-all flex items-center justify-between group
-                 ${courseId === item.id
-                                        ? "bg-white text-teal-700 shadow-sm ring-1 ring-slate-200"
-                                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`}
-                            >
-                                <span className="truncate font-medium">
-                                    {item.name || (item.metadata?.topics && item.metadata.topics.length > 0 ? item.metadata.topics[0].title : "Untitled Course")}
-                                </span>
-                                {courseId === item.id && <ChevronRight size={14} />}
-                            </button>
-                        ))}
-                        {history.length === 0 && (
-                            <div className="text-sm text-slate-400 italic px-3 py-2">No courses yet.</div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="mt-auto p-4 border-t border-slate-200">
-                    <button onClick={handleSignOut} className="w-full text-slate-500 hover:text-red-600 text-sm flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors">
-                        <LogOut size={16} />
-                        Sign Out
+                    <button
+                        onClick={() => setCountry("UK")}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full transition-all text-sm font-bold ${country === "UK" ? "bg-teal-50 text-teal-700 shadow-sm ring-1 ring-teal-200" : "text-slate-400 hover:text-slate-600"
+                            }`}
+                    >
+                        <span className="text-base">🇬🇧</span> UK
                     </button>
                 </div>
             </div>
 
-            {/* CONTENT AREA */}
-            <div className="flex-1 flex flex-col relative overflow-hidden">
 
-                {/* Background Gradients (Matches Home Page) */}
-                <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80 pointer-events-none" aria-hidden="true">
-                    <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-teal-200 to-slate-200 opacity-60 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"></div>
-                </div>
-                <div className="absolute inset-x-0 top-[calc(100%-13rem)] -z-10 transform-gpu overflow-hidden blur-3xl sm:top-[calc(100%-30rem)] pointer-events-none" aria-hidden="true">
-                    <div className="relative left-[calc(50%+3rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 bg-gradient-to-tr from-teal-200 to-slate-200 opacity-60 sm:left-[calc(50%+36rem)] sm:w-[72.1875rem]"></div>
-                </div>
+            <div className="flex flex-col items-center justify-center w-full max-w-6xl mx-auto pt-10 pb-20">
+                {/* View Switching Logic */}
+                {view === "setup" && (
+                    <SetupForm onStart={handleStartPlanning} isLoading={isLoading} />
+                )}
 
-                {/* HEADER / TOP BAR */}
-                <div className="absolute top-0 right-0 p-8 z-30 flex justify-end">
-                    {/* COUNTRY TOGGLE */}
-                    <div className="flex items-center bg-white/80 backdrop-blur-md rounded-full p-1 border border-slate-200 shadow-sm">
-                        <button
-                            onClick={() => setCountry("USA")}
-                            className={`flex items-center gap-2 px-4 py-1.5 rounded-full transition-all text-sm font-bold ${country === "USA" ? "bg-teal-50 text-teal-700 shadow-sm ring-1 ring-teal-200" : "text-slate-400 hover:text-slate-600"
-                                }`}
-                        >
-                            <span className="text-base">🇺🇸</span> USA
-                        </button>
-                        <button
-                            onClick={() => setCountry("UK")}
-                            className={`flex items-center gap-2 px-4 py-1.5 rounded-full transition-all text-sm font-bold ${country === "UK" ? "bg-teal-50 text-teal-700 shadow-sm ring-1 ring-teal-200" : "text-slate-400 hover:text-slate-600"
-                                }`}
-                        >
-                            <span className="text-base">🇬🇧</span> UK
-                        </button>
-                    </div>
-                </div>
+                {view === "planning" && (
+                    <PlanningEditor
+                        topics={topics}
+                        duration={duration}
+                        initialTitle={title}
+                        initialLearningObjective={learningObjective}
+                        onBack={() => setView("setup")}
+                        onNext={(t, newTitle) => { setTitle(newTitle); handleStartDesigning(t); }}
+                        isLoading={isLoading}
+                    />
+                )}
 
-
-                <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto w-full">
-                    <div className="w-full max-w-6xl flex justify-center pb-20 pt-10">
-
-                        {view === "setup" && (
-                            <SetupForm onStart={handleStartPlanning} isLoading={isLoading} />
-                        )}
-
-                        {view === "planning" && (
-                            <PlanningEditor
-                                topics={topics}
-                                duration={duration}
-                                initialTitle={title}
-                                initialLearningObjective={learningObjective}
-                                onBack={() => setView("setup")}
-                                onNext={(t, newTitle) => { setTitle(newTitle); handleStartDesigning(t); }}
-                                isLoading={isLoading}
-                            />
-                        )}
-
-                        {view === "designing" && (
-                            <div className="flex flex-col items-center gap-8 animate-in fade-in zoom-in duration-700 py-20">
-                                <div className="relative w-32 h-32">
-                                    <div className="absolute inset-0 border-4 border-teal-200 rounded-full animate-ping"></div>
-                                    <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-16 h-16 bg-teal-50 rounded-full blur-xl"></div>
-                                    </div>
-                                </div>
-                                <div className="text-center space-y-3">
-                                    <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Designing Your Course</h2>
-                                    <p className="text-slate-500 animate-pulse font-medium">{statusText}</p>
-                                </div>
+                {view === "designing" && (
+                    <div className="flex flex-col items-center gap-8 animate-in fade-in zoom-in duration-700 py-20">
+                        <div className="relative w-32 h-32">
+                            <div className="absolute inset-0 border-4 border-teal-200 rounded-full animate-ping"></div>
+                            <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-16 h-16 bg-teal-50 rounded-full blur-xl"></div>
                             </div>
-                        )}
-
-                        {view === "playing" && (
-                            <SeamlessPlayer
-                                slides={slides}
-                                onReset={() => setView("setup")}
-                                videoUrl={videoUrl}
-                                onExport={handleExport}
-                                isExporting={isExporting}
-                            />
-                        )}
-
+                        </div>
+                        <div className="text-center space-y-3">
+                            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Designing Your Course</h2>
+                            <p className="text-slate-500 animate-pulse font-medium">{statusText}</p>
+                        </div>
                     </div>
-                </div>
+                )}
+
+                {view === "playing" && (
+                    <SeamlessPlayer
+                        slides={slides}
+                        onReset={() => setView("setup")}
+                        videoUrl={videoUrl}
+                        onExport={handleExport}
+                        isExporting={isExporting}
+                    />
+                )}
             </div>
-        </main>
+        </div>
     );
 }
+
