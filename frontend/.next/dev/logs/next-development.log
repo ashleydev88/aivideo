@@ -1,4 +1,5 @@
-[00:00:01.998] Server  LOG     ✓ Ready in 1461ms
-[00:06:53.041] Server  LOG     ✓ Compiled in 171ms
-[02:55:40.544] Server  LOG     ✓ Compiled in 251ms
-[03:23:26.087] Server  LOG     ✓ Compiled in 164ms
+[00:00:02.323] Server  LOG     ✓ Ready in 1627ms
+[00:31:11.321] Browser ERROR   Initial play failed {}
+[00:31:23.647] Browser ERROR   Initial play failed {}
+[00:31:26.909] Browser ERROR   Autoplay blocked: {}
+[00:31:29.053] Browser ERROR   Initial play failed {}

@@ -312,13 +312,23 @@ def render_slide_visual(image_path, text_content, layout="split"):
                 wrapper = textwrap.TextWrapper(width=int(max_width//1.5)) 
                 header_lines = wrapper.wrap(clean_line)
                 
+                # Measure header width to determine underline length
+                max_header_width = 0
+                for h_line in header_lines:
+                    # Use textbbox for reliable measurement (returns left, top, right, bottom)
+                    bbox = draw.textbbox((0, 0), h_line, font=title_font)
+                    line_width = bbox[2] - bbox[0]  # right - left
+                    max_header_width = max(max_header_width, line_width)
+                
+                # Draw header text
                 for h_line in header_lines:
                     draw.text((x_margin, y_cursor), h_line, font=title_font, fill=text_color)
                     y_cursor += (title_font.size * 1.2)
                 
-                # Underline
+                # Underline - match header width with 20px padding
                 y_cursor += 20
-                draw.rectangle([x_margin, y_cursor, x_margin + 120, y_cursor + 8], fill=accent_color)
+                underline_width = max_header_width + 20
+                draw.rectangle([x_margin, y_cursor, x_margin + underline_width, y_cursor + 8], fill=accent_color)
                 y_cursor += 60
                 
             # Quote (>)
@@ -647,66 +657,73 @@ async def generate_plan(request: PlanRequest):
     strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
 
     prompt = (
-        f"You are an expert instructional designer creating a learning path for a {request.duration}-minute video course.\n\n"
-        f"CONTEXT:\n"
-        f"Policy Document: {request.policy_text}\n"
-        f"Video Duration: {request.duration} minutes\n\n"
-        f"YOUR TASK:\n"
-        f"1. Generate a compelling course title that captures the core value proposition\n"
-        f"2. Identify ONE primary learning objective (what should learners be able to do after?)\n"
-        f"3. Create topics following the DURATION STRATEGY FRAMEWORK below\n\n"
-        f"DURATION STRATEGY FRAMEWORK:\n\n"
-        f"{request.duration} MINUTE VIDEO STRATEGY:\n"
-        f"{json.dumps(DURATION_STRATEGIES, indent=2)}[{request.duration}]\n\n"
-        f"TOPIC SELECTION INSTRUCTIONS:\n"
-        f"Using the strategy for {request.duration}-minute videos:\n"
-        f"- Create {strategy['topic_count']} topics\n"
-        f"- Target {strategy['slide_range']} total slides\n"
-        f"- Achieve {strategy['depth_level']} depth\n"
-        f"- Focus on: {strategy['focus']}\n"
-        f"- Allocate approximately {strategy['slides_per_topic']} per topic\n"
-        f"- Prioritize: {strategy['content_priorities']}\n\n"
-        f"Each topic should:\n"
-        f"- Have clear learning value appropriate to the duration tier\n"
-        f"- Build logically on previous topics\n"
-        f"- Contain specific key points from the policy (not generic advice)\n"
-        f"- Indicate complexity level (simple/moderate/complex) to help allocate slides later\n\n"
-        f"COMPLEXITY GUIDELINES:\n"
-        f"- simple: Definitions, single concepts, straightforward rules (1-3 slides)\n"
-        f"- moderate: Procedures with steps, concepts with examples (3-5 slides)\n"
-        f"- complex: Multi-step processes, scenarios, decision trees, edge cases (5-8 slides)\n\n"
-        f"OUTPUT FORMAT (JSON):\n"
-        f"{{\n"
-        f"  \"title\": \"Course title appropriate for {request.duration}-minute depth\",\n"
-        f"  \"learning_objective\": \"After this course, you will be able to...\",\n"
-        f"  \"duration\": {request.duration},\n"
-        f"  \"strategy_tier\": \"{strategy['purpose']}\",\n"
-        f"  \"topics\": [\n"
-        f"    {{\n"
-        f"      \"id\": 1,\n"
-        f"      \"title\": \"Topic name\",\n"
-        f"      \"purpose\": \"Why this matters in the learning journey\",\n"
-        f"      \"complexity\": \"simple|moderate|complex\",\n"
-        f"      \"key_points\": [\n"
-        f"        \"Specific point from policy 1\",\n"
-        f"        \"Specific point from policy 2\",\n"
-        f"        \"Specific point from policy 3\"\n"
-        f"      ],\n"
-        f"      \"estimated_slides\": 3,\n"
-        f"      \"depth_notes\": \"What level of detail this topic should cover for this duration\"\n"
-        f"    }}\n"
-        f"  ],\n"
-        f"  \"total_estimated_slides\": 0\n"
-        f"}}\n\n"
-        f"CONSTRAINTS:\n"
-        f"- First topic MUST be an engaging hook/introduction that sets context\n"
-        f"- Last topic MUST be actionable summary/next steps\n"
-        f"- Total estimated slides should be within {strategy['slide_range']}\n"
-        f"- Topics must be specific to the policy content, not generic compliance topics\n"
-        f"- Shorter durations should focus on critical/high-impact information\n"
-        f"- Longer durations should cover more topics AND go deeper on each topic\n"
-        f"- The 'complexity' field is CRITICAL for pacing. Be realistic.\n"
-    )
+    f"You are an expert instructional designer specializing in engaging, scenario-based video learning courses.\n\n"
+    f"CONTEXT:\n"
+    f"Policy Document: {request.policy_text}\n"
+    f"Video Duration: {request.duration} minutes\n"
+    f"Format: Video Script Outline\n\n"
+    f"YOUR TASK:\n"
+    f"1. Generate a compelling course title that captures the core value proposition (avoiding dry legal names)\n"
+    f"2. Identify ONE primary learning objective (focus on behavioral change, e.g., 'recognize and report' vs 'understand the law')\n"
+    f"3. Create topics following the DURATION STRATEGY FRAMEWORK below\n\n"
+    f"DURATION STRATEGY FRAMEWORK:\n\n"
+    f"{request.duration} MINUTE VIDEO STRATEGY:\n"
+    f"{json.dumps(DURATION_STRATEGIES, indent=2)}[{request.duration}]\n\n"
+    f"TOPIC SELECTION INSTRUCTIONS:\n"
+    f"Using the strategy for {request.duration}-minute videos:\n"
+    f"- Create {strategy['topic_count']} topics\n"
+    f"- Target {strategy['slide_range']} total slides\n"
+    f"- Achieve {strategy['depth_level']} depth\n"
+    f"- Focus on: {strategy['focus']}\n"
+    f"- Allocate approximately {strategy['slides_per_topic']} per topic\n"
+    f"- Prioritize: {strategy['content_priorities']}\n\n"
+    f"CRITICAL INSTRUCTION FOR VIDEO SUITABILITY:\n"
+    f"- Do not just list rules. Structure topics around *applying* the rules.\n"
+    f"- Transform 'lists of prohibited behaviors' into 'Scenario Recognition' topics.\n"
+    f"- Ensure the tone favors Culture & Safety over Bureaucracy & Compliance.\n"
+    f"- Prioritize 'Gray Areas' (e.g., Impact vs Intent) over black-and-white definitions.\n\n"
+    f"Each topic should:\n"
+    f"- Have clear learning value appropriate to the duration tier\n"
+    f"- Build logically on previous topics\n"
+    f"- Contain specific key points from the policy reframed as actionable advice or narrative hooks\n"
+    f"- Indicate complexity level (simple/moderate/complex) to help allocate slides later\n\n"
+    f"COMPLEXITY GUIDELINES:\n"
+    f"- simple: Definitions, single concepts, straightforward rules (1-3 slides)\n"
+    f"- moderate: Concepts illustrated with examples, standard procedures (3-5 slides)\n"
+    f"- complex: Multi-step reporting processes, nuanced scenarios (like 'Impact vs Intent'), gray-area decision making (5-8 slides)\n\n"
+    f"OUTPUT FORMAT (JSON):\n"
+    f"{{\n"
+    f"  \"title\": \"Course title appropriate for {request.duration}-minute depth\",\n"
+    f"  \"learning_objective\": \"After this course, you will be able to...\",\n"
+    f"  \"duration\": {request.duration},\n"
+    f"  \"strategy_tier\": \"{strategy['purpose']}\",\n"
+    f"  \"topics\": [\n"
+    f"    {{\n"
+    f"      \"id\": 1,\n"
+    f"      \"title\": \"Topic name\",\n"
+    f"      \"purpose\": \"Why this matters in the learning journey\",\n"
+    f"      \"complexity\": \"simple|moderate|complex\",\n"
+    f"      \"key_points\": [\n"
+    f"        \"Scenario hook or Key Concept 1\",\n"
+    f"        \"Actionable takeaway 2\",\n"
+    f"        \"Specific policy reference 3\"\n"
+    f"      ],\n"
+    f"      \"estimated_slides\": 3,\n"
+    f"      \"depth_notes\": \"What level of detail this topic should cover for this duration\"\n"
+    f"    }}\n"
+    f"  ],\n"
+    f"  \"total_estimated_slides\": 0\n"
+    f"}}\n\n"
+    f"CONSTRAINTS:\n"
+    f"- RELIABILITY CHECK: Detect the jurisdiction from the text (e.g., UK Equality Act vs US Title VII) and ensure all topics align with that specific legal framework.\n"
+    f"- First topic MUST be an engaging hook/introduction that sets context\n"
+    f"- Last topic MUST be actionable summary/next steps\n"
+    f"- Total estimated slides should be within {strategy['slide_range']}\n"
+    f"- Topics must be specific to the policy content, not generic compliance topics\n"
+    f"- Shorter durations should focus on critical/high-impact information\n"
+    f"- Longer durations should cover more topics AND go deeper on each topic\n"
+    f"- The 'complexity' field is CRITICAL for pacing. Be realistic.\n"
+)
     
     try:
         completion = client.messages.create(
