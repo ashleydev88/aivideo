@@ -6,7 +6,7 @@ import traceback
 import tempfile
 import textwrap
 from PIL import Image, ImageDraw, ImageFont
-from fastapi import FastAPI, BackgroundTasks, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, BackgroundTasks, File, UploadFile, Form, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client
@@ -29,6 +29,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ELEVEN_LABS_API_KEY = os.getenv("ELEVEN_LABS_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 # --- CONFIGURATION ---
@@ -37,15 +38,70 @@ VOICE_ID = "aHCytOTnUOgfGPn5n89j"
 # --- CONFIGURATION FLAGS ---
 ENABLE_SCRIPT_VALIDATION = True  # Set to False to skip validation 
 
-# --- STYLE ---
-STYLE_PROMPT = (
+# --- STYLE PROMPTS ---
+
+MINIMALIST_PROMPT = (
+    "A clean, modern flat vector art style inspired by high-end tech SaaS interfaces. "
+    "The aesthetic relies on geometric abstraction, ample negative space, and razor-sharp precision to convey clarity. "
+    "The palette is strictly monochromatic or duotone (e.g., shades of teal and slate) with high-contrast elements for readability. "
+    "Backgrounds are solid, muted colours or subtle geometric patterns that do not distract. "
+    "The overall look is functional, efficient, and corporate-modern, similar to 'Corporate Memphis' but more restrained and less abstract. "
+    "Scenes should focus on metaphorical representations of concepts—using icons, charts, and simplified shapes—rather than detailed character studies."
+)
+
+CARTOON_PROMPT = (
+    "A friendly, engaging 2D vector style reminiscent of premium corporate explainer videos (e.g., Kurzgesagt or Headspace). "
+    "The style features smooth, uniform line weights and rounded edges, avoiding sharp corners to maintain a welcoming tone. "
+    "The palette consists of vibrant but flat solid colours without gradients, utilizing a cheerful yet professional range of blues, greens, and soft pastels. "
+    "Backgrounds are simple 2D settings—offices, lobbies, digital spaces—that provide context without clutter. "
+    "The overall look is accessible and narrative-driven, designed to make dry topics feel relatable. "
+    "Scenes can feature stylized characters with simplified facial features to represent diverse employees, acting out scenarios clearly."
+)
+
+PHOTO_REALISTIC_PROMPT = (
+    "A high-resolution, cinematic stock photography aesthetic with a focus on authenticity and modern office realism. "
+    "The style utilizes soft, natural lighting (simulated window light) and shallow depth of field (bokeh) to isolate the subject from the background. "
+    "The palette is true-to-life but slightly colour-graded for a cohesive 'editorial' look—cool, crisp tones for corporate settings or warmer tones for human interactions. "
+    "Backgrounds should be blurred modern workspaces, glass walls, or generic corporate environments. "
+    "The overall look is trustworthy, serious, and high-production value. "
+    "Scenes should depict diverse professionals in candid, 'in-action' moments rather than stiff poses, or close-ups of relevant objects (laptops, safety gear, documents) on desks."
+)
+
+HAND_DRAWN_PROMPT = (
     "A sophisticated corporate illustration in a semi-realistic, hand-drawn aesthetic. "
     "The style features distinct, expressive charcoal or ink outlines combined with soft, textured watercolor-style coloring. "
     "The palette is restrained and professional: primarily navy blues, cool greys, and crisp whites, with selective warm accents of mustard yellow and beige. "
     "Backgrounds are often simplified, airy, or fade into a white vignette. "
     "The overall look is polished yet human, evocative of high-end editorial illustrations for business technology. "
-    "Scenes can depict diverse professionals, office environments, or metaphorical objects (diagrams, devices, tools) as appropriate."
+    "Scenes should prioritize relevant objects, tools, and conceptual diagrams over human subjects where possible."
 )
+
+ABSTRACT_3D_PROMPT = (
+    "A futuristic, high-tech 3D abstract style featuring glassmorphism and soft glowing elements. "
+    "The aesthetic focuses on floating shapes, data streams, and network nodes rendered with high-quality ray-tracing effects. "
+    "The palette uses deep blues, purples, and cyans with neon accents against dark, sleek backgrounds. "
+    "Materials include frosted glass, brushed metal, and emissive light sources. "
+    "The overall look is innovative, data-driven, and cutting-edge. "
+    "Scenes are entirely metaphorical, representing data flow, security shields, and digital infrastructure without human characters."
+)
+
+TECH_ISOMETRIC_PROMPT = (
+    "A clean, precise isometric 3D illustration style, popular in modern tech documentation. "
+    "The style uses a fixed orthographic camera angle to show systems, architecture, and workflows clearly. "
+    "The palette is bright and clean, using white, soft greys, and a primary brand color (like teal or blue) for emphasis. "
+    "Backgrounds are solid or faint grids. "
+    "The overall look is engineered, structured, and informative. "
+    "Scenes typically show server racks, office floor plans, devices, and connected diagrams in a miniature world format."
+)
+
+STYLE_MAPPING = {
+    "Minimalist Vector": MINIMALIST_PROMPT,
+    "Cartoon": CARTOON_PROMPT,
+    "Photo Realistic": PHOTO_REALISTIC_PROMPT,
+    "Hand Drawn": HAND_DRAWN_PROMPT,
+    "3D Abstract": ABSTRACT_3D_PROMPT,
+    "Tech Isometric": TECH_ISOMETRIC_PROMPT,
+}
 
 # --- DURATION STRATEGIES ---
 DURATION_STRATEGIES = {
@@ -104,6 +160,29 @@ DURATION_STRATEGIES = {
 app = FastAPI()
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Service role client for admin operations (bypasses RLS)
+supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if SUPABASE_SERVICE_ROLE_KEY else supabase
+
+def get_user_id_from_token(authorization: str = None) -> str:
+    """
+    Extract user_id from Supabase JWT token.
+    Returns the user's UUID or raises HTTPException if invalid.
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    # Extract token from "Bearer <token>" format
+    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+    
+    try:
+        # Use Supabase to verify the token and get user
+        user_response = supabase.auth.get_user(token)
+        if user_response and user_response.user:
+            return str(user_response.user.id)
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except Exception as e:
+        print(f"❌ Auth Error: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 app.add_middleware(
     CORSMiddleware,
@@ -119,6 +198,7 @@ class CourseRequest(BaseModel):
 class PlanRequest(BaseModel):
     policy_text: str
     duration: int # Minutes
+    country: str = "USA" # Default to USA
 
 class Topic(BaseModel):
     id: int
@@ -136,6 +216,8 @@ class ScriptRequest(BaseModel):
     title: str = "Untitled Course"
     policy_text: str # Added for context
     learning_objective: str # Added for context
+    country: str = "USA" # Default to USA
+    user_id: str  # Required: User's UUID for storage paths
 
 # --- HELPERS ---
 def extract_json_from_response(text_content):
@@ -163,13 +245,16 @@ def extract_json_from_response(text_content):
         print(f"❌ JSON Parsing Failed. Raw content sample: {text_content[:200]}...")
         raise
 
-def upload_asset(file_content, filename, content_type):
+def upload_asset(file_content, filename, content_type, user_id: str):
+    """Upload asset to Supabase storage with user_id folder prefix for RLS."""
     if not file_content: return None 
     bucket = "course-assets"
-    path = f"{uuid.uuid4()}/{filename}"
+    # Use user_id as folder prefix for RLS policy compatibility
+    path = f"{user_id}/{filename}"
     try:
-        supabase.storage.from_(bucket).upload(path=path, file=file_content, file_options={"content-type": content_type})
-        return supabase.storage.from_(bucket).get_public_url(path)
+        # Use admin client to bypass RLS for backend uploads
+        supabase_admin.storage.from_(bucket).upload(path=path, file=file_content, file_options={"content-type": content_type})
+        return supabase_admin.storage.from_(bucket).get_public_url(path)
     except Exception as e:
         print(f"❌ Supabase Upload Error: {e}")
         return None
@@ -480,8 +565,8 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
 
 # --- WORKER 1: DRAFT COURSE GENERATION ---
 # --- WORKER 1: DRAFT COURSE GENERATION ---
-def generate_course_assets(course_id: str, script_plan: list, style_prompt: str):
-    print(f"🚀 Starting Course Gen: {course_id}")
+def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str):
+    print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
     
     final_slides = []
     
@@ -507,13 +592,13 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str)
                     print(f"   ⚠️ Duration Calc Error: {e}")
 
             audio_filename = f"narration_{i}_{int(time.time())}.mp3" # Timestamp to avoid collisions
-            audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg")
+            audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg", user_id)
             
             # 2. Image
             full_prompt = f"{style_prompt}. {slide['prompt']}"
             image_data = generate_image_imagen(full_prompt)
             image_filename = f"visual_{i}_{int(time.time())}.jpg"
-            image_url = upload_asset(image_data, image_filename, "image/jpeg")
+            image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
             
             final_slides.append({
                 "id": i + 1,
@@ -529,8 +614,8 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str)
 
 
 # --- WORKER 2: VIDEO EXPORT (CLEAN SPLIT SCREEN) ---
-def compile_video_job(course_id: str):
-    print(f"🎬 Starting Compilation: {course_id}")
+def compile_video_job(course_id: str, user_id: str):
+    print(f"🎬 Starting Compilation: {course_id} for user: {user_id}")
     try:
         res = supabase.table("courses").select("slide_data").eq("id", course_id).execute()
         if not res.data: return
@@ -608,7 +693,7 @@ def compile_video_job(course_id: str):
             # 6. Upload
             print("   ☁️ Uploading to Supabase...")
             with open(output_path, 'rb') as f:
-                video_url = upload_asset(f.read(), f"full_course_{course_id}.mp4", "video/mp4")
+                video_url = upload_asset(f.read(), f"full_course_{course_id}.mp4", "video/mp4", user_id)
 
             supabase.table("courses").update({"video_url": video_url}).eq("id", course_id).execute()
             print(f"✅ Video Ready: {video_url}")
@@ -625,20 +710,44 @@ async def create_course(request: CourseRequest, background_tasks: BackgroundTask
     return {"status": "started", "course_id": course_id}
 
 @app.get("/status/{course_id}")
-async def get_status(course_id: str):
-    response = supabase.table("courses").select("*").eq("id", course_id).execute()
+async def get_status(course_id: str, authorization: str = Header(None)):
+    user_id = get_user_id_from_token(authorization)
+    response = supabase.table("courses").select("*").eq("id", course_id).eq("user_id", user_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Course not found or access denied")
     data = response.data[0]
     return {"status": data.get("status", "processing"), "data": data.get("slide_data"), "video_url": data.get("video_url")}
 
 @app.get("/history")
-async def get_history():
-    response = supabase.table("courses").select("id, created_at, status, name, metadata").eq("status", "completed").order("created_at", desc=True).limit(10).execute()
+async def get_history(authorization: str = Header(None)):
+    user_id = get_user_id_from_token(authorization)
+    response = supabase.table("courses").select("id, created_at, status, name, metadata").eq("status", "completed").eq("user_id", user_id).order("created_at", desc=True).limit(10).execute()
     return response.data
 
 @app.post("/export-video/{course_id}")
-async def export_video(course_id: str, background_tasks: BackgroundTasks):
-    background_tasks.add_task(compile_video_job, course_id)
+async def export_video(
+    course_id: str, 
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None)
+):
+    user_id = get_user_id_from_token(authorization)
+    background_tasks.add_task(compile_video_job, course_id, user_id)
     return {"status": "export_started"}
+
+@app.get("/subscription")
+async def get_subscription(authorization: str = Header(None)):
+    """
+    Get the subscription level for the current user.
+    """
+    user_id = get_user_id_from_token(authorization)
+    response = supabase.table("profiles").select("subscription_level").eq("id", user_id).single().execute()
+    
+    if not response.data:
+        # Fallback if profile doesn't exist yet (should be created by trigger, but just in case)
+        return {"subscription_level": "free"}
+        
+    return response.data
+
 
 # --- NEW ENDPOINTS (DYNAMIC FLOW) ---
 
@@ -656,12 +765,31 @@ async def generate_plan(request: PlanRequest):
     # Select strategy based on duration (default to 5 if not found)
     strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
 
+    # Determine Jurisdiction/Language Context
+    jurisdiction_prompt = ""
+    if request.country.upper() == "UK":
+        jurisdiction_prompt = (
+            "JURISDICTION & LANGUAGE GUIDE:\n"
+            "- LANGUAGE: Use British English (colour, organisations, programme, behaviour).\n"
+            "- LEGAL RELIABILITY: Reference UK laws where applicable (e.g., Equality Act 2010, GDPR, Health and Safety at Work Act 1974).\n"
+            "- TONE: Professional, slightly more formal but accessible."
+        )
+    else:
+        jurisdiction_prompt = (
+            "JURISDICTION & LANGUAGE GUIDE:\n"
+            "- LANGUAGE: Use American English (color, organizations, program, behavior).\n"
+            "- LEGAL RELIABILITY: Reference US laws where applicable (e.g., Title VII, ADA, OSHA, CCPA/GDPR where relevant).\n"
+            "- TONE: Professional, direct and action-oriented."
+        )
+
     prompt = (
     f"You are an expert instructional designer specializing in engaging, scenario-based video learning courses.\n\n"
     f"CONTEXT:\n"
     f"Policy Document: {request.policy_text}\n"
     f"Video Duration: {request.duration} minutes\n"
+    f"Target Country/Region: {request.country}\n"
     f"Format: Video Script Outline\n\n"
+    f"{jurisdiction_prompt}\n\n"
     f"YOUR TASK:\n"
     f"1. Generate a compelling course title that captures the core value proposition (avoiding dry legal names)\n"
     f"2. Identify ONE primary learning objective (focus on behavioral change, e.g., 'recognize and report' vs 'understand the law')\n"
@@ -678,6 +806,7 @@ async def generate_plan(request: PlanRequest):
     f"- Allocate approximately {strategy['slides_per_topic']} per topic\n"
     f"- Prioritize: {strategy['content_priorities']}\n\n"
     f"CRITICAL INSTRUCTION FOR VIDEO SUITABILITY:\n"
+    f"- Avoid mentioning specific software names; use more generic terms like 'all platforms' or 'video conferencing tool'.\n"
     f"- Do not just list rules. Structure topics around *applying* the rules.\n"
     f"- Transform 'lists of prohibited behaviors' into 'Scenario Recognition' topics.\n"
     f"- Ensure the tone favors Culture & Safety over Bureaucracy & Compliance.\n"
@@ -757,8 +886,13 @@ async def generate_plan(request: PlanRequest):
         return {"topics": fallback_topics, "title": "Policy Overview", "learning_objective": "Understand the basics."}
 
 @app.post("/generate-script")
-async def generate_script(request: ScriptRequest, background_tasks: BackgroundTasks):
+async def generate_script(request: ScriptRequest, background_tasks: BackgroundTasks, authorization: str = Header(None)):
     print("✍️ Generating Full Script...")
+
+    # Validate User
+    user_id = get_user_id_from_token(authorization)
+    if user_id != request.user_id:
+        raise HTTPException(status_code=403, detail="User ID mismatch")
     
     # Calculate approx slide count (3 slides per minute as per new rules)
     target_slides = request.duration * 3
@@ -775,9 +909,25 @@ async def generate_script(request: ScriptRequest, background_tasks: BackgroundTa
         "topics": topics_list,
         "duration": request.duration,
         "target_slides": target_slides,
-        "style_guide": STYLE_PROMPT,
-        "strategy_tier": strategy["purpose"]
+        "style_guide": STYLE_MAPPING.get(request.style, MINIMALIST_PROMPT),
+        "strategy_tier": strategy["purpose"],
+        "country": request.country
     }
+    
+    # Determine Jurisdiction/Language Context for Script
+    jurisdiction_prompt = ""
+    if request.country.upper() == "UK":
+        jurisdiction_prompt = (
+            "JURISDICTION & LANGUAGE RULES:\n"
+            "- STRICTLY use British English spelling and terminology (e.g., 'colour', 'lift', 'flat', 'mobile').\n"
+            "- Reference UK specific legal frameworks (Equality Act, HSE guidelines) if laws are mentioned.\n"
+        )
+    else:
+        jurisdiction_prompt = (
+            "JURISDICTION & LANGUAGE RULES:\n"
+            "- STRICTLY use American English spelling and terminology (e.g., 'color', 'elevator', 'apartment', 'cell phone').\n"
+            "- Reference US specific legal frameworks (Title VII, OSHA) if laws are mentioned.\n"
+        )
     
     # Calculate slides per topic average
     avg_slides_per_topic = math.floor(target_slides / len(topics_list)) if topics_list else 3
@@ -850,6 +1000,7 @@ Pacing Strategy:
         f"- Approved Topics: {json.dumps(context_package['topics'])}\n\n"
         f"VISUAL STYLE GUIDE: {context_package['style_guide']}\n\n"
         f"{depth_requirements}\n\n"
+        f"{jurisdiction_prompt}\n\n"
         f"YOUR TASK:\n"
         f"Create a complete video script that transforms policy content into an engaging learning experience.\n\n"
         f"CONTENT RULES:\n"
@@ -862,6 +1013,7 @@ Pacing Strategy:
         f"- Follow the NARRATION LENGTH GUIDELINES above intimately.\n"
         f"- Conversational but professional tone\n"
         f"- Use \"you\" to address learner directly\n"
+        f"- Avoid specific software names; use generic terms like 'all platforms' or 'the software'.\n"
         f"- Vary sentence structure (questions, statements, imperatives)\n"
         f"- First slide: Hook with a relatable problem or surprising fact\n"
         f"- Last slide: Actionable summary with next steps\n"
@@ -880,11 +1032,15 @@ Pacing Strategy:
         f"- Last slide should be 'text_only' or 'split' with clear takeaway\n\n"
         f"IMAGE PROMPT RULES (prompt field):\n"
         f"CRITICAL: Each prompt must be detailed and contextually specific.\n\n"
+        f"1. SUBJECT FOCUS: Prioritize relevant objects, diagrams, and conceptual visuals over human subjects. Use humans only when essential for context.\n"
+        f"2. TEXT RENDERING: ONLY include text within images if it can be rendered perfectly (e.g., a simple UI label or a clear sign). If unsure about perfect text rendering, favor wordless visual concepts.\n\n"
         f"Template: \"Professional e-learning illustration: [SUBJECT] [ACTION/CONTEXT]. [VISUAL STYLE from guide]. [SPECIFIC DETAILS: clothing, setting, objects, composition]. [MOOD/EMOTION]. High quality, well-lit, modern corporate aesthetic.\"\n\n"
         f"Examples:\n"
-        f"✅ GOOD: \"Professional e-learning illustration: Diverse team of three reviewing documents at modern conference table. Medium shot showing hands pointing at papers, laptop visible. Business casual attire, bright office with plants. Collaborative and focused mood. High quality, natural lighting, modern corporate aesthetic.\"\n\n"
+        f"✅ OBJECT FOCUS: \"Professional e-learning illustration: A modern laptop displaying a generic 'Security Notification' shield icon. Soft glow from the screen, desk accessories like a coffee mug and notebook in the background. Minimalist office setting. Alert and focused mood. High quality, natural lighting, modern corporate aesthetic.\"\n"
+        f"✅ DIAGRAM FOCUS: \"Professional e-learning illustration: A conceptual 3D isometric flowchart showing data moving securely between three generic platform nodes. Clean lines, glowing blue connection paths. Airy white background. Organized and technical mood. High quality, crisp details, modern corporate aesthetic.\"\n"
+        f"✅ HUMAN FOCUS (use sparingly): \"Professional e-learning illustration: Diverse team of three reviewing documents at modern conference table. Medium shot showing hands pointing at papers, laptop visible. Business casual attire, bright office with plants. Collaborative and focused mood. High quality, natural lighting, modern corporate aesthetic.\"\n\n"
         f"❌ BAD: \"People in meeting\"\n\n"
-        f"- Vary subjects: Don't show the same scene twice\n"
+        f"- Vary subjects: Use a mix of objects, diagrams, and environments.\n"
         f"- Match emotional tone to content (concerned for risks, optimistic for benefits)\n"
         f"- Specify diversity in every human image\n"
         f"- Include environmental context (office, outdoor, home office, etc.)\n\n"
@@ -967,21 +1123,20 @@ Pacing Strategy:
         if ENABLE_SCRIPT_VALIDATION and 'validation_result' in locals():
             metadata["validation_last_result"] = validation_result
 
-        response = supabase.table("courses").insert({
+        response = supabase_admin.table("courses").insert({
             "status": "generating_script", 
             "name": request.title,
-            "metadata": metadata
+            "metadata": metadata,
+            "user_id": request.user_id
         }).execute()
         course_id = response.data[0]['id']
         
         # Determine Style Prompt
-        style_prompt = STYLE_PROMPT # Default
-        if request.style == "Business Illustration":
-            style_prompt = STYLE_PROMPT
+        style_prompt = STYLE_MAPPING.get(request.style, MINIMALIST_PROMPT)
         # Future styles can be added here
         
         # Start Background Job
-        background_tasks.add_task(generate_course_assets, course_id, script_plan, style_prompt)
+        background_tasks.add_task(generate_course_assets, course_id, script_plan, style_prompt, request.user_id)
         
         return {"status": "started", "course_id": course_id}
         
