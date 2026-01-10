@@ -278,7 +278,7 @@ export default function DashboardCreatePage() {
     // Data State
     const [policyText, setPolicyText] = useState("");
     const [duration, setDuration] = useState(3);
-    const [style, setStyle] = useState("Business Illustration");
+    const [style, setStyle] = useState("Minimalist Vector");
     const [topics, setTopics] = useState<Topic[]>([]);
     const [title, setTitle] = useState("New Course"); // NEW: Title State
     const [learningObjective, setLearningObjective] = useState(""); // NEW: LO State

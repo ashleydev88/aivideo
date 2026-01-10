@@ -36,12 +36,19 @@ interface Project {
     video_url?: string;
 }
 
+interface Profile {
+    id: string;
+    email: string;
+    subscription_level: string;
+}
+
 export default function DashboardPage() {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
     const [user, setUser] = useState<any>(null);
+    const [profile, setProfile] = useState<Profile | null>(null);
 
     useEffect(() => {
         const getUserAndProjects = async () => {
@@ -69,6 +76,19 @@ export default function DashboardPage() {
                     console.error("Error fetching projects:", error);
                 } else {
                     setProjects(data || []);
+                }
+
+                // Fetch profile
+                const { data: profileData, error: profileError } = await supabase
+                    .from("profiles")
+                    .select("*")
+                    .eq("id", user.id)
+                    .single();
+
+                if (profileError) {
+                    console.log("Error fetching profile (might be new user lacking profile row):", profileError);
+                } else {
+                    setProfile(profileData);
                 }
             } catch (error) {
                 console.error("Error:", error);
@@ -124,7 +144,7 @@ export default function DashboardPage() {
                         <CardTitle className="text-sm font-medium text-slate-500">
                             Total Videos
                         </CardTitle>
-                        <Video className="h-4 w-4 text-teal-600" />
+
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-slate-900">
@@ -138,12 +158,12 @@ export default function DashboardPage() {
                         <CardTitle className="text-sm font-medium text-slate-500">
                             Current Plan
                         </CardTitle>
-                        <div className="h-4 w-4 rounded-full bg-teal-100 flex items-center justify-center">
-                            <span className="text-xs font-bold text-teal-700">P</span>
-                        </div>
+
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-slate-900">Pro</div>
+                        <div className="text-2xl font-bold text-slate-900 capitalize">
+                            {profile?.subscription_level || 'Free'}
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -152,7 +172,7 @@ export default function DashboardPage() {
                         <CardTitle className="text-sm font-medium text-teal-100">
                             Create New
                         </CardTitle>
-                        <Plus className="h-4 w-4 text-white" />
+
                     </CardHeader>
                     <CardContent>
                         <Button

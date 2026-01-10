@@ -4,7 +4,7 @@ import { Upload, Clock, Palette, Play } from 'lucide-react';
 
 export default function SetupForm({ onStart, isLoading }: { onStart: (file: File, duration: number, style: string) => void, isLoading: boolean }) {
     const [duration, setDuration] = useState(3);
-    const [style, setStyle] = useState("Business Illustration");
+    const [style, setStyle] = useState("Minimalist Vector");
     const [file, setFile] = useState<File | null>(null);
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -12,12 +12,12 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
     };
 
     const styles = [
-        { name: "Business Illustration", img: "https://ctkhjhfmwttpjtmtqjdh.supabase.co/storage/v1/object/public/course-assets/Business%20illustrative%20example/Friendly%20welcoming%20colleague.png" },
-        { name: "Minimalist Vector", img: "https://placehold.co/400x300/f1f5f9/0f172a?text=Minimalist" },
-        { name: "Corporate Photo", img: "https://placehold.co/400x300/f1f5f9/0f172a?text=Photo+Real" },
-        { name: "Hand Drawn", img: "https://placehold.co/400x300/f1f5f9/0f172a?text=Hand+Drawn" },
-        { name: "3D Abstract", img: "https://placehold.co/400x300/f1f5f9/0f172a?text=3D+Abstract" },
-        { name: "Tech Isometric", img: "https://placehold.co/400x300/f1f5f9/0f172a?text=Isometric" },
+        { name: "Minimalist Vector" },
+        { name: "Cartoon" },
+        { name: "Photo Realistic" },
+        { name: "Hand Drawn" },
+        { name: "3D Abstract" },
+        { name: "Tech Isometric" },
     ];
 
     return (
@@ -84,22 +84,19 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                     <label className="flex items-center gap-2 text-lg font-bold mb-4 text-slate-800">
                         <Palette size={20} className="text-teal-700" /> Visual Style
                     </label>
-                    <div className="grid grid-cols-2 gap-3 h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="grid grid-cols-2 gap-3 h-[300px] overflow-y-auto pr-2 custom-scrollbar content-start">
                         {styles.map(s => (
                             <button
                                 key={s.name}
                                 onClick={() => setStyle(s.name)}
-                                className={`relative group rounded-lg overflow-hidden border-2 transition-all text-left
-                                    ${style === s.name ? 'border-teal-500 shadow-lg ring-1 ring-teal-500' : 'border-transparent hover:border-slate-300'}`}
+                                className={`relative group p-4 rounded-lg border-2 transition-all text-left flex items-center justify-center min-h-[4rem]
+                                    ${style === s.name ? 'border-teal-500 bg-teal-50 shadow-sm ring-1 ring-teal-500' : 'border-slate-100 bg-slate-50 hover:border-slate-300'}`}
                             >
-                                <img src={s.img} alt={s.name} className="w-full h-24 object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
-                                <div className="p-2 bg-white/95 backdrop-blur-sm text-xs font-semibold text-center text-slate-800 border-t border-slate-100">
+                                <span className={`font-semibold text-sm text-center ${style === s.name ? 'text-teal-800' : 'text-slate-600'}`}>
                                     {s.name}
-                                </div>
+                                </span>
                                 {style === s.name && (
-                                    <div className="absolute top-2 right-2 w-5 h-5 bg-teal-600 rounded-full border-2 border-white flex items-center justify-center">
-                                        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                                    </div>
+                                    <div className="absolute top-2 right-2 w-2 h-2 bg-teal-500 rounded-full"></div>
                                 )}
                             </button>
                         ))}

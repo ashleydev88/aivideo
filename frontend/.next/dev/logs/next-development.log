@@ -194,3 +194,54 @@ Import traces:
 [00:46:24.940] Browser ERROR   {}
 [00:46:24.941] Browser ERROR   {}
 [00:46:24.941] Browser ERROR   Failed to fetch RSC payload for http://localhost:3000/login. Falling back to browser navigation. {}
+[01:00:47.996] Server  LOG     ✓ Compiled in 292ms
+[01:00:48.973] Browser LOG     Error fetching profile (might be new user lacking profile row): {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+[01:06:57.277] Server  LOG     ✓ Compiled in 99ms
+[01:09:08.025] Server  LOG     ✓ Compiled in 52ms
+[01:11:15.515] Browser ERROR   ./components/layout/Sidebar.tsx:26:27
+Parsing ecmascript source code failed
+  24 | }
+  25 |
+> 26 | { label: "Dashboard", href: "/dashboard", icon: <Home className="h-5 w-5" /> },
+     |                           ^
+  27 | { label: "Create New", href: "/dashboard/create", icon: <PlusCircle className="h-5 w-5" /> },
+  28 | { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
+  29 | ];
+
+Expected ';', '}' or <eof>
+
+Import traces:
+  Client Component Browser:
+    ./components/layout/Sidebar.tsx [Client Component Browser]
+    ./app/dashboard/layout.tsx [Client Component Browser]
+    ./app/dashboard/layout.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/layout/Sidebar.tsx [Client Component SSR]
+    ./app/dashboard/layout.tsx [Client Component SSR]
+    ./app/dashboard/layout.tsx [Server Component]
+[01:11:15.515] Browser ERROR   ./components/layout/Sidebar.tsx:23:27
+Parsing ecmascript source code failed
+  21 | }
+  22 |
+> 23 | { label: "Dashboard", href: "/dashboard", icon: <Home className="h-5 w-5" /> },
+     |                           ^
+  24 | { label: "Create New", href: "/dashboard/create", icon: <PlusCircle className="h-5 w-5" /> },
+  25 | { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
+  26 | ];
+
+Expected ';', '}' or <eof>
+
+Import traces:
+  Client Component Browser:
+    ./components/layout/Sidebar.tsx [Client Component Browser]
+    ./app/dashboard/layout.tsx [Client Component Browser]
+    ./app/dashboard/layout.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/layout/Sidebar.tsx [Client Component SSR]
+    ./app/dashboard/layout.tsx [Client Component SSR]
+    ./app/dashboard/layout.tsx [Server Component]
+[01:16:39.196] Server  LOG     ✓ Compiled in 603ms
+[01:16:40.684] Server  LOG     ✓ Compiled in 100ms
+[01:17:12.782] Server  LOG     ✓ Compiled in 79ms
