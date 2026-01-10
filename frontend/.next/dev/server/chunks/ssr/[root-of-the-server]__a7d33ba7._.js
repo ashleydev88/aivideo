@@ -62,7 +62,7 @@ function SetupForm({ onStart, isLoading }) {
                 className: "text-center space-y-2",
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
-                        className: "text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent",
+                        className: "text-4xl font-bold bg-gradient-to-r from-teal-400 to-teal-200 bg-clip-text text-transparent",
                         children: "Create New Course"
                     }, void 0, false, {
                         fileName: "[project]/components/SetupForm.tsx",
@@ -70,7 +70,7 @@ function SetupForm({ onStart, isLoading }) {
                         columnNumber: 17
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "text-gray-400",
+                        className: "text-slate-400",
                         children: "Turn your policy documents into engaging video training."
                     }, void 0, false, {
                         fileName: "[project]/components/SetupForm.tsx",
@@ -90,10 +90,10 @@ function SetupForm({ onStart, isLoading }) {
                         className: "space-y-6",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                className: "bg-gray-800/50 p-6 rounded-xl border border-gray-700/50 hover:border-blue-500/30 transition-all",
+                                className: "bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 hover:border-teal-500/30 transition-all",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                        className: "flex items-center gap-2 text-lg font-semibold mb-4 text-blue-200",
+                                        className: "flex items-center gap-2 text-lg font-semibold mb-4 text-teal-200",
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$clock$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Clock$3e$__["Clock"], {
                                                 size: 20
@@ -120,7 +120,7 @@ function SetupForm({ onStart, isLoading }) {
                                         ].map((m)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                                 onClick: ()=>setDuration(m),
                                                 className: `py-2 px-4 rounded-lg font-medium transition-all
-                                        ${duration === m ? 'bg-blue-600 text-white shadow-lg scale-105' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`,
+                                        ${duration === m ? 'bg-teal-700 text-white shadow-lg scale-105' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}`,
                                                 children: [
                                                     m,
                                                     " Mins"
@@ -142,10 +142,10 @@ function SetupForm({ onStart, isLoading }) {
                                 columnNumber: 21
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                className: "bg-gray-800/50 p-6 rounded-xl border border-gray-700/50 hover:border-blue-500/30 transition-all",
+                                className: "bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 hover:border-teal-500/30 transition-all",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                        className: "flex items-center gap-2 text-lg font-semibold mb-4 text-blue-200",
+                                        className: "flex items-center gap-2 text-lg font-semibold mb-4 text-teal-200",
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$upload$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Upload$3e$__["Upload"], {
                                                 size: 20
@@ -175,17 +175,17 @@ function SetupForm({ onStart, isLoading }) {
                                                 columnNumber: 29
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                className: `border-2 border-dashed rounded-lg p-8 text-center transition-all group-hover:bg-gray-700/50
-                                ${file ? 'border-green-500 bg-green-500/10' : 'border-gray-600'}`,
+                                                className: `border-2 border-dashed rounded-lg p-8 text-center transition-all group-hover:bg-slate-700/50
+                                ${file ? 'border-teal-500 bg-teal-500/10' : 'border-slate-600'}`,
                                                 children: file ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                    className: "text-green-400 font-medium truncate",
+                                                    className: "text-teal-400 font-medium truncate",
                                                     children: file.name
                                                 }, void 0, false, {
                                                     fileName: "[project]/components/SetupForm.tsx",
                                                     lineNumber: 70,
                                                     columnNumber: 37
                                                 }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                    className: "text-gray-400",
+                                                    className: "text-slate-400",
                                                     children: [
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                                                             children: "Drop PDF or DOCX here"
@@ -232,10 +232,10 @@ function SetupForm({ onStart, isLoading }) {
                         columnNumber: 17
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                        className: "bg-gray-800/50 p-6 rounded-xl border border-gray-700/50 hover:border-blue-500/30 transition-all",
+                        className: "bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 hover:border-teal-500/30 transition-all",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                className: "flex items-center gap-2 text-lg font-semibold mb-4 text-blue-200",
+                                className: "flex items-center gap-2 text-lg font-semibold mb-4 text-teal-200",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$palette$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Palette$3e$__["Palette"], {
                                         size: 20
@@ -256,7 +256,7 @@ function SetupForm({ onStart, isLoading }) {
                                 children: styles.map((s)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                         onClick: ()=>setStyle(s.name),
                                         className: `relative group rounded-lg overflow-hidden border-2 transition-all text-left
-                                    ${style === s.name ? 'border-blue-500 shadow-blue-500/20 shadow-lg' : 'border-transparent hover:border-gray-600'}`,
+                                    ${style === s.name ? 'border-teal-500 shadow-teal-500/20 shadow-lg' : 'border-transparent hover:border-slate-600'}`,
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
                                                 src: s.img,
@@ -268,7 +268,7 @@ function SetupForm({ onStart, isLoading }) {
                                                 columnNumber: 33
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                className: "p-2 bg-gray-900/90 text-xs font-medium text-center",
+                                                className: "p-2 bg-slate-900/90 text-xs font-medium text-center",
                                                 children: s.name
                                             }, void 0, false, {
                                                 fileName: "[project]/components/SetupForm.tsx",
@@ -276,7 +276,7 @@ function SetupForm({ onStart, isLoading }) {
                                                 columnNumber: 33
                                             }, this),
                                             style === s.name && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                className: "absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full border border-white"
+                                                className: "absolute top-2 right-2 w-4 h-4 bg-teal-500 rounded-full border border-white"
                                             }, void 0, false, {
                                                 fileName: "[project]/components/SetupForm.tsx",
                                                 lineNumber: 100,
@@ -310,7 +310,7 @@ function SetupForm({ onStart, isLoading }) {
                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                     onClick: ()=>file && onStart(file, duration, style),
                     disabled: !file || isLoading,
-                    className: "flex items-center gap-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400  text-white px-10 py-4 rounded-full font-bold text-xl shadow-xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed",
+                    className: "flex items-center gap-3 bg-gradient-to-r from-teal-700 to-teal-600 hover:from-teal-600 hover:to-teal-500  text-white px-10 py-4 rounded-full font-bold text-xl shadow-xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed",
                     children: [
                         isLoading ? "Analyzing Policy..." : "Start Planning",
                         !isLoading && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$play$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Play$3e$__["Play"], {
@@ -338,23 +338,7 @@ function SetupForm({ onStart, isLoading }) {
         lineNumber: 24,
         columnNumber: 9
     }, this);
-}
-// Add simple CSS for custom scrollbar
-const css = `
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #1e293b; 
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569; 
-  border-radius: 3px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #64748b; 
-}
-`;
+} // Scrollbar styling is now in globals.css using slate colors
 }),
 "[project]/components/PlanningEditor.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
 "use strict";
@@ -415,7 +399,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                         columnNumber: 17
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "text-gray-400",
+                        className: "text-slate-400",
                         children: "Review the AI-generated learning path and objectives."
                     }, void 0, false, {
                         fileName: "[project]/components/PlanningEditor.tsx",
@@ -429,7 +413,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                 columnNumber: 13
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                className: "bg-gray-800/80 p-8 rounded-2xl border border-gray-700 shadow-2xl backdrop-blur-sm space-y-8",
+                className: "bg-slate-800/80 p-8 rounded-2xl border border-slate-700 shadow-2xl backdrop-blur-sm space-y-8",
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         className: "space-y-6",
@@ -438,7 +422,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                 className: "space-y-2",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                        className: "flex items-center gap-2 text-blue-300",
+                                        className: "flex items-center gap-2 text-teal-300",
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$type$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Type$3e$__["Type"], {
                                                 size: 20
@@ -465,7 +449,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                         type: "text",
                                         value: title,
                                         onChange: (e)=>setTitle(e.target.value),
-                                        className: "w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-3 text-2xl font-bold text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-gray-600"
+                                        className: "w-full bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-2xl font-bold text-white focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all placeholder-slate-600"
                                     }, void 0, false, {
                                         fileName: "[project]/components/PlanningEditor.tsx",
                                         lineNumber: 49,
@@ -481,7 +465,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                 className: "space-y-2",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                        className: "flex items-center gap-2 text-green-300",
+                                        className: "flex items-center gap-2 text-teal-300",
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$target$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Target$3e$__["Target"], {
                                                 size: 20
@@ -507,7 +491,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
                                         value: learningObjective,
                                         onChange: (e)=>setLearningObjective(e.target.value),
-                                        className: "w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-3 text-gray-200 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all min-h-[80px]"
+                                        className: "w-full bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all min-h-[80px]"
                                     }, void 0, false, {
                                         fileName: "[project]/components/PlanningEditor.tsx",
                                         lineNumber: 63,
@@ -526,14 +510,14 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                         columnNumber: 17
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                        className: "h-px bg-gray-700/50"
+                        className: "h-px bg-slate-700/50"
                     }, void 0, false, {
                         fileName: "[project]/components/PlanningEditor.tsx",
                         lineNumber: 71,
                         columnNumber: 17
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                        className: "flex items-center gap-2 text-purple-300",
+                        className: "flex items-center gap-2 text-teal-300",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layout$2d$list$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__LayoutList$3e$__["LayoutList"], {
                                 size: 20
@@ -564,13 +548,13 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         className: "space-y-6",
                         children: editedTopics.map((topic, i)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                className: "bg-gray-900/40 border border-gray-700 rounded-xl p-6 space-y-4 hover:border-gray-600 transition-colors",
+                                className: "bg-slate-900/40 border border-slate-700 rounded-xl p-6 space-y-4 hover:border-slate-600 transition-colors",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                         className: "flex items-center gap-4",
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                className: "w-8 h-8 rounded-full bg-blue-900/50 flex items-center justify-center text-blue-400 font-mono text-sm border border-blue-800 shrink-0",
+                                                className: "w-8 h-8 rounded-full bg-teal-900/50 flex items-center justify-center text-teal-400 font-mono text-sm border border-teal-800 shrink-0",
                                                 children: i + 1
                                             }, void 0, false, {
                                                 fileName: "[project]/components/PlanningEditor.tsx",
@@ -581,7 +565,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                                 type: "text",
                                                 value: topic.title,
                                                 onChange: (e)=>handleTopicChange(i, 'title', e.target.value),
-                                                className: "flex-1 bg-transparent border-b border-transparent focus:border-blue-500 focus:bg-gray-900/50 text-xl font-bold text-white px-2 py-1 transition-all focus:outline-none",
+                                                className: "flex-1 bg-transparent border-b border-transparent focus:border-teal-500 focus:bg-slate-900/50 text-xl font-bold text-white px-2 py-1 transition-all focus:outline-none",
                                                 placeholder: "Topic Title"
                                             }, void 0, false, {
                                                 fileName: "[project]/components/PlanningEditor.tsx",
@@ -601,7 +585,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                                 className: "space-y-2",
                                                 children: [
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                        className: "flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 font-semibold",
+                                                        className: "flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500 font-semibold",
                                                         children: [
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$lightbulb$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Lightbulb$3e$__["Lightbulb"], {
                                                                 size: 14
@@ -620,7 +604,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
                                                         value: topic.purpose,
                                                         onChange: (e)=>handleTopicChange(i, 'purpose', e.target.value),
-                                                        className: "w-full bg-gray-900/30 border border-gray-700/50 rounded p-3 text-sm text-gray-300 focus:border-blue-500/50 focus:outline-none min-h-[80px]"
+                                                        className: "w-full bg-slate-900/30 border border-slate-700/50 rounded p-3 text-sm text-slate-300 focus:border-teal-500/50 focus:outline-none min-h-[80px]"
                                                     }, void 0, false, {
                                                         fileName: "[project]/components/PlanningEditor.tsx",
                                                         lineNumber: 106,
@@ -636,7 +620,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                                 className: "space-y-2",
                                                 children: [
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                        className: "flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 font-semibold",
+                                                        className: "flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500 font-semibold",
                                                         children: [
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$list$2d$checks$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ListChecks$3e$__["ListChecks"], {
                                                                 size: 14
@@ -655,7 +639,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
                                                         value: topic.key_points.join('\n'),
                                                         onChange: (e)=>handleTopicChange(i, 'key_points', e.target.value.split('\n')),
-                                                        className: "w-full bg-gray-900/30 border border-gray-700/50 rounded p-3 text-sm text-gray-300 focus:border-blue-500/50 focus:outline-none min-h-[80px]",
+                                                        className: "w-full bg-slate-900/30 border border-slate-700/50 rounded p-3 text-sm text-slate-300 focus:border-teal-500/50 focus:outline-none min-h-[80px]",
                                                         placeholder: "One point per line"
                                                     }, void 0, false, {
                                                         fileName: "[project]/components/PlanningEditor.tsx",
@@ -692,12 +676,12 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                 columnNumber: 13
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                className: "flex justify-between items-center pt-4 sticky bottom-8 bg-gray-900/90 p-4 rounded-xl border border-gray-800 backdrop-blur-md",
+                className: "flex justify-between items-center pt-4 sticky bottom-8 bg-slate-900/90 p-4 rounded-xl border border-slate-800 backdrop-blur-md",
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                         onClick: onBack,
                         disabled: isLoading,
-                        className: "text-gray-500 hover:text-white transition-colors px-4",
+                        className: "text-slate-500 hover:text-white transition-colors px-4",
                         children: "← Back to Setup"
                     }, void 0, false, {
                         fileName: "[project]/components/PlanningEditor.tsx",
@@ -707,7 +691,7 @@ function PlanningEditor({ topics, duration, initialTitle, initialLearningObjecti
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                         onClick: ()=>onNext(editedTopics, title),
                         disabled: isLoading,
-                        className: "flex items-center gap-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500  text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-purple-500/20 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed",
+                        className: "flex items-center gap-3 bg-gradient-to-r from-teal-700 to-teal-600 hover:from-teal-600 hover:to-teal-500  text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-teal-500/20 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed",
                         children: isLoading ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
                             children: [
                                 "Parsing Script ",
@@ -796,7 +780,7 @@ const RichTextRenderer = ({ text })=>{
                             columnNumber: 15
                         }, ("TURBOPACK compile-time value", void 0)),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                            className: "w-full h-2 bg-blue-600 rounded-full"
+                            className: "w-full h-2 bg-teal-600 rounded-full"
                         }, void 0, false, {
                             fileName: "[project]/app/page.tsx",
                             lineNumber: 50,
@@ -811,7 +795,7 @@ const RichTextRenderer = ({ text })=>{
             }
             if (trimmed.startsWith('>') || trimmed.startsWith('"')) {
                 return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                    className: "pl-6 border-l-4 border-blue-500 italic text-2xl text-slate-600 font-serif text-animate-in",
+                    className: "pl-6 border-l-4 border-teal-500 italic text-2xl text-slate-600 font-serif text-animate-in",
                     style: {
                         animationDelay
                     },
@@ -833,7 +817,7 @@ const RichTextRenderer = ({ text })=>{
                 },
                 children: [
                     trimmed.startsWith('-') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                        className: "mt-1.5 text-blue-600 shrink-0",
+                        className: "mt-1.5 text-teal-600 shrink-0",
                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle2$3e$__["CheckCircle2"], {
                             size: 24,
                             strokeWidth: 3
@@ -1050,7 +1034,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
                         className: "absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm",
                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                             onClick: startCourse,
-                            className: "flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-full font-bold text-xl transition-all hover:scale-105 shadow-lg",
+                            className: "flex items-center gap-3 bg-teal-700 hover:bg-teal-600 text-white px-8 py-4 rounded-full font-bold text-xl transition-all hover:scale-105 shadow-lg",
                             children: "Start Course"
                         }, void 0, false, {
                             fileName: "[project]/app/page.tsx",
@@ -1292,15 +1276,15 @@ function Page() {
         }
     };
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
-        className: "flex min-h-screen bg-gray-900 text-white font-sans",
+        className: "flex min-h-screen bg-slate-900 text-white font-sans",
         children: [
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                className: "w-64 bg-gray-950 border-r border-gray-800 p-6 flex flex-col gap-6 shrink-0 z-20",
+                className: "w-64 bg-slate-950 border-r border-slate-800 p-6 flex flex-col gap-6 shrink-0 z-20",
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
-                                className: "text-xl font-bold text-blue-400 mb-4",
+                                className: "text-xl font-bold text-teal-400 mb-4",
                                 children: "Course Library"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.tsx",
@@ -1309,7 +1293,7 @@ function Page() {
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                 onClick: ()=>setView("setup"),
-                                className: "w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition shadow-lg mb-6",
+                                className: "w-full bg-teal-700 hover:bg-teal-600 text-white font-bold py-3 rounded transition shadow-lg mb-6",
                                 children: "+ New Course"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.tsx",
@@ -1326,11 +1310,11 @@ function Page() {
                         className: "flex-1 overflow-y-auto space-y-2",
                         children: history.map((item)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                 onClick: ()=>loadFromHistory(item.id),
-                                className: `w-full text-left p-3 rounded text-sm transition-all border border-gray-800
-                 ${courseId === item.id ? "bg-blue-900/30 border-blue-500" : "bg-gray-900 hover:bg-gray-800"}`,
+                                className: `w-full text-left p-3 rounded text-sm transition-all border border-slate-800
+                 ${courseId === item.id ? "bg-teal-900/30 border-teal-500" : "bg-slate-900 hover:bg-slate-800"}`,
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                        className: "font-semibold text-gray-300 truncate",
+                                        className: "font-semibold text-slate-300 truncate",
                                         children: item.name || (item.metadata?.topics && item.metadata.topics.length > 0 ? item.metadata.topics[0].title : "Untitled Course")
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.tsx",
@@ -1338,7 +1322,7 @@ function Page() {
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                        className: "text-xs text-gray-500 mt-1",
+                                        className: "text-xs text-slate-500 mt-1",
                                         children: new Date(item.created_at).toLocaleDateString()
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.tsx",
@@ -1369,14 +1353,14 @@ function Page() {
                         className: "absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                className: "absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-900/20 blur-[120px] rounded-full mix-blend-screen"
+                                className: "absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-teal-900/20 blur-[120px] rounded-full mix-blend-screen"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.tsx",
                                 lineNumber: 468,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                className: "absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-900/20 blur-[120px] rounded-full mix-blend-screen"
+                                className: "absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-slate-800/30 blur-[120px] rounded-full mix-blend-screen"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.tsx",
                                 lineNumber: 469,
@@ -1389,11 +1373,11 @@ function Page() {
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                        className: "absolute top-8 right-8 z-30 flex items-center bg-gray-900/80 backdrop-blur-md rounded-full p-1 border border-gray-700 shadow-xl",
+                        className: "absolute top-8 right-8 z-30 flex items-center bg-slate-900/80 backdrop-blur-md rounded-full p-1 border border-slate-700 shadow-xl",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                 onClick: ()=>setCountry("USA"),
-                                className: `flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "USA" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`,
+                                className: `flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "USA" ? "bg-teal-700 text-white shadow-lg" : "text-slate-400 hover:text-white"}`,
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                         className: "text-lg",
@@ -1412,7 +1396,7 @@ function Page() {
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                 onClick: ()=>setCountry("UK"),
-                                className: `flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "UK" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:text-white"}`,
+                                className: `flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "UK" ? "bg-teal-700 text-white shadow-lg" : "text-slate-400 hover:text-white"}`,
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                         className: "text-lg",
@@ -1469,14 +1453,14 @@ function Page() {
                                         className: "relative w-32 h-32",
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                className: "absolute inset-0 border-4 border-blue-500/30 rounded-full animate-ping"
+                                                className: "absolute inset-0 border-4 border-teal-500/30 rounded-full animate-ping"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.tsx",
                                                 lineNumber: 511,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                className: "absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"
+                                                className: "absolute inset-0 border-4 border-teal-500 rounded-full border-t-transparent animate-spin"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.tsx",
                                                 lineNumber: 512,
@@ -1485,7 +1469,7 @@ function Page() {
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                 className: "absolute inset-0 flex items-center justify-center",
                                                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                    className: "w-16 h-16 bg-blue-500/20 rounded-full blur-xl"
+                                                    className: "w-16 h-16 bg-teal-500/20 rounded-full blur-xl"
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/page.tsx",
                                                     lineNumber: 514,
@@ -1514,7 +1498,7 @@ function Page() {
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                                className: "text-blue-200 animate-pulse font-mono",
+                                                className: "text-teal-200 animate-pulse font-mono",
                                                 children: statusText
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.tsx",

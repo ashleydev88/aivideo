@@ -25,18 +25,18 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
 
             {/* Header */}
             <div className="text-center space-y-2">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-teal-400 to-teal-200 bg-clip-text text-transparent">
                     Create New Course
                 </h1>
-                <p className="text-gray-400">Turn your policy documents into engaging video training.</p>
+                <p className="text-slate-400">Turn your policy documents into engaging video training.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
                 {/* Duration & File */}
                 <div className="space-y-6">
-                    <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700/50 hover:border-blue-500/30 transition-all">
-                        <label className="flex items-center gap-2 text-lg font-semibold mb-4 text-blue-200">
+                    <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 hover:border-teal-500/30 transition-all">
+                        <label className="flex items-center gap-2 text-lg font-semibold mb-4 text-teal-200">
                             <Clock size={20} /> Course Duration
                         </label>
                         <div className="grid grid-cols-3 gap-3">
@@ -45,7 +45,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                                     key={m}
                                     onClick={() => setDuration(m)}
                                     className={`py-2 px-4 rounded-lg font-medium transition-all
-                                        ${duration === m ? 'bg-blue-600 text-white shadow-lg scale-105' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
+                                        ${duration === m ? 'bg-teal-700 text-white shadow-lg scale-105' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}`}
                                 >
                                     {m} Mins
                                 </button>
@@ -53,8 +53,8 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                         </div>
                     </div>
 
-                    <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700/50 hover:border-blue-500/30 transition-all">
-                        <label className="flex items-center gap-2 text-lg font-semibold mb-4 text-blue-200">
+                    <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 hover:border-teal-500/30 transition-all">
+                        <label className="flex items-center gap-2 text-lg font-semibold mb-4 text-teal-200">
                             <Upload size={20} /> Policy Document
                         </label>
                         <div className="relative group">
@@ -64,12 +64,12 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                                 accept=".pdf,.docx,.txt"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                             />
-                            <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-all group-hover:bg-gray-700/50
-                                ${file ? 'border-green-500 bg-green-500/10' : 'border-gray-600'}`}>
+                            <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-all group-hover:bg-slate-700/50
+                                ${file ? 'border-teal-500 bg-teal-500/10' : 'border-slate-600'}`}>
                                 {file ? (
-                                    <div className="text-green-400 font-medium truncate">{file.name}</div>
+                                    <div className="text-teal-400 font-medium truncate">{file.name}</div>
                                 ) : (
-                                    <div className="text-gray-400">
+                                    <div className="text-slate-400">
                                         <p>Drop PDF or DOCX here</p>
                                         <p className="text-xs mt-2 opacity-60">or click to browse</p>
                                     </div>
@@ -80,8 +80,8 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                 </div>
 
                 {/* Style */}
-                <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700/50 hover:border-blue-500/30 transition-all">
-                    <label className="flex items-center gap-2 text-lg font-semibold mb-4 text-blue-200">
+                <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 hover:border-teal-500/30 transition-all">
+                    <label className="flex items-center gap-2 text-lg font-semibold mb-4 text-teal-200">
                         <Palette size={20} /> Visual Style
                     </label>
                     <div className="grid grid-cols-2 gap-3 h-[300px] overflow-y-auto pr-2 custom-scrollbar">
@@ -90,14 +90,14 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                                 key={s.name}
                                 onClick={() => setStyle(s.name)}
                                 className={`relative group rounded-lg overflow-hidden border-2 transition-all text-left
-                                    ${style === s.name ? 'border-blue-500 shadow-blue-500/20 shadow-lg' : 'border-transparent hover:border-gray-600'}`}
+                                    ${style === s.name ? 'border-teal-500 shadow-teal-500/20 shadow-lg' : 'border-transparent hover:border-slate-600'}`}
                             >
                                 <img src={s.img} alt={s.name} className="w-full h-24 object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
-                                <div className="p-2 bg-gray-900/90 text-xs font-medium text-center">
+                                <div className="p-2 bg-slate-900/90 text-xs font-medium text-center">
                                     {s.name}
                                 </div>
                                 {style === s.name && (
-                                    <div className="absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full border border-white"></div>
+                                    <div className="absolute top-2 right-2 w-4 h-4 bg-teal-500 rounded-full border border-white"></div>
                                 )}
                             </button>
                         ))}
@@ -109,7 +109,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                 <button
                     onClick={() => file && onStart(file, duration, style)}
                     disabled={!file || isLoading}
-                    className="flex items-center gap-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 
+                    className="flex items-center gap-3 bg-gradient-to-r from-teal-700 to-teal-600 hover:from-teal-600 hover:to-teal-500 
                              text-white px-10 py-4 rounded-full font-bold text-xl shadow-xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isLoading ? "Analyzing Policy..." : "Start Planning"}
@@ -120,19 +120,4 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
     );
 }
 
-// Add simple CSS for custom scrollbar
-const css = `
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #1e293b; 
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569; 
-  border-radius: 3px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #64748b; 
-}
-`;
+// Scrollbar styling is now in globals.css using slate colors

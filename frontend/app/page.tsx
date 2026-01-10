@@ -47,7 +47,7 @@ const RichTextRenderer = ({ text }: { text: string }) => {
               style={{ animationDelay }}
             >
               <h2 className="text-4xl font-bold text-slate-900 leading-tight mb-2">{trimmed.replace(/^#\s*/, '')}</h2>
-              <div className="w-full h-2 bg-blue-600 rounded-full"></div>
+              <div className="w-full h-2 bg-teal-600 rounded-full"></div>
             </div>
           );
         }
@@ -56,7 +56,7 @@ const RichTextRenderer = ({ text }: { text: string }) => {
           return (
             <div
               key={i}
-              className="pl-6 border-l-4 border-blue-500 italic text-2xl text-slate-600 font-serif text-animate-in"
+              className="pl-6 border-l-4 border-teal-500 italic text-2xl text-slate-600 font-serif text-animate-in"
               style={{ animationDelay }}
             >
               "{trimmed.replace(/^[>"]+/, '').replace(/"$/, '').trim()}"
@@ -71,7 +71,7 @@ const RichTextRenderer = ({ text }: { text: string }) => {
             style={{ animationDelay }}
           >
             {trimmed.startsWith('-') && (
-              <div className="mt-1.5 text-blue-600 shrink-0">
+              <div className="mt-1.5 text-teal-600 shrink-0">
                 <CheckCircle2 size={24} strokeWidth={3} />
               </div>
             )}
@@ -237,7 +237,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <button
               onClick={startCourse}
-              className="flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-full font-bold text-xl transition-all hover:scale-105 shadow-lg"
+              className="flex items-center gap-3 bg-teal-700 hover:bg-teal-600 text-white px-8 py-4 rounded-full font-bold text-xl transition-all hover:scale-105 shadow-lg"
             >
               Start Course
             </button>
@@ -427,15 +427,15 @@ export default function Page() {
   };
 
   return (
-    <main className="flex min-h-screen bg-gray-900 text-white font-sans">
+    <main className="flex min-h-screen bg-slate-900 text-white font-sans">
 
       {/* SIDEBAR */}
-      <div className="w-64 bg-gray-950 border-r border-gray-800 p-6 flex flex-col gap-6 shrink-0 z-20">
+      <div className="w-64 bg-slate-950 border-r border-slate-800 p-6 flex flex-col gap-6 shrink-0 z-20">
         <div>
-          <h2 className="text-xl font-bold text-blue-400 mb-4">Course Library</h2>
+          <h2 className="text-xl font-bold text-teal-400 mb-4">Course Library</h2>
           <button
             onClick={() => setView("setup")}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition shadow-lg mb-6"
+            className="w-full bg-teal-700 hover:bg-teal-600 text-white font-bold py-3 rounded transition shadow-lg mb-6"
           >
             + New Course
           </button>
@@ -446,13 +446,13 @@ export default function Page() {
             <button
               key={item.id}
               onClick={() => loadFromHistory(item.id)}
-              className={`w-full text-left p-3 rounded text-sm transition-all border border-gray-800
-                 ${courseId === item.id ? "bg-blue-900/30 border-blue-500" : "bg-gray-900 hover:bg-gray-800"}`}
+              className={`w-full text-left p-3 rounded text-sm transition-all border border-slate-800
+                 ${courseId === item.id ? "bg-teal-900/30 border-teal-500" : "bg-slate-900 hover:bg-slate-800"}`}
             >
-              <div className="font-semibold text-gray-300 truncate">
+              <div className="font-semibold text-slate-300 truncate">
                 {item.name || (item.metadata?.topics && item.metadata.topics.length > 0 ? item.metadata.topics[0].title : "Untitled Course")}
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-slate-500 mt-1">
                 {new Date(item.created_at).toLocaleDateString()}
               </div>
             </button>
@@ -465,22 +465,22 @@ export default function Page() {
 
         {/* Background glow effects */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-900/20 blur-[120px] rounded-full mix-blend-screen"></div>
-          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-900/20 blur-[120px] rounded-full mix-blend-screen"></div>
+          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-teal-900/20 blur-[120px] rounded-full mix-blend-screen"></div>
+          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-slate-800/30 blur-[120px] rounded-full mix-blend-screen"></div>
         </div>
 
         {/* COUNTRY TOGGLE */}
-        <div className="absolute top-8 right-8 z-30 flex items-center bg-gray-900/80 backdrop-blur-md rounded-full p-1 border border-gray-700 shadow-xl">
+        <div className="absolute top-8 right-8 z-30 flex items-center bg-slate-900/80 backdrop-blur-md rounded-full p-1 border border-slate-700 shadow-xl">
           <button
             onClick={() => setCountry("USA")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "USA" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:text-white"
+            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "USA" ? "bg-teal-700 text-white shadow-lg" : "text-slate-400 hover:text-white"
               }`}
           >
             <span className="text-lg">🇺🇸</span> USA
           </button>
           <button
             onClick={() => setCountry("UK")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "UK" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:text-white"
+            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "UK" ? "bg-teal-700 text-white shadow-lg" : "text-slate-400 hover:text-white"
               }`}
           >
             <span className="text-lg">🇬🇧</span> UK
@@ -508,15 +508,15 @@ export default function Page() {
           {view === "designing" && (
             <div className="flex flex-col items-center gap-8 animate-in fade-in zoom-in duration-700">
               <div className="relative w-32 h-32">
-                <div className="absolute inset-0 border-4 border-blue-500/30 rounded-full animate-ping"></div>
-                <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                <div className="absolute inset-0 border-4 border-teal-500/30 rounded-full animate-ping"></div>
+                <div className="absolute inset-0 border-4 border-teal-500 rounded-full border-t-transparent animate-spin"></div>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-16 h-16 bg-blue-500/20 rounded-full blur-xl"></div>
+                  <div className="w-16 h-16 bg-teal-500/20 rounded-full blur-xl"></div>
                 </div>
               </div>
               <div className="text-center space-y-2">
                 <h2 className="text-3xl font-light text-white tracking-wide">Designing Your Course</h2>
-                <p className="text-blue-200 animate-pulse font-mono">{statusText}</p>
+                <p className="text-teal-200 animate-pulse font-mono">{statusText}</p>
               </div>
             </div>
           )}
