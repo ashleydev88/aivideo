@@ -84,7 +84,7 @@ export function Sidebar({ collapsed = false, onToggle, activeHref = "/" }: Sideb
                                 "flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius)] transition-all duration-200",
                                 "text-sm font-medium",
                                 isActive
-                                    ? "bg-sidebar-active text-sidebar-active-foreground shadow-sm"
+                                    ? "bg-slate-800 text-teal-500"
                                     : "text-sidebar-muted-foreground hover:bg-sidebar-muted hover:text-sidebar-foreground",
                                 collapsed && "justify-center px-2"
                             )}
