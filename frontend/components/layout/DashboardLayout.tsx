@@ -7,13 +7,11 @@ import { Topbar } from "./Topbar";
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
-    activeHref?: string;
     pageTitle?: string;
 }
 
 export function DashboardLayout({
     children,
-    activeHref = "/",
     pageTitle = "Dashboard",
 }: DashboardLayoutProps) {
     const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
@@ -24,7 +22,6 @@ export function DashboardLayout({
             <Sidebar
                 collapsed={sidebarCollapsed}
                 onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-                activeHref={activeHref}
             />
 
             {/* Topbar */}
