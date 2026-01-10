@@ -1,16 +1,17 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import {
     Home,
-    FileText,
     Settings,
-    Users,
     Shield,
-    BarChart3,
     ChevronLeft,
     ChevronRight,
+    PlusCircle,
+    LogOut,
 } from "lucide-react";
 
 interface NavItem {
@@ -20,31 +21,63 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-    { label: "Dashboard", href: "/", icon: <Home className="h-5 w-5" /> },
-    { label: "Documents", href: "/documents", icon: <FileText className="h-5 w-5" /> },
-    { label: "Compliance", href: "/compliance", icon: <Shield className="h-5 w-5" /> },
-    { label: "Reports", href: "/reports", icon: <BarChart3 className="h-5 w-5" /> },
-    { label: "Users", href: "/users", icon: <Users className="h-5 w-5" /> },
+    { label: "Dashboard", href: "/dashboard", icon: <Home className="h-5 w-5" /> },
+    { label: "Create New", href: "/dashboard/create", icon: <PlusCircle className="h-5 w-5" /> },
     { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 
 interface SidebarProps {
     collapsed?: boolean;
     onToggle?: () => void;
-    activeHref?: string;
 }
 
-export function Sidebar({ collapsed = false, onToggle, activeHref = "/" }: SidebarProps) {
+export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
+    const pathname = usePathname();
+    const router = useRouter();
+    const supabase = createClient();
+    const [userName, setUserName] = React.useState<string>("");
+    const [userEmail, setUserEmail] = React.useState<string>("");
+    const [isLoading, setIsLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const fullName = user.user_metadata?.full_name;
+                setUserName(fullName || "User");
+                setUserEmail(user.email || "");
+            }
+            setIsLoading(false);
+        };
+        getUser();
+    }, [supabase]);
+
+    const getInitials = (name: string) => {
+        if (!name) return "U";
+        return name
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+    };
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        router.refresh();
+        router.push('/login');
+    };
+
     return (
         <aside
             className={cn(
-                "fixed left-0 top-0 z-40 h-screen transition-all duration-300",
+                "fixed left-0 top-0 z-40 h-screen transition-all duration-300 flex flex-col",
                 "bg-sidebar-background text-sidebar-foreground border-r border-sidebar-border",
                 collapsed ? "w-16" : "w-64"
             )}
         >
             {/* Logo / Brand */}
-            <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
+            <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4 shrink-0">
                 {!collapsed && (
                     <div className="flex items-center gap-2">
                         <Shield className="h-6 w-6 text-sidebar-active" />
@@ -73,9 +106,9 @@ export function Sidebar({ collapsed = false, onToggle, activeHref = "/" }: Sideb
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 space-y-1 p-3">
+            <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
                 {navItems.map((item) => {
-                    const isActive = activeHref === item.href;
+                    const isActive = pathname === item.href;
                     return (
                         <a
                             key={item.href}
@@ -97,25 +130,36 @@ export function Sidebar({ collapsed = false, onToggle, activeHref = "/" }: Sideb
             </nav>
 
             {/* Footer */}
-            <div className="border-t border-sidebar-border p-3">
+            <div className="border-t border-sidebar-border p-3 shrink-0">
                 <div
                     className={cn(
-                        "flex items-center gap-3 px-3 py-2",
+                        "flex items-center gap-3 px-3 py-2 mb-2",
                         collapsed && "justify-center"
                     )}
                 >
-                    <div className="h-8 w-8 rounded-full bg-sidebar-active flex items-center justify-center text-sidebar-active-foreground font-semibold text-sm">
-                        JD
+                    <div className="h-8 w-8 rounded-full bg-sidebar-active flex items-center justify-center text-sidebar-active-foreground font-semibold text-sm shrink-0">
+                        {isLoading ? "..." : getInitials(userName)}
                     </div>
                     {!collapsed && (
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">John Doe</p>
+                            <p className="text-sm font-medium truncate">{isLoading ? "Loading..." : userName}</p>
                             <p className="text-xs text-sidebar-muted-foreground truncate">
-                                Admin
+                                {isLoading ? "..." : userEmail}
                             </p>
                         </div>
                     )}
                 </div>
+
+                <button
+                    onClick={handleSignOut}
+                    className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-[var(--radius)] text-sidebar-muted-foreground hover:bg-sidebar-muted hover:text-red-500 transition-colors w-full",
+                        collapsed && "justify-center px-2"
+                    )}
+                >
+                    <LogOut className="h-5 w-5" />
+                    {!collapsed && <span className="text-sm font-medium">Sign Out</span>}
+                </button>
             </div>
         </aside>
     );

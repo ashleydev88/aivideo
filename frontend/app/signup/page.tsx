@@ -11,6 +11,7 @@ import { Loader2, UserPlus } from "lucide-react";
 import Link from "next/link";
 
 export default function SignupPage() {
+    const [fullName, setFullName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,11 @@ export default function SignupPage() {
             const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
+                options: {
+                    data: {
+                        full_name: fullName,
+                    },
+                },
             });
 
             if (error) {
@@ -69,6 +75,20 @@ export default function SignupPage() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSignup} className="space-y-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="fullName" className="text-slate-200">Full Name</Label>
+                            <Input
+                                id="fullName"
+                                type="text"
+                                placeholder="John Doe"
+                                value={fullName}
+                                onChange={(e) => setFullName(e.target.value)}
+                                required
+                                disabled={isLoading}
+                                className="bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500"
+                            />
+                        </div>
+
                         <div className="space-y-2">
                             <Label htmlFor="email" className="text-slate-200">Email</Label>
                             <Input
