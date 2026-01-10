@@ -1,26 +1,241 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================
+   B2B Compliance Platform Design System
+   Brand Archetype: "The Modern Institution"
+   ============================================ */
 
+/* Tailwind v4 Theme Configuration - Direct color definitions */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Primary - Deep Teal (Trustworthy, Precise) */
+  --color-primary: #0F766E;
+  --color-primary-foreground: #F0FDFA;
+
+  /* Secondary - Slate Scale */
+  --color-secondary: #F1F5F9;
+  --color-secondary-foreground: #1E293B;
+
+  /* Muted */
+  --color-muted: #F1F5F9;
+  --color-muted-foreground: #64748B;
+
+  /* Accent */
+  --color-accent: #F1F5F9;
+  --color-accent-foreground: #0F766E;
+
+  /* Destructive - Muted Rose (Not bright red) */
+  --color-destructive: #BE123C;
+  --color-destructive-foreground: #FFF1F2;
+
+  /* Background & Foreground */
+  --color-background: #FFFFFF;
+  --color-foreground: #0F172A;
+
+  /* Card */
+  --color-card: #FFFFFF;
+  --color-card-foreground: #0F172A;
+
+  /* Popover */
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #0F172A;
+
+  /* Border & Input & Ring */
+  --color-border: #E2E8F0;
+  --color-input: #E2E8F0;
+  --color-ring: #14B8A6;
+
+  /* Sidebar - Dark Slate */
+  --color-sidebar-background: #0F172A;
+  --color-sidebar-foreground: #F8FAFC;
+  --color-sidebar-muted: #1E293B;
+  --color-sidebar-muted-foreground: #94A3B8;
+  --color-sidebar-active: #2DD4BF;
+  --color-sidebar-active-foreground: #0F172A;
+  --color-sidebar-border: #334155;
+
+  /* Radius - Sharp, professional (0.3rem) */
+  --radius-sm: 0.2rem;
+  --radius-md: 0.3rem;
+  --radius-lg: 0.4rem;
+
+  /* Font */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* CSS Variables for runtime usage (dark mode, etc.) */
+:root {
+  --radius: 0.3rem;
+  --primary: #0F766E;
+  --primary-foreground: #F0FDFA;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #1E293B;
+  --destructive: #BE123C;
+  --destructive-foreground: #FFF1F2;
+  --background: #FFFFFF;
+  --foreground: #0F172A;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #F1F5F9;
+  --accent-foreground: #0F766E;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #14B8A6;
+  --sidebar-background: #0F172A;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-muted: #1E293B;
+  --sidebar-muted-foreground: #94A3B8;
+  --sidebar-active: #2DD4BF;
+  --sidebar-active-foreground: #0F172A;
+  --sidebar-border: #334155;
+}
+
+/* Dark Mode */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --primary: #14B8A6;
+    --primary-foreground: #042F2E;
+    --secondary: #1E293B;
+    --secondary-foreground: #F1F5F9;
+    --muted: #1E293B;
+    --muted-foreground: #94A3B8;
+    --accent: #1E293B;
+    --accent-foreground: #2DD4BF;
+    --destructive: #F43F5E;
+    --destructive-foreground: #FFF1F2;
+    --background: #0A0A0A;
+    --foreground: #EDEDED;
+    --card: #0F172A;
+    --card-foreground: #F8FAFC;
+    --popover: #0F172A;
+    --popover-foreground: #F8FAFC;
+    --border: #334155;
+    --input: #334155;
+    --ring: #2DD4BF;
+    --sidebar-background: #020617;
+    --sidebar-foreground: #F8FAFC;
+    --sidebar-muted: #0F172A;
+    --sidebar-muted-foreground: #64748B;
+    --sidebar-active: #2DD4BF;
+    --sidebar-active-foreground: #0F172A;
+    --sidebar-border: #1E293B;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* ============================================
+   Existing Animations (Preserved)
+   ============================================ */
+
+/* Ken Burns Effect Variations */
+@keyframes ken-burns-zoom-in {
+  from {
+    transform: scale(1) translate(0, 0);
+  }
+
+  to {
+    transform: scale(1.12) translate(0, 0);
+  }
+}
+
+@keyframes ken-burns-zoom-out {
+  from {
+    transform: scale(1.12) translate(0, 0);
+  }
+
+  to {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+@keyframes ken-burns-pan-left {
+  from {
+    transform: scale(1.08) translate(2%, 0);
+  }
+
+  to {
+    transform: scale(1.08) translate(-2%, 0);
+  }
+}
+
+@keyframes ken-burns-pan-right {
+  from {
+    transform: scale(1.08) translate(-2%, 0);
+  }
+
+  to {
+    transform: scale(1.08) translate(2%, 0);
+  }
+}
+
+@keyframes ken-burns-pan-up {
+  from {
+    transform: scale(1.08) translate(0, 2%);
+  }
+
+  to {
+    transform: scale(1.08) translate(0, -2%);
+  }
+}
+
+@keyframes ken-burns-pan-down {
+  from {
+    transform: scale(1.08) translate(0, -2%);
+  }
+
+  to {
+    transform: scale(1.08) translate(0, 2%);
+  }
+}
+
+/* Animation classes */
+.ken-burns-zoom-in {
+  animation: ken-burns-zoom-in var(--slide-duration, 15s) ease-in-out forwards;
+}
+
+.ken-burns-zoom-out {
+  animation: ken-burns-zoom-out var(--slide-duration, 15s) ease-in-out forwards;
+}
+
+.ken-burns-pan-left {
+  animation: ken-burns-pan-left var(--slide-duration, 15s) ease-in-out forwards;
+}
+
+.ken-burns-pan-right {
+  animation: ken-burns-pan-right var(--slide-duration, 15s) ease-in-out forwards;
+}
+
+.ken-burns-pan-up {
+  animation: ken-burns-pan-up var(--slide-duration, 15s) ease-in-out forwards;
+}
+
+.ken-burns-pan-down {
+  animation: ken-burns-pan-down var(--slide-duration, 15s) ease-in-out forwards;
+}
+
+/* Text stagger animation */
+.text-animate-in {
+  opacity: 0;
+  animation: text-fade-up 0.6s ease-out forwards;
+}
+
+@keyframes text-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

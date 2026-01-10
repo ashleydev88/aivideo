@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import SetupForm from '../components/SetupForm';
 import PlanningEditor from '../components/PlanningEditor';
@@ -25,31 +25,51 @@ export interface Topic {
 const RichTextRenderer = ({ text }: { text: string }) => {
   if (!text) return null;
   const lines = text.split('\n');
+  // Filter out empty lines to get accurate count for animation delays
+  const nonEmptyLines = lines.filter(line => line.trim());
+  let lineIndex = 0;
+
   return (
     <div className="space-y-6">
       {lines.map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) return null;
 
+        // Calculate stagger delay for this line
+        const currentLineIndex = lineIndex++;
+        const animationDelay = `${currentLineIndex * 0.25}s`;
+
         if (trimmed.startsWith('#')) {
           return (
-            <div key={i}>
+            <div
+              key={i}
+              className="w-fit text-animate-in"
+              style={{ animationDelay }}
+            >
               <h2 className="text-4xl font-bold text-slate-900 leading-tight mb-2">{trimmed.replace(/^#\s*/, '')}</h2>
-              <div className="w-24 h-2 bg-blue-600 rounded-full"></div>
+              <div className="w-full h-2 bg-blue-600 rounded-full"></div>
             </div>
           );
         }
 
         if (trimmed.startsWith('>') || trimmed.startsWith('"')) {
           return (
-            <div key={i} className="pl-6 border-l-4 border-blue-500 italic text-2xl text-slate-600 font-serif">
-              “{trimmed.replace(/^[>"]+/, '').replace(/"$/, '').trim()}”
+            <div
+              key={i}
+              className="pl-6 border-l-4 border-blue-500 italic text-2xl text-slate-600 font-serif text-animate-in"
+              style={{ animationDelay }}
+            >
+              "{trimmed.replace(/^[>"]+/, '').replace(/"$/, '').trim()}"
             </div>
           );
         }
 
         return (
-          <div key={i} className="flex items-start gap-4">
+          <div
+            key={i}
+            className="flex items-start gap-4 text-animate-in"
+            style={{ animationDelay }}
+          >
             {trimmed.startsWith('-') && (
               <div className="mt-1.5 text-blue-600 shrink-0">
                 <CheckCircle2 size={24} strokeWidth={3} />
@@ -81,6 +101,16 @@ interface CourseHistoryItem {
   }
 }
 
+// Ken Burns effect variations
+const KEN_BURNS_EFFECTS = [
+  'ken-burns-zoom-in',
+  'ken-burns-zoom-out',
+  'ken-burns-pan-left',
+  'ken-burns-pan-right',
+  'ken-burns-pan-up',
+  'ken-burns-pan-down'
+] as const;
+
 // --- PLAYER COMPONENT (Split Screen) ---
 function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting }:
   { slides: Slide[], onReset: () => void, videoUrl?: string, onExport: () => void, isExporting: boolean }) {
@@ -89,6 +119,12 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
   const [hasStarted, setHasStarted] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Randomly assign Ken Burns effect to each slide (memoized for consistency)
+  const slideEffects = useMemo(() =>
+    slides.map(() => KEN_BURNS_EFFECTS[Math.floor(Math.random() * KEN_BURNS_EFFECTS.length)]),
+    [slides.length]
+  );
 
   if (!slides || !Array.isArray(slides) || slides.length === 0) {
     return <div className="text-white p-4">Waiting for slide data...</div>;
@@ -182,10 +218,13 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
             `}>
             {slides.map((slide, i) => (
               <img
-                key={i}
+                key={`${i}-${index}`}
                 src={slide.image}
                 className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-700 
-                    ${i === index ? "opacity-100" : "opacity-0"}`}
+                    ${i === index ? `opacity-100 ${slideEffects[i]}` : "opacity-0"}`}
+                style={{
+                  '--slide-duration': `${(slide.duration || 15000) / 1000}s`
+                } as React.CSSProperties}
                 alt={`Slide ${i + 1}`}
               />
             ))}
@@ -246,6 +285,7 @@ export default function Page() {
   const [title, setTitle] = useState("New Course"); // NEW: Title State
   const [learningObjective, setLearningObjective] = useState(""); // NEW: LO State
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [country, setCountry] = useState<"USA" | "UK">("USA");
 
   // Playback State
   const [slides, setSlides] = useState<Slide[]>([]);
@@ -297,7 +337,7 @@ export default function Page() {
       const res = await fetch("http://127.0.0.1:8000/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ policy_text: text, duration: d })
+        body: JSON.stringify({ policy_text: text, duration: d, country: country })
       });
       const data = await res.json();
       setTopics(data.topics || []);
@@ -321,7 +361,8 @@ export default function Page() {
           duration: duration,
           title: title,
           policy_text: policyText, // Send Policy
-          learning_objective: learningObjective // Send LO
+          learning_objective: learningObjective, // Send LO
+          country: country
         })
       });
       const data = await res.json();
@@ -426,6 +467,24 @@ export default function Page() {
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
           <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-900/20 blur-[120px] rounded-full mix-blend-screen"></div>
           <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-900/20 blur-[120px] rounded-full mix-blend-screen"></div>
+        </div>
+
+        {/* COUNTRY TOGGLE */}
+        <div className="absolute top-8 right-8 z-30 flex items-center bg-gray-900/80 backdrop-blur-md rounded-full p-1 border border-gray-700 shadow-xl">
+          <button
+            onClick={() => setCountry("USA")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "USA" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:text-white"
+              }`}
+          >
+            <span className="text-lg">🇺🇸</span> USA
+          </button>
+          <button
+            onClick={() => setCountry("UK")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold ${country === "UK" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:text-white"
+              }`}
+          >
+            <span className="text-lg">🇬🇧</span> UK
+          </button>
         </div>
 
         <div className="z-10 w-full max-w-6xl flex justify-center">
