@@ -818,6 +818,10 @@
     height: 100vh;
   }
 
+  .min-h-\[4rem\] {
+    min-height: 4rem;
+  }
+
   .min-h-\[80px\] {
     min-height: 80px;
   }
@@ -1025,6 +1029,10 @@
 
   .flex-row {
     flex-direction: row;
+  }
+
+  .content-start {
+    align-content: flex-start;
   }
 
   .items-center {
@@ -2268,6 +2276,10 @@
 
   .text-white {
     color: var(--color-white);
+  }
+
+  .capitalize {
+    text-transform: capitalize;
   }
 
   .uppercase {

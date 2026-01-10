@@ -41,9 +41,9 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    // Redirect authenticated users from /login to /dashboard/create
-    if (user && url.pathname === "/login") {
-        return NextResponse.redirect(new URL("/dashboard/create", request.url));
+    // Redirect authenticated users from /login and / to /dashboard
+    if (user && (url.pathname === "/login" || url.pathname === "/")) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
     return supabaseResponse;
