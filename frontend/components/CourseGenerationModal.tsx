@@ -66,38 +66,25 @@ function getStepStatuses(
         finalizing: "pending",
     };
 
+    const lower = statusText.toLowerCase();
+
     if (error) {
         // Find the active step and mark it as error
-        if (currentPhase === "script") {
-            statuses.script = "error";
+        if (lower.includes("drafting slide") || lower.includes("generating_media") || lower.includes("generating audio")) {
+            statuses.script = "completed";
+            statuses.validation = "completed";
+            statuses.media = "error";
+        } else if (lower.includes("validat")) {
+            statuses.script = "completed";
+            statuses.validation = "error";
         } else {
-            const lower = statusText.toLowerCase();
-            if (lower.includes("drafting slide") || lower.includes("generating audio")) {
-                statuses.script = "completed";
-                statuses.validation = "completed";
-                statuses.media = "error";
-            } else if (lower.includes("validat")) {
-                statuses.script = "completed";
-                statuses.validation = "error";
-            } else {
-                statuses.script = "completed";
-                statuses.validation = "completed";
-                statuses.media = "error";
-            }
+            // Default to script error if we can't determine
+            statuses.script = "error";
         }
         return statuses;
     }
 
-    // Phase 1: Script generation (before backend task starts)
-    if (currentPhase === "script") {
-        statuses.script = "active";
-        return statuses;
-    }
-
-    // Phase 2: Designing (backend task running)
-    const lower = statusText.toLowerCase();
-
-    // Completed
+    // Completed - all steps done
     if (lower === "completed") {
         statuses.script = "completed";
         statuses.validation = "completed";
@@ -130,17 +117,24 @@ function getStepStatuses(
         return statuses;
     }
 
-    // Default: still in script phase within designing (generating_script status)
-    if (lower.includes("generating_script") || lower.includes("initializing") || lower === "initializing...") {
+    // Script generation (explicit status from DB)
+    if (lower.includes("generating_script") || lower.includes("generating script")) {
         statuses.script = "active";
         return statuses;
     }
 
-    // Fallback - assume we're past script
+    // Fallback: Use currentPhase if statusText is ambiguous (initializing, etc.)
+    if (currentPhase === "script" || lower.includes("initializing")) {
+        statuses.script = "active";
+        return statuses;
+    }
+
+    // Default fallback - assume we're past script, in validation
     statuses.script = "completed";
     statuses.validation = "active";
     return statuses;
 }
+
 
 function StepIndicator({ status }: { status: StepStatus }) {
     if (status === "completed") {

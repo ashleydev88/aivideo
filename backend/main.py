@@ -570,14 +570,14 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
     print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
     
     # Update status to generating_media before starting slide generation
-    supabase.table("courses").update({"status": "generating_media"}).eq("id", course_id).execute()
+    supabase_admin.table("courses").update({"status": "generating_media"}).eq("id", course_id).execute()
     
     try:
         final_slides = []
         
         with tempfile.TemporaryDirectory() as temp_dir:
             for i, slide in enumerate(script_plan):
-                supabase.table("courses").update({"status": f"Drafting Slide {i+1} of {len(script_plan)}..."}).eq("id", course_id).execute()
+                supabase_admin.table("courses").update({"status": f"Drafting Slide {i+1} of {len(script_plan)}..."}).eq("id", course_id).execute()
                 
                 # 1. Audio - fail immediately if generation fails
                 audio_data = generate_audio(slide["text"])
@@ -618,7 +618,7 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
                     "layout": slide.get("layout", "split")
                 })
 
-        supabase.table("courses").update({"slide_data": final_slides, "status": "completed"}).eq("id", course_id).execute()
+        supabase_admin.table("courses").update({"slide_data": final_slides, "status": "completed"}).eq("id", course_id).execute()
         print("✅ Draft Course Completed")
 
     except Exception as e:
@@ -629,7 +629,7 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
 def compile_video_job(course_id: str, user_id: str):
     print(f"🎬 Starting Compilation: {course_id} for user: {user_id}")
     try:
-        res = supabase.table("courses").select("slide_data").eq("id", course_id).execute()
+        res = supabase_admin.table("courses").select("slide_data").eq("id", course_id).execute()
         if not res.data: return
         slides = res.data[0]['slide_data']
 
@@ -707,7 +707,7 @@ def compile_video_job(course_id: str, user_id: str):
             with open(output_path, 'rb') as f:
                 video_url = upload_asset(f.read(), f"full_course_{course_id}.mp4", "video/mp4", user_id)
 
-            supabase.table("courses").update({"video_url": video_url}).eq("id", course_id).execute()
+            supabase_admin.table("courses").update({"video_url": video_url}).eq("id", course_id).execute()
             print(f"✅ Video Ready: {video_url}")
 
     except Exception as e:
@@ -733,7 +733,7 @@ async def get_status(course_id: str, authorization: str = Header(None)):
 @app.get("/history")
 async def get_history(authorization: str = Header(None)):
     user_id = get_user_id_from_token(authorization)
-    response = supabase.table("courses").select("id, created_at, status, name, metadata").eq("status", "completed").eq("user_id", user_id).order("created_at", desc=True).limit(10).execute()
+    response = supabase_admin.table("courses").select("id, created_at, status, name, metadata").eq("status", "completed").eq("user_id", user_id).order("created_at", desc=True).limit(10).execute()
     return response.data
 
 @app.post("/export-video/{course_id}")
