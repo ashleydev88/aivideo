@@ -17,6 +17,7 @@ import utils.parser as parser
 import json
 import math
 import re
+import traceback
 
 # --- MOVIEPY IMPORTS ---
 # Ensure you have run: pip install "moviepy<2.0"
@@ -216,6 +217,33 @@ def extract_json_from_response(text_content):
     except json.JSONDecodeError:
         print(f"❌ JSON Parsing Failed. Raw content sample: {text_content[:200]}...")
         raise
+
+def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dict = None):
+    """
+    Moves a failed course record to the course_failures table and deletes it from courses.
+    """
+    print(f"🔥 Handling Failure for {course_id}: {error}")
+    
+    # 1. Attempt to Log Failure
+    try:
+        supabase_admin.table("course_failures").insert({
+            "original_course_id": course_id,
+            "user_id": user_id,
+            "error_message": str(error),
+            "stack_trace": traceback.format_exc(),
+            "metadata": metadata
+        }).execute()
+        print(f"   📝 Logged failure to audit table.")
+    except Exception as e:
+        print(f"   ⚠️  Failed to log failure: {e}")
+
+    # 2. Attempt to Clean Up Course (CRITICAL)
+    try:
+        # Delete from courses
+        supabase_admin.table("courses").delete().eq("id", course_id).execute()
+        print(f"   🗑️  Deleted failed course {course_id}.")
+    except Exception as e:
+         print(f"   ❌ CRITICAL: Failed to delete course {course_id}: {e}")
 
 def upload_asset(file_content, filename, content_type, user_id: str):
     """Upload asset to Supabase storage with user_id folder prefix for RLS."""
@@ -540,49 +568,53 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
 def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str):
     print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
     
-    final_slides = []
-    
-    with tempfile.TemporaryDirectory() as temp_dir:
-        for i, slide in enumerate(script_plan):
-            supabase.table("courses").update({"status": f"Drafting Slide {i+1} of {len(script_plan)}..."}).eq("id", course_id).execute()
-            
-            # 1. Audio
-            audio_data = generate_audio(slide["text"])
-            
-            # Calculate Duration
-            duration_ms = slide.get("duration", 15000)
-            if audio_data:
-                try:
-                    temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
-                    with open(temp_audio_path, "wb") as f:
-                        f.write(audio_data)
-                    
-                    clip = AudioFileClip(temp_audio_path)
-                    duration_ms = int((clip.duration * 1000) + 1500) # Audio + 1.5s Buffer
-                    clip.close()
-                except Exception as e:
-                    print(f"   ⚠️ Duration Calc Error: {e}")
+    try:
+        final_slides = []
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, slide in enumerate(script_plan):
+                supabase.table("courses").update({"status": f"Drafting Slide {i+1} of {len(script_plan)}..."}).eq("id", course_id).execute()
+                
+                # 1. Audio
+                audio_data = generate_audio(slide["text"])
+                
+                # Calculate Duration
+                duration_ms = slide.get("duration", 15000)
+                if audio_data:
+                    try:
+                        temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
+                        with open(temp_audio_path, "wb") as f:
+                            f.write(audio_data)
+                        
+                        clip = AudioFileClip(temp_audio_path)
+                        duration_ms = int((clip.duration * 1000) + 1500) # Audio + 1.5s Buffer
+                        clip.close()
+                    except Exception as e:
+                        print(f"   ⚠️ Duration Calc Error: {e}")
 
-            audio_filename = f"narration_{i}_{int(time.time())}.mp3" # Timestamp to avoid collisions
-            audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg", user_id)
-            
-            # 2. Image
-            full_prompt = f"{style_prompt}. {slide['prompt']}"
-            image_data = generate_image_imagen(full_prompt)
-            image_filename = f"visual_{i}_{int(time.time())}.jpg"
-            image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
-            
-            final_slides.append({
-                "id": i + 1,
-                "image": image_url,
-                "audio": audio_url,
-                "visual_text": slide.get("visual_text", ""),
-                "duration": duration_ms,
-                "layout": slide.get("layout", "split")
-            })
+                audio_filename = f"narration_{i}_{int(time.time())}.mp3" # Timestamp to avoid collisions
+                audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg", user_id)
+                
+                # 2. Image
+                full_prompt = f"{style_prompt}. {slide['prompt']}"
+                image_data = generate_image_imagen(full_prompt)
+                image_filename = f"visual_{i}_{int(time.time())}.jpg"
+                image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
+                
+                final_slides.append({
+                    "id": i + 1,
+                    "image": image_url,
+                    "audio": audio_url,
+                    "visual_text": slide.get("visual_text", ""),
+                    "duration": duration_ms,
+                    "layout": slide.get("layout", "split")
+                })
 
-    supabase.table("courses").update({"slide_data": final_slides, "status": "completed"}).eq("id", course_id).execute()
-    print("✅ Draft Course Completed")
+        supabase.table("courses").update({"slide_data": final_slides, "status": "completed"}).eq("id", course_id).execute()
+        print("✅ Draft Course Completed")
+
+    except Exception as e:
+        handle_failure(course_id, user_id, e, {"stage": "generate_course_assets", "style": style_prompt})
 
 
 # --- WORKER 2: VIDEO EXPORT (CLEAN SPLIT SCREEN) ---
@@ -671,7 +703,7 @@ def compile_video_job(course_id: str, user_id: str):
             print(f"✅ Video Ready: {video_url}")
 
     except Exception as e:
-        print(f"❌ Compilation Failed: {traceback.format_exc()}")
+         handle_failure(course_id, user_id, e, {"stage": "compile_video_job"})
 
 # --- ROUTES ---
 @app.post("/create")
@@ -1114,4 +1146,27 @@ Pacing Strategy:
         
     except Exception as e:
         print(f"❌ Script Generation Error: {e}")
+        # Note: Since this exception usually happens *before* background task starts (or inside it if we moved logic),
+        # If it happens here in the synchronous part, we might not have a course_id yet OR we failed early.
+        # But wait, this try/except wraps the DB insert.
+        # If DB insert failed, we don't have a course_id to clean up.
+        # If background task add failed, we do.
+        if 'course_id' in locals():
+             handle_failure(course_id, request.user_id, e, metadata)
         return {"status": "error", "message": str(e)}
+
+@app.delete("/course/{course_id}")
+async def delete_course(course_id: str, authorization: str = Header(None)):
+    user_id = get_user_id_from_token(authorization)
+    
+    # Verify ownership
+    # Use admin client to verify because RLS policies might hide the record from the anon client
+    # checking the user_id manually ensures security.
+    res = supabase_admin.table("courses").select("user_id").eq("id", course_id).execute()
+    
+    if not res.data or res.data[0]['user_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this course")
+
+    # Delete
+    supabase_admin.table("courses").delete().eq("id", course_id).execute()
+    return {"status": "deleted"}

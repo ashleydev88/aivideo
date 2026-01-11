@@ -22,7 +22,9 @@ import {
     Clock,
     MoreHorizontal,
     Loader2,
+    Trash2,
 } from "lucide-react";
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 interface Project {
     id: string;
@@ -98,7 +100,31 @@ export default function DashboardPage() {
         };
 
         getUserAndProjects();
-    }, [router, supabase]);
+    }, [router]);
+
+    const handleDelete = async (id: string) => {
+        if (!confirm("Are you sure you want to delete this project?")) return;
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const res = await fetch(`http://127.0.0.1:8000/course/${id}`, {
+                method: "DELETE",
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+            });
+
+            if (res.ok) {
+                setProjects(projects.filter((p) => p.id !== id));
+            } else {
+                alert("Failed to delete project");
+            }
+        } catch (error) {
+            console.error("Error deleting project:", error);
+        }
+    };
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString("en-US", {
@@ -121,6 +147,7 @@ export default function DashboardPage() {
             case "generating":
                 return "bg-blue-100 text-blue-700 border-blue-200";
             case "error":
+            case "failed":
                 return "bg-red-100 text-red-700 border-red-200";
             default:
                 return "bg-slate-100 text-slate-700 border-slate-200";
@@ -128,11 +155,7 @@ export default function DashboardPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-[50vh]">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-            </div>
-        );
+        return <LoadingScreen message="Loading dashboard..." />;
     }
 
     return (
@@ -302,6 +325,14 @@ export default function DashboardPage() {
                                                     }
                                                 >
                                                     <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8 p-0 text-slate-500 hover:text-red-700"
+                                                    onClick={() => handleDelete(project.id)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
                                         </TableCell>

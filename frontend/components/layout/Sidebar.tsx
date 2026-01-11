@@ -13,6 +13,7 @@ import {
     PlusCircle,
     LogOut,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface NavItem {
     label: string;
@@ -23,7 +24,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { label: "Dashboard", href: "/dashboard", icon: <Home className="h-5 w-5" /> },
     { label: "Create New", href: "/dashboard/create", icon: <PlusCircle className="h-5 w-5" /> },
-    { label: "Settings", href: "/settings", icon: <Settings className="h-5 w-5" /> },
+    { label: "Settings", href: "/dashboard/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 
 interface SidebarProps {
@@ -50,7 +51,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             setIsLoading(false);
         };
         getUser();
-    }, [supabase]);
+    }, []);
 
     const getInitials = (name: string) => {
         if (!name) return "U";
@@ -137,15 +138,28 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
                         collapsed && "justify-center"
                     )}
                 >
-                    <div className="h-8 w-8 rounded-full bg-sidebar-active flex items-center justify-center text-sidebar-active-foreground font-semibold text-sm shrink-0">
-                        {isLoading ? "..." : getInitials(userName)}
-                    </div>
+                    {isLoading ? (
+                        <Skeleton className="h-8 w-8 rounded-full bg-teal-500/20" />
+                    ) : (
+                        <div className="h-8 w-8 rounded-full bg-sidebar-active flex items-center justify-center text-sidebar-active-foreground font-semibold text-sm shrink-0">
+                            {getInitials(userName)}
+                        </div>
+                    )}
                     {!collapsed && (
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{isLoading ? "Loading..." : userName}</p>
-                            <p className="text-xs text-sidebar-muted-foreground truncate">
-                                {isLoading ? "..." : userEmail}
-                            </p>
+                            {isLoading ? (
+                                <div className="space-y-1.5">
+                                    <Skeleton className="h-3.5 w-24 bg-teal-500/10" />
+                                    <Skeleton className="h-2.5 w-32 bg-teal-500/10" />
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-sm font-medium truncate">{userName}</p>
+                                    <p className="text-xs text-sidebar-muted-foreground truncate">
+                                        {userEmail}
+                                    </p>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
