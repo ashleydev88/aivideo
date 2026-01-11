@@ -5,13 +5,15 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/loading-screen";
+import { SeamlessPlayer, Slide } from "@/components/SeamlessPlayer";
 
 interface Project {
     id: string;
     name: string;
     video_url?: string;
+    slide_data?: Slide[];
     status: string;
 }
 
@@ -78,6 +80,10 @@ function PlayerContent() {
         );
     }
 
+    // Determine which player to show
+    const hasVideo = !!project.video_url;
+    const hasSlides = project.slide_data && project.slide_data.length > 0;
+
     return (
         <div className="max-w-5xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
@@ -94,21 +100,30 @@ function PlayerContent() {
             </div>
 
             <Card className="overflow-hidden bg-black/5 border-slate-200">
-                <CardContent className="p-0 aspect-video flex items-center justify-center bg-black">
-                    {project.video_url ? (
-                        <video
-                            src={project.video_url}
-                            controls
-                            className="w-full h-full"
-                            playsInline
-                            autoPlay
-                        >
-                            Your browser does not support the video tag.
-                        </video>
+                <CardContent className="p-0">
+                    {hasVideo ? (
+                        /* Prefer pre-rendered video if available */
+                        <div className="aspect-video flex items-center justify-center bg-black">
+                            <video
+                                src={project.video_url}
+                                controls
+                                className="w-full h-full"
+                                playsInline
+                                autoPlay
+                            >
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                    ) : hasSlides ? (
+                        /* Use seamless player with slide_data */
+                        <SeamlessPlayer slides={project.slide_data!} autoPlay={true} />
                     ) : (
-                        <div className="text-center text-white/50">
-                            <p>No video URL available for this project.</p>
-                            <p className="text-sm mt-2">Status: {project.status}</p>
+                        /* No content available */
+                        <div className="aspect-video flex items-center justify-center bg-black">
+                            <div className="text-center text-white/50">
+                                <p>No content available for this project.</p>
+                                <p className="text-sm mt-2">Status: {project.status}</p>
+                            </div>
                         </div>
                     )}
                 </CardContent>
