@@ -1,15 +1,18 @@
 "use client";
 import { useState } from 'react';
-import { Upload, Clock, Palette, Play } from 'lucide-react';
+import { Upload, Clock, Palette, Play, FileText, PenTool, Sparkles } from 'lucide-react';
 
 export default function SetupForm({ onStart, isLoading }: { onStart: (file: File, duration: number, style: string) => void, isLoading: boolean }) {
-    const [duration, setDuration] = useState(3);
-    const [style, setStyle] = useState("Minimalist Vector");
+    const [method, setMethod] = useState<'policy' | 'script' | 'topic' | null>(null);
+    const [duration, setDuration] = useState<number | null>(null);
+    const [style, setStyle] = useState<string | null>(null);
     const [file, setFile] = useState<File | null>(null);
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
     };
+
+    const handleComingSoon = () => alert("This feature is coming soon!");
 
     const styles = [
         {
@@ -27,75 +30,147 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
     ];
 
     return (
-        <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-
-            {/* Header */}
-            <div className="text-center space-y-2">
-                <h1 className="text-4xl font-bold text-slate-900 tracking-tight">
-                    Create New Course
-                </h1>
-                <p className="text-slate-500 text-lg">Turn your policy documents into engaging video training.</p>
+        <div className="w-full max-w-4xl mx-auto space-y-8 pb-20">
+            {/* Step 1: Selection Header (Not a Card) */}
+            <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold text-slate-900 mb-2">
+                    Where do you want to start?
+                </h2>
+                <p className="text-slate-500">
+                    Choose how you want to build your compliance training video.
+                </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-
-                {/* Duration & File */}
-                <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                        <label className="flex items-center gap-2 text-lg font-bold mb-4 text-slate-800">
-                            <Clock size={20} className="text-teal-700" /> Course Duration
-                        </label>
-                        <div className="grid grid-cols-3 gap-3">
-                            {[3, 5, 10, 15, 20].map(m => (
-                                <button
-                                    key={m}
-                                    onClick={() => setDuration(m)}
-                                    className={`py-2 px-4 rounded-lg font-medium transition-all
-                                        ${duration === m ? 'bg-teal-700 text-white shadow-md scale-105' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
-                                >
-                                    {m} Mins
-                                </button>
-                            ))}
+            {/* Step 1: Option Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 animate-in fade-in duration-500">
+                {/* Card A: Policy Upload */}
+                <div
+                    onClick={() => setMethod('policy')}
+                    className={`p-6 rounded-xl border transition-all cursor-pointer group
+                        ${method === 'policy'
+                            ? 'ring-2 ring-teal-500 bg-teal-50 border-teal-500 shadow-md'
+                            : 'bg-white border-slate-200 hover:border-teal-500 shadow-sm'}`}
+                >
+                    <div className="flex flex-col gap-4">
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-colors
+                            ${method === 'policy' ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-600 group-hover:bg-teal-100 group-hover:text-teal-600'}`}>
+                            <FileText size={24} />
                         </div>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                        <label className="flex items-center gap-2 text-lg font-bold mb-4 text-slate-800">
-                            <Upload size={20} className="text-teal-700" /> Policy Document
-                        </label>
-                        <div className="relative group">
-                            <input
-                                type="file"
-                                onChange={handleFile}
-                                accept=".pdf,.docx,.txt"
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                            />
-                            <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-all group-hover:bg-slate-50
-                                ${file ? 'border-teal-500 bg-teal-50' : 'border-slate-300'}`}>
-                                {file ? (
-                                    <div className="text-teal-700 font-medium truncate">{file.name}</div>
-                                ) : (
-                                    <div className="text-slate-500">
-                                        <p className="font-medium">Drop PDF or DOCX here</p>
-                                        <p className="text-xs mt-2 text-slate-400">or click to browse</p>
-                                    </div>
-                                )}
-                            </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 mb-1">Upload Policy</h3>
+                            <p className="text-sm text-slate-500 leading-relaxed">
+                                Turn your policy or process document into a compliant, engaging video.
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Style */}
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                    <label className="flex items-center gap-2 text-lg font-bold mb-4 text-slate-800">
+                {/* Card B: Paste Script */}
+                <div
+                    className="p-6 rounded-xl border border-slate-200 bg-slate-50/50 shadow-sm opacity-70 relative overflow-hidden"
+                >
+                    <div className="absolute top-3 right-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
+                            Coming Soon
+                        </span>
+                    </div>
+                    <div className="flex flex-col gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center">
+                            <PenTool size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-400 mb-1">Paste Script</h3>
+                            <p className="text-sm text-slate-400 leading-relaxed">
+                                Have a script ready? Paste it here and let our AI visualise it.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card C: Topic */}
+                <div
+                    className="p-6 rounded-xl border border-slate-200 bg-slate-50/50 shadow-sm opacity-70 relative overflow-hidden"
+                >
+                    <div className="absolute top-3 right-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
+                            Coming Soon
+                        </span>
+                    </div>
+                    <div className="flex flex-col gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center">
+                            <Sparkles size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-400 mb-1">Generate from Topic</h3>
+                            <p className="text-sm text-slate-400 leading-relaxed">
+                                No policy? No problem. Enter the topic to generate a best-practice training video.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Step 2: Policy Upload (Conditional) */}
+            {method === 'policy' && (
+                <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <label className="flex items-center gap-2 text-lg font-bold mb-6 text-slate-800">
+                        <Upload size={20} className="text-teal-700" /> Policy Document
+                    </label>
+                    <div className="relative group">
+                        <input
+                            type="file"
+                            onChange={handleFile}
+                            accept=".pdf,.docx,.txt"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        />
+                        <div className={`border-2 border-dashed rounded-lg p-12 text-center transition-all group-hover:bg-slate-50
+                            ${file ? 'border-teal-500 bg-teal-50' : 'border-slate-300'}`}>
+                            {file ? (
+                                <div className="text-teal-700 font-medium truncate text-lg">{file.name}</div>
+                            ) : (
+                                <div className="text-slate-500">
+                                    <p className="font-semibold text-lg">Drop PDF or DOCX here</p>
+                                    <p className="text-sm mt-2 text-slate-400">or click to browse your files</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Step 3: Course Duration (Conditional) */}
+            {file && (
+                <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <label className="flex items-center gap-2 text-lg font-bold mb-6 text-slate-800">
+                        <Clock size={20} className="text-teal-700" /> Course Duration
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        {[3, 5, 10, 15, 20].map(m => (
+                            <button
+                                key={m}
+                                onClick={() => setDuration(m)}
+                                className={`py-3 px-4 rounded-lg font-medium transition-all
+                                    ${duration === m ? 'bg-teal-700 text-white shadow-md scale-105' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
+                            >
+                                {m} Mins
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Step 4: Visual Style (Conditional) */}
+            {duration && (
+                <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <label className="flex items-center gap-2 text-lg font-bold mb-6 text-slate-800">
                         <Palette size={20} className="text-teal-700" /> Visual Style
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-[400px] overflow-y-auto pr-2 custom-scrollbar content-start">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {styles.map(s => (
                             <button
                                 key={s.name}
                                 onClick={() => setStyle(s.name)}
-                                className={`relative group overflow-hidden rounded-xl border-2 transition-all text-left flex flex-col h-[180px]
+                                className={`relative group overflow-hidden rounded-xl border-2 transition-all text-left flex flex-col h-[160px]
                                     ${style === s.name ? 'border-teal-500 ring-2 ring-teal-500/20 shadow-lg scale-[1.02]' : 'border-slate-100 hover:border-slate-300 shadow-sm'}`}
                             >
                                 {/* Background Image */}
@@ -112,33 +187,36 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
 
                                 {/* Content */}
                                 <div className="relative mt-auto p-4 w-full bg-gradient-to-t from-slate-900/80 to-transparent">
-                                    <span className="font-bold text-white text-sm">
+                                    <span className="font-bold text-white text-xs">
                                         {s.name}
                                     </span>
                                 </div>
 
                                 {/* Selection Indicator */}
                                 {style === s.name && (
-                                    <div className="absolute top-3 right-3 w-6 h-6 bg-teal-500 rounded-full flex items-center justify-center shadow-md animate-in zoom-in duration-300">
-                                        <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                                    <div className="absolute top-2 right-2 w-5 h-5 bg-teal-500 rounded-full flex items-center justify-center shadow-md animate-in zoom-in duration-300">
+                                        <div className="w-2 h-2 bg-white rounded-full"></div>
                                     </div>
                                 )}
                             </button>
                         ))}
                     </div>
                 </div>
-            </div>
+            )}
 
-            <div className="flex justify-center pt-6">
-                <button
-                    onClick={() => file && onStart(file, duration, style)}
-                    disabled={!file || isLoading}
-                    className="flex items-center gap-3 bg-teal-700 hover:bg-teal-800 text-white px-10 py-4 rounded-full font-bold text-xl shadow-lg hover:shadow-xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                    {isLoading ? "Analyzing Policy..." : "Start Planning"}
-                    {!isLoading && <Play fill="currentColor" size={20} />}
-                </button>
-            </div>
+            {/* Step 5: Submit Button (Conditional) */}
+            {style && (
+                <div className="flex justify-center pt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <button
+                        onClick={() => file && duration && style && onStart(file, duration, style)}
+                        disabled={isLoading}
+                        className="flex items-center gap-4 bg-teal-700 hover:bg-teal-800 text-white px-12 py-5 rounded-full font-bold text-2xl shadow-xl hover:shadow-2xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
+                        {isLoading ? "Analyzing Policy..." : "Start Planning"}
+                        {!isLoading && <Play fill="currentColor" size={24} />}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
