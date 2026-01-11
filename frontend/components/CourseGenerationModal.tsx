@@ -15,6 +15,7 @@ interface CourseGenerationModalProps {
     statusText: string;
     error?: string | null;
     onRetry?: () => void;
+    validationEnabled?: boolean;
 }
 
 type StepStatus = "pending" | "active" | "completed" | "error";
@@ -25,7 +26,7 @@ interface Step {
     description: string;
 }
 
-const STEPS: Step[] = [
+const ALL_STEPS: Step[] = [
     {
         id: "script",
         label: "Generating Script",
@@ -47,6 +48,11 @@ const STEPS: Step[] = [
         description: "Assembling your final training video",
     },
 ];
+
+function getSteps(validationEnabled: boolean): Step[] {
+    if (validationEnabled) return ALL_STEPS;
+    return ALL_STEPS.filter(step => step.id !== "validation");
+}
 
 function getStepStatuses(
     currentPhase: "script" | "designing",
@@ -183,7 +189,9 @@ export default function CourseGenerationModal({
     statusText,
     error,
     onRetry,
+    validationEnabled = true,
 }: CourseGenerationModalProps) {
+    const steps = getSteps(validationEnabled);
     const stepStatuses = getStepStatuses(currentPhase, statusText, error || null);
 
     return (
@@ -216,9 +224,9 @@ export default function CourseGenerationModal({
 
                 {/* Progress Steps */}
                 <div className="p-6 space-y-0">
-                    {STEPS.map((step, index) => {
+                    {steps.map((step, index) => {
                         const status = stepStatuses[step.id];
-                        const isLast = index === STEPS.length - 1;
+                        const isLast = index === steps.length - 1;
                         const dynamicDescription = getActiveStepDescription(statusText, step.id);
 
                         return (
@@ -230,8 +238,8 @@ export default function CourseGenerationModal({
                                         {!isLast && (
                                             <div
                                                 className={`w-0.5 h-10 transition-all duration-700 ease-out ${status === "completed"
-                                                        ? "bg-gradient-to-b from-teal-500 to-teal-400"
-                                                        : "bg-slate-200"
+                                                    ? "bg-gradient-to-b from-teal-500 to-teal-400"
+                                                    : "bg-slate-200"
                                                     }`}
                                             />
                                         )}
@@ -241,12 +249,12 @@ export default function CourseGenerationModal({
                                     <div className="flex-1 pb-6">
                                         <h4
                                             className={`font-semibold text-base transition-colors duration-300 ${status === "active"
-                                                    ? "text-teal-700"
-                                                    : status === "completed"
-                                                        ? "text-slate-700"
-                                                        : status === "error"
-                                                            ? "text-red-600"
-                                                            : "text-slate-400"
+                                                ? "text-teal-700"
+                                                : status === "completed"
+                                                    ? "text-slate-700"
+                                                    : status === "error"
+                                                        ? "text-red-600"
+                                                        : "text-slate-400"
                                                 }`}
                                         >
                                             {step.label}
@@ -258,12 +266,12 @@ export default function CourseGenerationModal({
                                         </h4>
                                         <p
                                             className={`text-sm transition-colors duration-300 mt-0.5 ${status === "active"
-                                                    ? "text-teal-600"
-                                                    : status === "completed"
-                                                        ? "text-slate-500"
-                                                        : status === "error"
-                                                            ? "text-red-500"
-                                                            : "text-slate-400"
+                                                ? "text-teal-600"
+                                                : status === "completed"
+                                                    ? "text-slate-500"
+                                                    : status === "error"
+                                                        ? "text-red-500"
+                                                        : "text-slate-400"
                                                 }`}
                                         >
                                             {dynamicDescription || step.description}

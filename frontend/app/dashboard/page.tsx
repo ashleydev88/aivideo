@@ -17,7 +17,7 @@ import {
     Video,
     Plus,
     Download,
-    Edit,
+    Play,
     Calendar,
     Clock,
     MoreHorizontal,
@@ -318,14 +318,14 @@ export default function DashboardPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-8 w-8 p-0 text-slate-500 hover:text-teal-700"
+                                                    className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
                                                     onClick={() =>
                                                         router.push(
-                                                            `/dashboard/create?id=${project.id}`
+                                                            `/dashboard/player?id=${project.id}`
                                                         )
                                                     }
                                                 >
-                                                    <Edit className="h-4 w-4" />
+                                                    <Play className="h-4 w-4" />
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
