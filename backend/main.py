@@ -27,7 +27,7 @@ from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-ELEVEN_LABS_API_KEY = os.getenv("ELEVEN_LABS_API_KEY")
+ELEVEN_LABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
