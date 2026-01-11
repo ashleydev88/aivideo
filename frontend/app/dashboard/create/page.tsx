@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { CheckCircle2, PlayCircle } from 'lucide-react';
 import SetupForm from '@/components/SetupForm';
 import PlanningEditor from '@/components/PlanningEditor';
+import ProcessingModal from '@/components/ProcessingModal';
+import CourseGenerationModal from '@/components/CourseGenerationModal';
 import { createClient } from '@/lib/supabase/client';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -270,6 +272,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
 export default function DashboardCreatePage() {
     const [view, setView] = useState<"setup" | "planning" | "designing" | "playing">("setup");
     const [isLoading, setIsLoading] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const router = useRouter();
     const supabase = createClient();
     const [session, setSession] = useState<any>(null);
@@ -292,6 +295,10 @@ export default function DashboardCreatePage() {
     const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
     const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Generation Modal State
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [generationPhase, setGenerationPhase] = useState<"script" | "designing">("script");
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -348,6 +355,7 @@ export default function DashboardCreatePage() {
     // --- STEP 1: UPLOAD & PARSE ---
     const handleStartPlanning = async (file: File, d: number, s: string) => {
         setIsLoading(true);
+        setIsProcessing(true);
         setDuration(d);
         setStyle(s);
 
@@ -380,8 +388,9 @@ export default function DashboardCreatePage() {
             setTopics(data.topics || []);
             setTitle(data.title || "New Course"); // Capture Title
             setLearningObjective(data.learning_objective || ""); // Capture LO
+            setIsProcessing(false);
             setView("planning");
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error(e); setIsProcessing(false); }
         finally { setIsLoading(false); }
     };
 
@@ -393,6 +402,11 @@ export default function DashboardCreatePage() {
         }
 
         setIsLoading(true);
+        setIsGenerating(true);
+        setGenerationPhase("script");
+        setError(null);
+        setStatusText("Generating script...");
+
         try {
             const res = await fetch("http://127.0.0.1:8000/generate-script", {
                 method: "POST",
@@ -414,10 +428,24 @@ export default function DashboardCreatePage() {
             const data = await res.json();
             if (data.status === "started") {
                 setCourseId(data.course_id);
+                setGenerationPhase("designing");
                 setView("designing");
                 pollStatus(data.course_id);
+            } else if (data.status === "error") {
+                setError(data.message || "Failed to start course generation.");
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            setError("Failed to connect to server. Please try again.");
+        }
+    };
+
+    // Handle retry from modal
+    const handleGenerationRetry = () => {
+        setIsGenerating(false);
+        setIsLoading(false);
+        setError(null);
+        setView("setup");
     };
 
     // POLLER
@@ -466,6 +494,7 @@ export default function DashboardCreatePage() {
                 if (data.status === "completed") {
                     setSlides(data.data);
                     setIsLoading(false);
+                    setIsGenerating(false);
                     setView("playing");
 
                     clearInterval(interval);
@@ -514,6 +543,18 @@ export default function DashboardCreatePage() {
 
     return (
         <div className="relative w-full h-full min-h-[calc(100vh-4rem)]">
+            {/* Processing Modal (Setup -> Planning transition) */}
+            <ProcessingModal isOpen={isProcessing} />
+
+            {/* Course Generation Modal (Planning -> Designing transition) */}
+            <CourseGenerationModal
+                isOpen={isGenerating}
+                currentPhase={generationPhase}
+                statusText={statusText}
+                error={error}
+                onRetry={handleGenerationRetry}
+            />
+
             {/* Background Gradients */}
             <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80 pointer-events-none" aria-hidden="true">
                 <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-teal-200 to-slate-200 opacity-60 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"></div>
@@ -544,33 +585,10 @@ export default function DashboardCreatePage() {
                     />
                 )}
 
-                {view === "designing" && (
-                    <div className="flex flex-col items-center gap-8 animate-in fade-in zoom-in duration-700 py-20">
-                        {error ? (
-                            <div className="text-center space-y-4">
-                                <div className="text-red-500 font-bold text-xl">{error}</div>
-                                <button
-                                    onClick={() => setView("setup")}
-                                    className="px-6 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-700 font-medium"
-                                >
-                                    Start Over
-                                </button>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="relative w-32 h-32">
-                                    <div className="absolute inset-0 border-4 border-teal-200 rounded-full animate-ping"></div>
-                                    <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-16 h-16 bg-teal-50 rounded-full blur-xl"></div>
-                                    </div>
-                                </div>
-                                <div className="text-center space-y-3">
-                                    <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Designing Your Course</h2>
-                                    <p className="text-slate-500 animate-pulse font-medium">{statusText}</p>
-                                </div>
-                            </>
-                        )}
+                {/* Designing view is handled by the modal - show empty placeholder */}
+                {view === "designing" && !isGenerating && (
+                    <div className="text-center text-slate-500 py-20">
+                        Processing complete. Loading player...
                     </div>
                 )}
 
