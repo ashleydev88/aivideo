@@ -49,14 +49,6 @@ MINIMALIST_PROMPT = (
     "Scenes should focus on metaphorical representations of concepts—using icons, charts, and simplified shapes—rather than detailed character studies."
 )
 
-CARTOON_PROMPT = (
-    "A friendly, engaging 2D vector style reminiscent of premium corporate explainer videos (e.g., Kurzgesagt or Headspace). "
-    "The style features smooth, uniform line weights and rounded edges, avoiding sharp corners to maintain a welcoming tone. "
-    "The palette consists of vibrant but flat solid colours without gradients, utilizing a cheerful yet professional range of blues, greens, and soft pastels. "
-    "Backgrounds are simple 2D settings—offices, lobbies, digital spaces—that provide context without clutter. "
-    "The overall look is accessible and narrative-driven, designed to make dry topics feel relatable. "
-    "Scenes can feature stylized characters with simplified facial features to represent diverse employees, acting out scenarios clearly."
-)
 
 PHOTO_REALISTIC_PROMPT = (
     "A high-resolution, cinematic stock photography aesthetic with a focus on authenticity and modern office realism. "
@@ -67,23 +59,6 @@ PHOTO_REALISTIC_PROMPT = (
     "Scenes should depict diverse professionals in candid, 'in-action' moments rather than stiff poses, or close-ups of relevant objects (laptops, safety gear, documents) on desks."
 )
 
-HAND_DRAWN_PROMPT = (
-    "A sophisticated corporate illustration in a semi-realistic, hand-drawn aesthetic. "
-    "The style features distinct, expressive charcoal or ink outlines combined with soft, textured watercolor-style coloring. "
-    "The palette is restrained and professional: primarily navy blues, cool greys, and crisp whites, with selective warm accents of mustard yellow and beige. "
-    "Backgrounds are often simplified, airy, or fade into a white vignette. "
-    "The overall look is polished yet human, evocative of high-end editorial illustrations for business technology. "
-    "Scenes should prioritize relevant objects, tools, and conceptual diagrams over human subjects where possible."
-)
-
-ABSTRACT_3D_PROMPT = (
-    "A futuristic, high-tech 3D abstract style featuring glassmorphism and soft glowing elements. "
-    "The aesthetic focuses on floating shapes, data streams, and network nodes rendered with high-quality ray-tracing effects. "
-    "The palette uses deep blues, purples, and cyans with neon accents against dark, sleek backgrounds. "
-    "Materials include frosted glass, brushed metal, and emissive light sources. "
-    "The overall look is innovative, data-driven, and cutting-edge. "
-    "Scenes are entirely metaphorical, representing data flow, security shields, and digital infrastructure without human characters."
-)
 
 TECH_ISOMETRIC_PROMPT = (
     "A clean, precise isometric 3D illustration style, popular in modern tech documentation. "
@@ -96,10 +71,7 @@ TECH_ISOMETRIC_PROMPT = (
 
 STYLE_MAPPING = {
     "Minimalist Vector": MINIMALIST_PROMPT,
-    "Cartoon": CARTOON_PROMPT,
     "Photo Realistic": PHOTO_REALISTIC_PROMPT,
-    "Hand Drawn": HAND_DRAWN_PROMPT,
-    "3D Abstract": ABSTRACT_3D_PROMPT,
     "Tech Isometric": TECH_ISOMETRIC_PROMPT,
 }
 

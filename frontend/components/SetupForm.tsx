@@ -13,10 +13,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
 
     const styles = [
         { name: "Minimalist Vector" },
-        { name: "Cartoon" },
         { name: "Photo Realistic" },
-        { name: "Hand Drawn" },
-        { name: "3D Abstract" },
         { name: "Tech Isometric" },
     ];
 
