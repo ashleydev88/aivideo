@@ -42,7 +42,8 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
 
     React.useEffect(() => {
         const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (user) {
                 const fullName = user.user_metadata?.full_name;
                 setUserName(fullName || "User");

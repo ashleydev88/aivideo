@@ -29,10 +29,11 @@ export async function updateSession(request: NextRequest) {
         }
     );
 
-    // Refreshes session if expired
+    // Use getSession() (cookie-based, instant) instead of getUser() (network call)
     const {
-        data: { user },
-    } = await supabase.auth.getUser();
+        data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
 
     const url = request.nextUrl;
 

@@ -55,42 +55,43 @@ export default function DashboardPage() {
     useEffect(() => {
         const getUserAndProjects = async () => {
             try {
+                // Use getSession() (cookie-based, instant) instead of getUser() (network call)
                 const {
-                    data: { user },
-                    error: authError,
-                } = await supabase.auth.getUser();
+                    data: { session },
+                } = await supabase.auth.getSession();
+                const user = session?.user;
 
-                if (authError || !user) {
+                if (!user) {
                     router.push("/login");
                     return;
                 }
 
                 setUser(user);
 
-                // Fetch projects (mapped to 'courses' table based on system)
-                const { data, error } = await supabase
-                    .from("courses")
-                    .select("*")
-                    .eq("user_id", user.id)
-                    .order("created_at", { ascending: false });
+                // Parallel fetch for courses and profile
+                const [coursesResult, profileResult] = await Promise.all([
+                    supabase
+                        .from("courses")
+                        .select("*")
+                        .eq("user_id", user.id)
+                        .order("created_at", { ascending: false }),
+                    supabase
+                        .from("profiles")
+                        .select("*")
+                        .eq("id", user.id)
+                        .single(),
+                ]);
 
-                if (error) {
-                    console.error("Error fetching projects:", error);
+                if (coursesResult.error) {
+                    console.error("Error fetching projects:", coursesResult.error);
                 } else {
-                    setProjects(data || []);
+                    setProjects(coursesResult.data || []);
                 }
 
-                // Fetch profile
-                const { data: profileData, error: profileError } = await supabase
-                    .from("profiles")
-                    .select("*")
-                    .eq("id", user.id)
-                    .single();
-
-                if (profileError) {
-                    console.log("Error fetching profile (might be new user lacking profile row):", profileError);
+                if (profileResult.error) {
+                    console.log("Error fetching profile (might be new user lacking profile row):", profileResult.error);
                 } else {
-                    setProfile(profileData);
+                    setProfile(profileResult.data);
                 }
             } catch (error) {
                 console.error("Error:", error);
