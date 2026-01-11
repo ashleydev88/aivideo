@@ -33,7 +33,7 @@ export default function Home() {
                   <span className="text-teal-700">Generated in Minutes.</span>
                 </h1>
                 <p className="mt-6 text-lg leading-8 text-slate-600">
-                  Create training videos without the cost or hastle.
+                  Create training videos without the cost or hastle. <br />
                   Effective, reliable and bespoke to your company policies.
                 </p>
                 <div className="mt-10 flex items-center justify-center gap-x-6">
