@@ -37,7 +37,7 @@ REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 
 # --- CONFIGURATION FLAGS ---
-ENABLE_SCRIPT_VALIDATION = False  # Set to False to skip validation 
+ENABLE_SCRIPT_VALIDATION = True  # Set to False to skip validation 
 
 # --- STYLE PROMPTS ---
 
@@ -723,7 +723,7 @@ async def create_course(request: CourseRequest, background_tasks: BackgroundTask
 @app.get("/status/{course_id}")
 async def get_status(course_id: str, authorization: str = Header(None)):
     user_id = get_user_id_from_token(authorization)
-    response = supabase.table("courses").select("*").eq("id", course_id).eq("user_id", user_id).execute()
+    response = supabase_admin.table("courses").select("*").eq("id", course_id).eq("user_id", user_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Course not found or access denied")
     data = response.data[0]
