@@ -299,6 +299,7 @@ export default function DashboardCreatePage() {
     // Generation Modal State
     const [isGenerating, setIsGenerating] = useState(false);
     const [generationPhase, setGenerationPhase] = useState<"script" | "designing">("script");
+    const [validationEnabled, setValidationEnabled] = useState(true);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -428,6 +429,7 @@ export default function DashboardCreatePage() {
             const data = await res.json();
             if (data.status === "started") {
                 setCourseId(data.course_id);
+                setValidationEnabled(data.validation_enabled ?? true);
                 setGenerationPhase("designing");
                 setView("designing");
                 pollStatus(data.course_id);
@@ -553,6 +555,7 @@ export default function DashboardCreatePage() {
                 statusText={statusText}
                 error={error}
                 onRetry={handleGenerationRetry}
+                validationEnabled={validationEnabled}
             />
 
             {/* Background Gradients */}

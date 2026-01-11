@@ -266,9 +266,12 @@ def generate_audio(text):
     payload = {"text": text, "model_id": "eleven_turbo_v2", "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}}
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
-        if response.status_code == 200: return response.content
+        if response.status_code == 200: 
+            return response.content
+        else:
+            print(f"   ❌ ElevenLabs API Error {response.status_code}: {response.text}")
     except Exception as e:
-        print(f"   ❌ ElevenLabs Error: {e}")
+        print(f"   ❌ ElevenLabs Connection Error: {e}")
     return None
 
 def generate_image_imagen(prompt):
@@ -1146,7 +1149,7 @@ Pacing Strategy:
         # Start Background Job
         background_tasks.add_task(generate_course_assets, course_id, script_plan, style_prompt, request.user_id)
         
-        return {"status": "started", "course_id": course_id}
+        return {"status": "started", "course_id": course_id, "validation_enabled": ENABLE_SCRIPT_VALIDATION}
         
     except Exception as e:
         print(f"❌ Script Generation Error: {e}")
