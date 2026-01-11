@@ -37,7 +37,7 @@ REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 
 # --- CONFIGURATION FLAGS ---
-ENABLE_SCRIPT_VALIDATION = True  # Set to False to skip validation 
+ENABLE_SCRIPT_VALIDATION = False  # Set to False to skip validation 
 
 # --- STYLE PROMPTS ---
 
@@ -551,7 +551,7 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
     
     try:
         completion = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-haiku-4-5",
             max_tokens=20000,
             messages=[{"role": "user", "content": validation_prompt}]
         )
@@ -575,29 +575,33 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
             for i, slide in enumerate(script_plan):
                 supabase.table("courses").update({"status": f"Drafting Slide {i+1} of {len(script_plan)}..."}).eq("id", course_id).execute()
                 
-                # 1. Audio
+                # 1. Audio - fail immediately if generation fails
                 audio_data = generate_audio(slide["text"])
+                if audio_data is None:
+                    raise Exception(f"Audio generation failed for slide {i+1}. API issue detected.")
                 
                 # Calculate Duration
                 duration_ms = slide.get("duration", 15000)
-                if audio_data:
-                    try:
-                        temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
-                        with open(temp_audio_path, "wb") as f:
-                            f.write(audio_data)
-                        
-                        clip = AudioFileClip(temp_audio_path)
-                        duration_ms = int((clip.duration * 1000) + 1500) # Audio + 1.5s Buffer
-                        clip.close()
-                    except Exception as e:
-                        print(f"   ⚠️ Duration Calc Error: {e}")
+                try:
+                    temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
+                    with open(temp_audio_path, "wb") as f:
+                        f.write(audio_data)
+                    
+                    clip = AudioFileClip(temp_audio_path)
+                    duration_ms = int((clip.duration * 1000) + 1500) # Audio + 1.5s Buffer
+                    clip.close()
+                except Exception as e:
+                    print(f"   ⚠️ Duration Calc Error: {e}")
 
                 audio_filename = f"narration_{i}_{int(time.time())}.mp3" # Timestamp to avoid collisions
                 audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg", user_id)
                 
-                # 2. Image
+                # 2. Image - fail immediately if generation fails
                 full_prompt = f"{style_prompt}. {slide['prompt']}"
                 image_data = generate_image_imagen(full_prompt)
+                if image_data is None:
+                    raise Exception(f"Image generation failed for slide {i+1}. API issue detected.")
+                    
                 image_filename = f"visual_{i}_{int(time.time())}.jpg"
                 image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
                 
@@ -860,7 +864,7 @@ async def generate_plan(request: PlanRequest):
     
     try:
         completion = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-haiku-4-5",
             max_tokens=20000,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -1083,7 +1087,7 @@ Pacing Strategy:
         for attempt in range(max_retries):
             # Generate
             completion = client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model="claude-haiku-4-5",
                 max_tokens=20000,
                 messages=messages
             )
