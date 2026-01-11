@@ -115,8 +115,8 @@ function getStepStatuses(
         return statuses;
     }
 
-    // Media generation (Drafting slides)
-    if (lower.includes("drafting slide") || lower.includes("generating audio") || lower.includes("creating slide")) {
+    // Media generation (generating_media or Drafting slides)
+    if (lower.includes("generating_media") || lower.includes("drafting slide") || lower.includes("generating audio") || lower.includes("creating slide")) {
         statuses.script = "completed";
         statuses.validation = "completed";
         statuses.media = "active";
