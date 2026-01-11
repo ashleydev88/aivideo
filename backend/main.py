@@ -554,7 +554,7 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
     
     try:
         completion = client.messages.create(
-            model="claude-haiku-4-5",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=20000,
             messages=[{"role": "user", "content": validation_prompt}]
         )
@@ -565,11 +565,12 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
         # Default to approved if validation fails to run, to avoid blocking
         return {"approved": True, "issues": ["Validation mechanism failed"], "suggestions": []}
 
-
-# --- WORKER 1: DRAFT COURSE GENERATION ---
 # --- WORKER 1: DRAFT COURSE GENERATION ---
 def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str):
     print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
+    
+    # Update status to generating_media before starting slide generation
+    supabase.table("courses").update({"status": "generating_media"}).eq("id", course_id).execute()
     
     try:
         final_slides = []
@@ -867,7 +868,7 @@ async def generate_plan(request: PlanRequest):
     
     try:
         completion = client.messages.create(
-            model="claude-haiku-4-5",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=20000,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -1082,15 +1083,33 @@ Pacing Strategy:
         f"☐ Policy-specific information is included (not generic advice)\n"
     )
 
+    # Create DB Entry EARLY so we can update status throughout the process
+    metadata = {
+        "topics": topics_list, 
+        "style": request.style
+    }
+    
+    try:
+        response = supabase_admin.table("courses").insert({
+            "status": "generating_script", 
+            "name": request.title,
+            "metadata": metadata,
+            "user_id": request.user_id
+        }).execute()
+        course_id = response.data[0]['id']
+    except Exception as e:
+        print(f"❌ DB Insert Error: {e}")
+        return {"status": "error", "message": str(e)}
+    
     try:
         messages = [{"role": "user", "content": base_prompt}]
         script_plan = []
         max_retries = 2
         
         for attempt in range(max_retries):
-            # Generate
+            # Generate Script
             completion = client.messages.create(
-                model="claude-haiku-4-5",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=20000,
                 messages=messages
             )
@@ -1098,21 +1117,25 @@ Pacing Strategy:
             data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
             
-            # Validation
+            # Skip validation if disabled
             if not ENABLE_SCRIPT_VALIDATION:
                 break
-                
+            
+            # Update status to validating
+            supabase_admin.table("courses").update({"status": "validating"}).eq("id", course_id).execute()
+            
             validation_result = validate_script(script_plan, context_package)
             
             if validation_result['approved']:
                 print("   ✅ Script Validation Passed")
                 break
             
-            # If failed
+            # If failed, update status back to generating for retry
             print(f"   ⚠️ Script Validation Failed (Attempt {attempt+1}/{max_retries})")
             print(f"      Issues: {validation_result.get('issues', [])}")
             
             if attempt < max_retries - 1:
+                supabase_admin.table("courses").update({"status": "generating_script"}).eq("id", course_id).execute()
                 # Add context for retry
                 messages.append({"role": "assistant", "content": res_text})
                 feedback = (
@@ -1126,40 +1149,22 @@ Pacing Strategy:
             else:
                 print("   ⚠️ Max retries reached. Proceeding with best effort.")
 
-        # Create DB Entry
-        metadata = {
-            "topics": topics_list, 
-            "style": request.style
-        }
+        # Update metadata with validation result if available
         if ENABLE_SCRIPT_VALIDATION and 'validation_result' in locals():
             metadata["validation_last_result"] = validation_result
+            supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
 
-        response = supabase_admin.table("courses").insert({
-            "status": "generating_script", 
-            "name": request.title,
-            "metadata": metadata,
-            "user_id": request.user_id
-        }).execute()
-        course_id = response.data[0]['id']
-        
         # Determine Style Prompt
         style_prompt = STYLE_MAPPING.get(request.style, MINIMALIST_PROMPT)
-        # Future styles can be added here
         
-        # Start Background Job
+        # Start Background Job (will update status to generating_media)
         background_tasks.add_task(generate_course_assets, course_id, script_plan, style_prompt, request.user_id)
         
         return {"status": "started", "course_id": course_id, "validation_enabled": ENABLE_SCRIPT_VALIDATION}
         
     except Exception as e:
         print(f"❌ Script Generation Error: {e}")
-        # Note: Since this exception usually happens *before* background task starts (or inside it if we moved logic),
-        # If it happens here in the synchronous part, we might not have a course_id yet OR we failed early.
-        # But wait, this try/except wraps the DB insert.
-        # If DB insert failed, we don't have a course_id to clean up.
-        # If background task add failed, we do.
-        if 'course_id' in locals():
-             handle_failure(course_id, request.user_id, e, metadata)
+        handle_failure(course_id, request.user_id, e, metadata)
         return {"status": "error", "message": str(e)}
 
 @app.delete("/course/{course_id}")

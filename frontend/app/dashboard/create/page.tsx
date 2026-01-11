@@ -451,27 +451,29 @@ export default function DashboardCreatePage() {
     };
 
     // POLLER
-    const pollStatus = (id: string) => {
-        const interval = setInterval(async () => {
-            try {
-                // IMPORTANT: Add auth header here if needed, or ensuring public status endpoint?
-                // The backend route /status/{course_id} requires Authorization header in latest backend?
-                // Let's check backend/main.py. Yes: async def get_status(course_id: str, authorization: str = Header(None)):
-                // We need to pass the token.
+    const pollInterval = useRef<NodeJS.Timeout | null>(null);
 
+    const pollStatus = (id: string) => {
+        // Clear any existing poller first to avoid duplicates
+        if (pollInterval.current) clearInterval(pollInterval.current);
+
+        pollInterval.current = setInterval(async () => {
+            try {
                 const headers: any = {};
                 if (session?.access_token) {
                     headers['Authorization'] = `Bearer ${session.access_token}`;
                 }
 
-                const res = await fetch(`http://127.0.0.1:8000/status/${id}`, { headers });
+                // Add timestamp to prevent caching
+                const res = await fetch(`http://127.0.0.1:8000/status/${id}?t=${Date.now()}`, {
+                    headers,
+                    cache: 'no-store'
+                });
 
-                // If the course is gone (404), it means it failed and was auto-deleted by backend
-                // or user deleted it manually. In context of "designing" view, likely failure.
                 if (res.status === 404) {
                     setError("Whoops looks like we've had an issue. Please try again.");
                     setStatusText("Generation Failed");
-                    clearInterval(interval);
+                    if (pollInterval.current) clearInterval(pollInterval.current);
                     return;
                 }
 
@@ -485,7 +487,7 @@ export default function DashboardCreatePage() {
                 if (data.status === "failed" || data.status === "error") {
                     setError("Generation failed. Please try again.");
                     setStatusText("Generation Failed");
-                    clearInterval(interval);
+                    if (pollInterval.current) clearInterval(pollInterval.current);
                     return;
                 }
 
@@ -499,11 +501,18 @@ export default function DashboardCreatePage() {
                     setIsGenerating(false);
                     setView("playing");
 
-                    clearInterval(interval);
+                    if (pollInterval.current) clearInterval(pollInterval.current);
                 }
             } catch (e) { console.error(e); }
         }, 1000);
     };
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (pollInterval.current) clearInterval(pollInterval.current);
+        };
+    }, []);
 
     // Re-attach poller if we reload a historical item
     useEffect(() => {
