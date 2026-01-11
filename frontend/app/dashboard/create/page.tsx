@@ -5,6 +5,7 @@ import { CheckCircle2, PlayCircle } from 'lucide-react';
 import SetupForm from '@/components/SetupForm';
 import PlanningEditor from '@/components/PlanningEditor';
 import { createClient } from '@/lib/supabase/client';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 // --- INTERFACES ---
@@ -290,20 +291,28 @@ export default function DashboardCreatePage() {
     const [statusText, setStatusText] = useState("Initializing...");
     const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
     const [isExporting, setIsExporting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
+            if (session?.user?.user_metadata?.location_preference) {
+                setCountry(session.user.user_metadata.location_preference as "USA" | "UK");
+            }
         });
 
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
+            if (session?.user?.user_metadata?.location_preference) {
+                setCountry(session.user.user_metadata.location_preference as "USA" | "UK");
+            }
         });
 
         return () => subscription.unsubscribe();
     }, []);
+
 
     // NEW: Load from ID if Present
     useEffect(() => {
@@ -314,6 +323,25 @@ export default function DashboardCreatePage() {
             loadFromHistory(initialId);
         }
     }, [initialId, session]);
+
+    // PREVENT NAVIGATING AWAY WHEN IN PLANNING MODE
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (view === "planning") {
+                e.preventDefault();
+                e.returnValue = ''; // Chrome requires returnValue to be set
+                return '';
+            }
+        };
+
+        if (view === "planning") {
+            window.addEventListener("beforeunload", handleBeforeUnload);
+        }
+
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+        };
+    }, [view]);
 
 
 
@@ -407,11 +435,28 @@ export default function DashboardCreatePage() {
                 }
 
                 const res = await fetch(`http://127.0.0.1:8000/status/${id}`, { headers });
+
+                // If the course is gone (404), it means it failed and was auto-deleted by backend
+                // or user deleted it manually. In context of "designing" view, likely failure.
+                if (res.status === 404) {
+                    setError("Whoops looks like we've had an issue. Please try again.");
+                    setStatusText("Generation Failed");
+                    clearInterval(interval);
+                    return;
+                }
+
                 const data = await res.json();
 
                 if (data.video_url) {
                     setVideoUrl(data.video_url);
                     setIsExporting(false);
+                }
+
+                if (data.status === "failed" || data.status === "error") {
+                    setError("Generation failed. Please try again.");
+                    setStatusText("Generation Failed");
+                    clearInterval(interval);
+                    return;
                 }
 
                 if (data.status && data.status !== "completed") {
@@ -464,7 +509,7 @@ export default function DashboardCreatePage() {
 
 
     if (!session) {
-        return <div className="min-h-screen bg-white flex items-center justify-center text-teal-700">Loading Auth...</div>;
+        return <LoadingScreen message="Loading course creator..." />;
     }
 
     return (
@@ -474,25 +519,7 @@ export default function DashboardCreatePage() {
                 <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-teal-200 to-slate-200 opacity-60 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"></div>
             </div>
 
-            {/* Country Toggle - Positioned in content area top right */}
-            <div className="absolute top-0 right-0 z-20">
-                <div className="flex items-center bg-white/80 backdrop-blur-md rounded-full p-1 border border-slate-200 shadow-sm">
-                    <button
-                        onClick={() => setCountry("USA")}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full transition-all text-sm font-bold ${country === "USA" ? "bg-teal-50 text-teal-700 shadow-sm ring-1 ring-teal-200" : "text-slate-400 hover:text-slate-600"
-                            }`}
-                    >
-                        <span className="text-base">🇺🇸</span> USA
-                    </button>
-                    <button
-                        onClick={() => setCountry("UK")}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full transition-all text-sm font-bold ${country === "UK" ? "bg-teal-50 text-teal-700 shadow-sm ring-1 ring-teal-200" : "text-slate-400 hover:text-slate-600"
-                            }`}
-                    >
-                        <span className="text-base">🇬🇧</span> UK
-                    </button>
-                </div>
-            </div>
+
 
 
             <div className="flex flex-col items-center justify-center w-full max-w-6xl mx-auto pt-10 pb-20">
@@ -507,7 +534,11 @@ export default function DashboardCreatePage() {
                         duration={duration}
                         initialTitle={title}
                         initialLearningObjective={learningObjective}
-                        onBack={() => setView("setup")}
+                        onBack={() => {
+                            if (window.confirm("You will lose your progress if you go back. Are you sure?")) {
+                                setView("setup");
+                            }
+                        }}
                         onNext={(t, newTitle) => { setTitle(newTitle); handleStartDesigning(t); }}
                         isLoading={isLoading}
                     />
@@ -515,17 +546,31 @@ export default function DashboardCreatePage() {
 
                 {view === "designing" && (
                     <div className="flex flex-col items-center gap-8 animate-in fade-in zoom-in duration-700 py-20">
-                        <div className="relative w-32 h-32">
-                            <div className="absolute inset-0 border-4 border-teal-200 rounded-full animate-ping"></div>
-                            <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-16 h-16 bg-teal-50 rounded-full blur-xl"></div>
+                        {error ? (
+                            <div className="text-center space-y-4">
+                                <div className="text-red-500 font-bold text-xl">{error}</div>
+                                <button
+                                    onClick={() => setView("setup")}
+                                    className="px-6 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-700 font-medium"
+                                >
+                                    Start Over
+                                </button>
                             </div>
-                        </div>
-                        <div className="text-center space-y-3">
-                            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Designing Your Course</h2>
-                            <p className="text-slate-500 animate-pulse font-medium">{statusText}</p>
-                        </div>
+                        ) : (
+                            <>
+                                <div className="relative w-32 h-32">
+                                    <div className="absolute inset-0 border-4 border-teal-200 rounded-full animate-ping"></div>
+                                    <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-16 h-16 bg-teal-50 rounded-full blur-xl"></div>
+                                    </div>
+                                </div>
+                                <div className="text-center space-y-3">
+                                    <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Designing Your Course</h2>
+                                    <p className="text-slate-500 animate-pulse font-medium">{statusText}</p>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
