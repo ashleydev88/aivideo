@@ -6,6 +6,12 @@ import traceback
 import tempfile
 import textwrap
 from PIL import Image, ImageDraw, ImageFont
+
+# --- PILLOW COMPATIBILITY FIX ---
+# MoviePy 1.0.3 uses PIL.Image.ANTIALIAS which was removed in Pillow 10.0.0
+# Add compatibility alias for ANTIALIAS -> LANCZOS
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
 from fastapi import FastAPI, BackgroundTasks, File, UploadFile, Form, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -24,83 +30,7 @@ import traceback
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeVideoClip
 import random
 
-# --- KEN BURNS EFFECT FUNCTIONS ---
-KEN_BURNS_EFFECTS = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down']
 
-def apply_ken_burns(clip, effect_type, base_size=(1920, 1080)):
-    """
-    Apply Ken Burns effect (pan/zoom) to an ImageClip.
-    Returns a new clip with the effect applied.
-    """
-    duration = clip.duration
-    w, h = base_size
-    
-    # Scale factor for zoom effects (1.0 to 1.15)
-    zoom_range = 0.15
-    # Pan distance for pan effects (pixels)
-    pan_distance = int(w * 0.08)
-    
-    if effect_type == 'zoom_in':
-        # Start at 100%, zoom to 115%
-        def zoom_in_effect(t):
-            scale = 1.0 + (zoom_range * t / duration)
-            new_w, new_h = int(w * scale), int(h * scale)
-            return (new_w, new_h)
-        
-        resized = clip.resize(zoom_in_effect)
-        # Keep centered
-        return resized.set_position(lambda t: (
-            (w - (w * (1.0 + zoom_range * t / duration))) / 2,
-            (h - (h * (1.0 + zoom_range * t / duration))) / 2
-        ))
-    
-    elif effect_type == 'zoom_out':
-        # Start at 115%, zoom to 100%
-        def zoom_out_effect(t):
-            scale = 1.0 + zoom_range - (zoom_range * t / duration)
-            new_w, new_h = int(w * scale), int(h * scale)
-            return (new_w, new_h)
-        
-        resized = clip.resize(zoom_out_effect)
-        return resized.set_position(lambda t: (
-            (w - (w * (1.0 + zoom_range - zoom_range * t / duration))) / 2,
-            (h - (h * (1.0 + zoom_range - zoom_range * t / duration))) / 2
-        ))
-    
-    elif effect_type == 'pan_left':
-        # Start right, pan left
-        clip = clip.resize(1.15)  # Slightly larger to allow panning
-        return clip.set_position(lambda t: (
-            -int((pan_distance * 2) * t / duration) - (w * 0.075),
-            -(h * 0.075)
-        ))
-    
-    elif effect_type == 'pan_right':
-        # Start left, pan right
-        clip = clip.resize(1.15)
-        return clip.set_position(lambda t: (
-            int((pan_distance * 2) * t / duration) - (w * 0.15) - pan_distance,
-            -(h * 0.075)
-        ))
-    
-    elif effect_type == 'pan_up':
-        # Start low, pan up
-        clip = clip.resize(1.15)
-        return clip.set_position(lambda t: (
-            -(w * 0.075),
-            -int((pan_distance * 2) * t / duration) - (h * 0.075)
-        ))
-    
-    elif effect_type == 'pan_down':
-        # Start high, pan down
-        clip = clip.resize(1.15)
-        return clip.set_position(lambda t: (
-            -(w * 0.075),
-            int((pan_distance * 2) * t / duration) - (h * 0.15) - pan_distance
-        ))
-    
-    # Default: no effect
-    return clip
 
 # 1. LOAD SECRETS
 load_dotenv()
@@ -612,160 +542,7 @@ def draw_markdown_text(draw, x_start, y_start, text, max_width_px, font_reg, fon
 
 
 # --- KINETIC TEXT RENDERING SYSTEM ---
-def render_kinetic_text_frames(text_content, layout="split", accent_color="#14b8a6", duration_seconds=15, fps=24):
-    """
-    Generate a sequence of RGBA frames with staggered text reveal animation.
-    Returns: list of PIL Images with transparency (RGBA mode)
-    
-    Animation: Each line appears 0.25 seconds after the previous, matching frontend RichTextRenderer.
-    """
-    if not text_content or layout == "image_only":
-        return None  # No text overlay needed
-    
-    total_frames = int(duration_seconds * fps)
-    reveal_delay_seconds = 0.25  # Time between each line reveal
-    reveal_delay_frames = int(reveal_delay_seconds * fps)
-    
-    # Parse lines
-    lines = [l.strip() for l in text_content.split('\n') if l.strip()]
-    if not lines:
-        return None
-    
-    frames = []
-    
-    # Load fonts
-    reg_path, bold_path = get_fonts()
-    try:
-        if reg_path and bold_path:
-            base_size = 50 if layout == "split" else 60
-            title_size = 80 if layout == "split" else 100
-            title_font = ImageFont.truetype(bold_path, title_size)
-            body_font = ImageFont.truetype(reg_path, base_size)
-            bold_body_font = ImageFont.truetype(bold_path, base_size)
-            quote_font = ImageFont.truetype(reg_path, base_size)
-        else:
-            raise OSError("Fonts missing")
-    except OSError:
-        title_font = ImageFont.load_default()
-        body_font = ImageFont.load_default()
-        bold_body_font = ImageFont.load_default()
-        quote_font = ImageFont.load_default()
-    
-    text_color = "#0f172a"
-    quote_color = "#475569"
-    
-    # Coordinates
-    if layout == "split":
-        x_margin = 120
-        y_start = 240
-        max_width = 20
-        canvas_width = 960  # Left half only
-    else:  # text_only
-        x_margin = 200
-        y_start = 200
-        max_width = 28
-        canvas_width = 1920
-    
-    # Generate frames
-    for frame_idx in range(total_frames):
-        # Determine how many lines are visible at this frame
-        visible_line_count = min(len(lines), (frame_idx // reveal_delay_frames) + 1)
-        
-        # Create transparent canvas (RGBA)
-        canvas = Image.new('RGBA', (canvas_width, 1080), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(canvas)
-        
-        y_cursor = y_start
-        
-        for line_idx, line in enumerate(lines[:visible_line_count]):
-            # Calculate fade-in alpha for this line
-            line_start_frame = line_idx * reveal_delay_frames
-            frames_since_appear = frame_idx - line_start_frame
-            fade_duration_frames = int(0.3 * fps)  # 0.3s fade in
-            
-            if frames_since_appear < fade_duration_frames:
-                alpha = int((frames_since_appear / fade_duration_frames) * 255)
-            else:
-                alpha = 255
-            
-            # --- Render each line type ---
-            if line.startswith("#"):
-                clean_line = line.lstrip("#").strip()
-                wrapper = textwrap.TextWrapper(width=int(max_width // 1.5))
-                header_lines = wrapper.wrap(clean_line)
-                
-                max_header_width = 0
-                for h_line in header_lines:
-                    bbox = draw.textbbox((0, 0), h_line, font=title_font)
-                    max_header_width = max(max_header_width, bbox[2] - bbox[0])
-                
-                for h_line in header_lines:
-                    color_with_alpha = (*tuple(int(text_color[i:i+2], 16) for i in (1, 3, 5)), alpha)
-                    draw.text((x_margin, y_cursor), h_line, font=title_font, fill=color_with_alpha)
-                    y_cursor += int(title_font.size * 1.2)
-                
-                # Underline
-                y_cursor += 20
-                accent_rgb = tuple(int(accent_color[i:i+2], 16) for i in (1, 3, 5))
-                draw.rectangle([x_margin, y_cursor, x_margin + max_header_width + 20, y_cursor + 8], 
-                             fill=(*accent_rgb, alpha))
-                y_cursor += 60
-            
-            elif line.startswith(">") or line.startswith('"'):
-                clean_line = line.lstrip(">").strip('"').strip()
-                wrapper = textwrap.TextWrapper(width=max_width)
-                wrapped = wrapper.wrap(clean_line)
-                
-                # Quote bar
-                accent_rgb = tuple(int(accent_color[i:i+2], 16) for i in (1, 3, 5))
-                draw.rectangle([x_margin - 30, y_cursor, x_margin - 20, y_cursor + (len(wrapped) * 70)],
-                             fill=(*accent_rgb, alpha))
-                
-                for w_line in wrapped:
-                    color_with_alpha = (*tuple(int(quote_color[i:i+2], 16) for i in (1, 3, 5)), alpha)
-                    draw.text((x_margin, y_cursor), w_line, font=quote_font, fill=color_with_alpha)
-                    y_cursor += int(body_font.size * 1.4)
-                y_cursor += 40
-            
-            else:
-                # Standard bullet/text
-                clean_line = line.replace("-", "").strip()
-                
-                if line.startswith("-"):
-                    accent_rgb = tuple(int(accent_color[i:i+2], 16) for i in (1, 3, 5))
-                    draw.text((x_margin - 40, y_cursor), "•", font=body_font, fill=(*accent_rgb, alpha))
-                
-                # Simple text rendering (no bold parsing for perf)
-                color_with_alpha = (*tuple(int(text_color[i:i+2], 16) for i in (1, 3, 5)), alpha)
-                wrapper = textwrap.TextWrapper(width=max_width)
-                wrapped = wrapper.wrap(clean_line)
-                for w_line in wrapped:
-                    draw.text((x_margin, y_cursor), w_line, font=body_font, fill=color_with_alpha)
-                    y_cursor += int(body_font.size * 1.4)
-                y_cursor += 30
-        
-        frames.append(canvas)
-    
-    return frames
 
-
-def create_text_overlay_clip(frames, duration):
-    """
-    Convert list of PIL RGBA frames to a MoviePy clip for compositing.
-    """
-    if not frames:
-        return None
-    
-    import numpy as np
-    
-    # Convert PIL images to numpy arrays
-    frame_arrays = [np.array(f) for f in frames]
-    
-    # Create clip from frames
-    from moviepy.editor import ImageSequenceClip
-    fps = len(frames) / duration
-    text_clip = ImageSequenceClip(frame_arrays, fps=fps)
-    return text_clip
 
 
 def validate_script(script_output, context_package):
@@ -889,9 +666,9 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
 # --- WORKER 2: VIDEO EXPORT (CLEAN SPLIT SCREEN) ---
 def compile_video_job(course_id: str, user_id: str):
     """
-    Compile course slides into MP4 with Ken Burns effects and kinetic text animations.
+    Compile course slides into MP4 with simple static slides (no kinetic effects).
     """
-    print(f"🎬 Starting Enhanced Compilation: {course_id} for user: {user_id}")
+    print(f"🎬 Starting Static Compilation: {course_id} for user: {user_id}")
     
     # Update status
     supabase_admin.table("courses").update({"status": "Compiling video..."}).eq("id", course_id).execute()
@@ -931,27 +708,10 @@ def compile_video_job(course_id: str, user_id: str):
                     print(f"   ⚠️ Using fallback image for Slide {i+1}")
                     Image.new('RGB', (1920, 1080), '#f8fafc').save(bg_path)
                 
-                # 2. Resize/prepare background (no static text baked in for split/text_only)
-                # For image_only, we still use render_slide_visual to ensure correct sizing
-                if layout == "image_only":
-                    bg_path = render_slide_visual(bg_path, None, layout, accent_color)
-                else:
-                    # Just resize image to fit right side or full screen
-                    img = Image.open(bg_path)
-                    if layout == "split":
-                        # Create slate background with image on right
-                        canvas = Image.new('RGB', (1920, 1080), '#f8fafc')
-                        ratio = 1080 / img.height
-                        new_size = (int(img.width * ratio), 1080)
-                        img = img.resize(new_size, Image.Resampling.LANCZOS)
-                        left = (img.width - 960) / 2
-                        img = img.crop((left, 0, left + 960, 1080))
-                        canvas.paste(img, (960, 0))
-                        canvas.save(bg_path)
-                    else:  # text_only - just use slate background
-                        canvas = Image.new('RGB', (1920, 1080), '#f8fafc')
-                        canvas.save(bg_path)
-
+                # 2. Render Static Visual (Image + Text)
+                # This function handles the layout, resizing, and text baking
+                final_image_path = render_slide_visual(bg_path, visual_text, layout, accent_color)
+                
                 # 3. Download Audio
                 audio_path = os.path.join(temp_dir, f"audio_{i}.mp3")
                 has_audio = False
@@ -974,57 +734,17 @@ def compile_video_job(course_id: str, user_id: str):
                     duration = slide.get('duration', 15000) / 1000.0
                     audio_clip = None
 
-                # 5. Create base image clip with Ken Burns effect
-                base_clip = ImageClip(bg_path).set_duration(duration)
+                # 5. Create Video Clip from Static Image
+                # No Ken Burns, just a static image held for the duration
+                final_slide = ImageClip(final_image_path).set_duration(duration)
                 
-                # Apply Ken Burns (random effect per slide)
-                effect_type = random.choice(KEN_BURNS_EFFECTS)
-                print(f"      🎥 Applying Ken Burns: {effect_type}")
-                animated_bg = apply_ken_burns(base_clip, effect_type)
-                
-                # Create a container for compositing (ensures 1920x1080 output)
-                # The Ken Burns effect may produce larger/offset clips
-                container = ImageClip(bg_path).set_duration(duration).set_opacity(0)  # Invisible base
-                
-                # 6. Generate kinetic text overlay (if applicable)
-                if visual_text and layout != "image_only":
-                    print(f"      ✨ Generating kinetic text ({len(visual_text.split(chr(10)))} lines)...")
-                    text_frames = render_kinetic_text_frames(
-                        visual_text, 
-                        layout=layout, 
-                        accent_color=accent_color, 
-                        duration_seconds=duration, 
-                        fps=24
-                    )
-                    
-                    if text_frames:
-                        text_overlay = create_text_overlay_clip(text_frames, duration)
-                        text_overlay = text_overlay.set_position((0, 0))
-                        
-                        # Composite: background + text
-                        final_slide = CompositeVideoClip(
-                            [animated_bg, text_overlay], 
-                            size=(1920, 1080)
-                        ).set_duration(duration)
-                    else:
-                        final_slide = CompositeVideoClip(
-                            [animated_bg], 
-                            size=(1920, 1080)
-                        ).set_duration(duration)
-                else:
-                    # Image only - just Ken Burns
-                    final_slide = CompositeVideoClip(
-                        [animated_bg], 
-                        size=(1920, 1080)
-                    ).set_duration(duration)
-                
-                # 7. Add audio
+                # 6. Add audio
                 if audio_clip:
                     final_slide = final_slide.set_audio(audio_clip)
                 
                 clips.append(final_slide)
 
-            # 8. Concatenate & Render
+            # 7. Concatenate & Render
             print("   🎞️ Rendering Final Video...")
             supabase_admin.table("courses").update({"status": "Encoding final video..."}).eq("id", course_id).execute()
             
@@ -1039,7 +759,7 @@ def compile_video_job(course_id: str, user_id: str):
                 logger=None
             )
 
-            # 9. Upload
+            # 8. Upload
             print("   ☁️ Uploading to Supabase...")
             with open(output_path, 'rb') as f:
                 video_url = upload_asset(f.read(), f"full_course_{course_id}.mp4", "video/mp4", user_id)
@@ -1048,7 +768,7 @@ def compile_video_job(course_id: str, user_id: str):
                 "video_url": video_url,
                 "status": "completed"
             }).eq("id", course_id).execute()
-            print(f"✅ Enhanced Video Ready: {video_url}")
+            print(f"✅ Static Video Ready: {video_url}")
 
     except Exception as e:
          handle_failure(course_id, user_id, e, {"stage": "compile_video_job"})
