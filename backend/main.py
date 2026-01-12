@@ -254,7 +254,9 @@ def upload_asset(file_content, filename, content_type, user_id: str):
     try:
         # Use admin client to bypass RLS for backend uploads
         supabase_admin.storage.from_(bucket).upload(path=path, file=file_content, file_options={"content-type": content_type})
-        return supabase_admin.storage.from_(bucket).get_public_url(path)
+        # Use signed URL (1 hour expiry) instead of public URL for private bucket with RLS
+        signed_url_response = supabase_admin.storage.from_(bucket).create_signed_url(path, 3600)
+        return signed_url_response.get("signedURL")
     except Exception as e:
         print(f"❌ Supabase Upload Error: {e}")
         return None
@@ -1101,6 +1103,24 @@ Pacing Strategy:
         print(f"❌ DB Insert Error: {e}")
         return {"status": "error", "message": str(e)}
     
+    # Start background task immediately - return early so frontend can poll
+    background_tasks.add_task(
+        generate_script_and_assets, 
+        course_id, 
+        base_prompt, 
+        context_package, 
+        request, 
+        metadata
+    )
+    
+    return {"status": "started", "course_id": course_id, "validation_enabled": ENABLE_SCRIPT_VALIDATION}
+
+
+def generate_script_and_assets(course_id: str, base_prompt: str, context_package: dict, request: ScriptRequest, metadata: dict):
+    """
+    Background task that handles script generation, validation, and triggers media generation.
+    This runs asynchronously so the frontend can poll for status updates.
+    """
     try:
         messages = [{"role": "user", "content": base_prompt}]
         script_plan = []
@@ -1157,15 +1177,12 @@ Pacing Strategy:
         # Determine Style Prompt
         style_prompt = STYLE_MAPPING.get(request.style, MINIMALIST_PROMPT)
         
-        # Start Background Job (will update status to generating_media)
-        background_tasks.add_task(generate_course_assets, course_id, script_plan, style_prompt, request.user_id)
-        
-        return {"status": "started", "course_id": course_id, "validation_enabled": ENABLE_SCRIPT_VALIDATION}
+        # Run media generation directly (not as a separate background task since we're already in one)
+        generate_course_assets(course_id, script_plan, style_prompt, request.user_id)
         
     except Exception as e:
         print(f"❌ Script Generation Error: {e}")
         handle_failure(course_id, request.user_id, e, metadata)
-        return {"status": "error", "message": str(e)}
 
 @app.delete("/course/{course_id}")
 async def delete_course(course_id: str, authorization: str = Header(None)):
