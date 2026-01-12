@@ -93,8 +93,9 @@ function getStepStatuses(
         return statuses;
     }
 
-    // Finalizing
-    if (lower.includes("final") || lower.includes("preparing") || lower.includes("assembling")) {
+    // Finalizing / Video compilation
+    if (lower.includes("final") || lower.includes("preparing") || lower.includes("assembling") ||
+        lower.includes("compiling") || lower.includes("rendering slide") || lower.includes("encoding")) {
         statuses.script = "completed";
         statuses.validation = "completed";
         statuses.media = "completed";
@@ -170,10 +171,26 @@ function StepIndicator({ status }: { status: StepStatus }) {
 }
 
 function getActiveStepDescription(statusText: string, stepId: string): string {
+    const lower = statusText.toLowerCase();
+
     // Show dynamic status for media step
-    if (stepId === "media" && statusText.toLowerCase().includes("drafting slide")) {
+    if (stepId === "media" && lower.includes("drafting slide")) {
         return statusText;
     }
+
+    // Show dynamic status for finalizing step (video compilation)
+    if (stepId === "finalizing") {
+        if (lower.includes("rendering slide")) {
+            return statusText; // "Rendering slide X of Y..."
+        }
+        if (lower.includes("encoding")) {
+            return "Encoding final video...";
+        }
+        if (lower.includes("compiling")) {
+            return "Compiling video with effects...";
+        }
+    }
+
     return "";
 }
 

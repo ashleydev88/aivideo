@@ -1,18 +1,50 @@
 "use client";
-import { useState } from 'react';
-import { Upload, Clock, Palette, Play, FileText, PenTool, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, Clock, Palette, Play, FileText, PenTool, Sparkles, Paintbrush } from 'lucide-react';
 
-export default function SetupForm({ onStart, isLoading }: { onStart: (file: File, duration: number, style: string) => void, isLoading: boolean }) {
+// Curated brand-friendly color palette
+const COLOR_PALETTE = [
+    { name: "teal", hex: "#14b8a6", label: "Teal" },
+    { name: "blue", hex: "#3b82f6", label: "Blue" },
+    { name: "indigo", hex: "#6366f1", label: "Indigo" },
+    { name: "purple", hex: "#a855f7", label: "Purple" },
+    { name: "pink", hex: "#ec4899", label: "Pink" },
+    { name: "red", hex: "#ef4444", label: "Red" },
+    { name: "orange", hex: "#f97316", label: "Orange" },
+    { name: "green", hex: "#22c55e", label: "Green" },
+];
+
+export default function SetupForm({ onStart, isLoading }: { onStart: (file: File, duration: number, style: string, accentColor: string, colorName: string) => void, isLoading: boolean }) {
     const [method, setMethod] = useState<'policy' | 'script' | 'topic' | null>(null);
     const [duration, setDuration] = useState<number | null>(null);
     const [style, setStyle] = useState<string | null>(null);
     const [file, setFile] = useState<File | null>(null);
+    const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null);
+    const colorPickerRef = useRef<HTMLDivElement>(null);
+
+    // Track selected colors per style (with defaults matching backend)
+    const [selectedColors, setSelectedColors] = useState<Record<string, { hex: string, name: string }>>({
+        "Minimalist Vector": { hex: "#14b8a6", name: "teal" },
+        "Photo Realistic": { hex: "#3b82f6", name: "blue" },
+        "Tech Isometric": { hex: "#0ea5e9", name: "sky blue" },
+    });
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
     };
 
     const handleComingSoon = () => alert("This feature is coming soon!");
+
+    // Close color picker when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+                setColorPickerOpen(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const styles = [
         {
@@ -28,6 +60,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
             image: "https://ctkhjhfmwttpjtmtqjdh.supabase.co/storage/v1/object/sign/global-assets/Tech%20isometric%20sample.webp?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV80ZjM2ZjBlYi1hYjBiLTQ5NjQtOGE0My1hMmEyZGUzOGM4NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJnbG9iYWwtYXNzZXRzL1RlY2ggaXNvbWV0cmljIHNhbXBsZS53ZWJwIiwiaWF0IjoxNzY4MTI0NTk1LCJleHAiOjQ5MjE3MjQ1OTV9.-uCEwrWH2-aq8cawlSV-rAxtdEry4ab83hwYSyusbVk"
         },
     ];
+
 
     return (
         <div className="w-full max-w-4xl mx-auto space-y-8 pb-20">
@@ -167,38 +200,90 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {styles.map(s => (
-                            <button
-                                key={s.name}
-                                onClick={() => setStyle(s.name)}
-                                className={`relative group overflow-hidden rounded-xl border-2 transition-all text-left flex flex-col h-[160px]
-                                    ${style === s.name ? 'border-teal-500 ring-2 ring-teal-500/20 shadow-lg scale-[1.02]' : 'border-slate-100 hover:border-slate-300 shadow-sm'}`}
-                            >
-                                {/* Background Image */}
-                                <div className="absolute inset-0">
-                                    <img
-                                        src={s.image}
-                                        alt={s.name}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    />
-                                    <div className={`absolute inset-0 transition-opacity duration-300
-                                        ${style === s.name ? 'bg-teal-900/40' : 'bg-slate-900/20 group-hover:bg-slate-900/40'}`}
-                                    />
-                                </div>
+                            <div key={s.name} className="relative">
+                                <button
+                                    onClick={() => setStyle(s.name)}
+                                    className={`relative group overflow-hidden rounded-xl border-2 transition-all text-left flex flex-col h-[160px] w-full
+                                        ${style === s.name ? 'border-teal-500 ring-2 ring-teal-500/20 shadow-lg scale-[1.02]' : 'border-slate-100 hover:border-slate-300 shadow-sm'}`}
+                                >
+                                    {/* Background Image */}
+                                    <div className="absolute inset-0">
+                                        <img
+                                            src={s.image}
+                                            alt={s.name}
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        />
+                                        <div className={`absolute inset-0 transition-opacity duration-300
+                                            ${style === s.name ? 'bg-teal-900/40' : 'bg-slate-900/20 group-hover:bg-slate-900/40'}`}
+                                        />
+                                    </div>
 
-                                {/* Content */}
-                                <div className="relative mt-auto p-4 w-full bg-gradient-to-t from-slate-900/80 to-transparent">
-                                    <span className="font-bold text-white text-xs">
-                                        {s.name}
-                                    </span>
-                                </div>
+                                    {/* Content */}
+                                    <div className="relative mt-auto p-4 w-full bg-gradient-to-t from-slate-900/80 to-transparent flex items-center justify-between">
+                                        <span className="font-bold text-white text-xs">
+                                            {s.name}
+                                        </span>
+                                        {/* Color indicator */}
+                                        <div
+                                            className="w-4 h-4 rounded-full border-2 border-white/50 shadow-sm"
+                                            style={{ backgroundColor: selectedColors[s.name]?.hex || '#14b8a6' }}
+                                        />
+                                    </div>
 
-                                {/* Selection Indicator */}
-                                {style === s.name && (
-                                    <div className="absolute top-2 right-2 w-5 h-5 bg-teal-500 rounded-full flex items-center justify-center shadow-md animate-in zoom-in duration-300">
-                                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                                    {/* Selection Indicator */}
+                                    {style === s.name && (
+                                        <div className="absolute top-2 left-2 w-5 h-5 bg-teal-500 rounded-full flex items-center justify-center shadow-md animate-in zoom-in duration-300">
+                                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                                        </div>
+                                    )}
+                                </button>
+
+                                {/* Color Picker Button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setColorPickerOpen(colorPickerOpen === s.name ? null : s.name);
+                                    }}
+                                    className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all hover:scale-110 z-10"
+                                    style={{ backgroundColor: selectedColors[s.name]?.hex || '#14b8a6' }}
+                                    title="Choose accent color"
+                                >
+                                    <Paintbrush size={14} className="text-white" />
+                                </button>
+
+                                {/* Color Picker Popover */}
+                                {colorPickerOpen === s.name && (
+                                    <div
+                                        ref={colorPickerRef}
+                                        className="absolute top-10 right-0 z-20 bg-white rounded-lg shadow-xl border border-slate-200 p-3 animate-in fade-in zoom-in-95 duration-200"
+                                    >
+                                        <div className="text-xs font-medium text-slate-500 mb-2">Accent Color</div>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {COLOR_PALETTE.map(color => (
+                                                <button
+                                                    key={color.hex}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedColors(prev => ({
+                                                            ...prev,
+                                                            [s.name]: { hex: color.hex, name: color.name }
+                                                        }));
+                                                        setColorPickerOpen(null);
+                                                    }}
+                                                    className={`w-7 h-7 rounded-full transition-all hover:scale-110 flex items-center justify-center
+                                                        ${selectedColors[s.name]?.hex === color.hex ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`}
+                                                    style={{ backgroundColor: color.hex }}
+                                                    title={color.label}
+                                                >
+                                                    {selectedColors[s.name]?.hex === color.hex && (
+                                                        <div className="w-2 h-2 bg-white rounded-full" />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
-                            </button>
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -208,7 +293,13 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
             {style && (
                 <div className="flex justify-center pt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <button
-                        onClick={() => file && duration && style && onStart(file, duration, style)}
+                        onClick={() => file && duration && style && onStart(
+                            file,
+                            duration,
+                            style,
+                            selectedColors[style]?.hex || '#14b8a6',
+                            selectedColors[style]?.name || 'teal'
+                        )}
                         disabled={isLoading}
                         className="flex items-center gap-4 bg-teal-700 hover:bg-teal-800 text-white px-12 py-5 rounded-full font-bold text-2xl shadow-xl hover:shadow-2xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >

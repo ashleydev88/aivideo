@@ -107,8 +107,8 @@ const KEN_BURNS_EFFECTS = [
 ] as const;
 
 // --- PLAYER COMPONENT (Split Screen) ---
-function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting }:
-    { slides: Slide[], onReset: () => void, videoUrl?: string, onExport: () => void, isExporting: boolean }) {
+function SeamlessPlayer({ slides = [], onReset, videoUrl }:
+    { slides: Slide[], onReset: () => void, videoUrl?: string }) {
 
     const [index, setIndex] = useState(0);
     const [hasStarted, setHasStarted] = useState(false);
@@ -188,6 +188,40 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
     const showText = layout !== 'image_only' && !!currentSlide.visual_text;
     const showImage = layout !== 'text_only';
 
+    // If video is ready, show the compiled MP4 directly
+    if (videoUrl) {
+        return (
+            <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500">
+                <div className="relative w-[800px] h-[450px] bg-black overflow-hidden border border-slate-200 rounded-xl shadow-2xl ring-1 ring-slate-900/5">
+                    <video
+                        src={videoUrl}
+                        controls
+                        autoPlay
+                        className="w-full h-full"
+                        playsInline
+                    >
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+
+                <div className="flex justify-between items-center w-[800px]">
+                    <button onClick={onReset} className="text-slate-500 hover:text-slate-900 font-medium text-sm flex items-center gap-1 transition-colors">
+                        ← Back to Library
+                    </button>
+
+                    <button onClick={handleDownload} disabled={isDownloading} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg shadow-sm hover:shadow transition font-medium">
+                        {isDownloading ? (
+                            <span className="flex items-center gap-2">Saving...</span>
+                        ) : (
+                            <>Download Video</>
+                        )}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Fallback: Show slide-based preview while video is compiling
     return (
         <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500">
             <div className="relative w-[800px] h-[450px] bg-slate-50 overflow-hidden border border-slate-200 rounded-xl shadow-2xl group flex ring-1 ring-slate-900/5">
@@ -250,19 +284,9 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
                     ← Back to Library
                 </button>
 
-                {videoUrl ? (
-                    <button onClick={handleDownload} disabled={isDownloading} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg shadow-sm hover:shadow transition font-medium">
-                        {isDownloading ? (
-                            <span className="flex items-center gap-2">Saving...</span>
-                        ) : (
-                            <>Download Video</>
-                        )}
-                    </button>
-                ) : (
-                    <button onClick={onExport} disabled={isExporting} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg shadow-sm transition font-medium text-white ${isExporting ? "bg-slate-400" : "bg-slate-700 hover:bg-slate-600"}`}>
-                        {isExporting ? "Compiling MP4..." : "Export as MP4"}
-                    </button>
-                )}
+                <div className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-100 text-slate-500 font-medium">
+                    <span className="animate-pulse">●</span> Video compiling...
+                </div>
             </div>
         </div>
     );
@@ -270,7 +294,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, onExport, isExporting 
 
 // --- MAIN PAGE ---
 export default function DashboardCreatePage() {
-    const [view, setView] = useState<"setup" | "planning" | "designing" | "playing">("setup");
+    const [view, setView] = useState<"setup" | "planning" | "designing">("setup");
     const [isLoading, setIsLoading] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const router = useRouter();
@@ -288,12 +312,11 @@ export default function DashboardCreatePage() {
     const [learningObjective, setLearningObjective] = useState(""); // NEW: LO State
     const [courseId, setCourseId] = useState<string | null>(null);
     const [country, setCountry] = useState<"USA" | "UK">("USA");
+    const [accentColor, setAccentColor] = useState("#14b8a6"); // Default teal
+    const [colorName, setColorName] = useState("teal");
 
-    // Playback State
-    const [slides, setSlides] = useState<Slide[]>([]);
+    // Status State
     const [statusText, setStatusText] = useState("Initializing...");
-    const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
-    const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Generation Modal State
@@ -354,11 +377,13 @@ export default function DashboardCreatePage() {
 
 
     // --- STEP 1: UPLOAD & PARSE ---
-    const handleStartPlanning = async (file: File, d: number, s: string) => {
+    const handleStartPlanning = async (file: File, d: number, s: string, accent: string, colorN: string) => {
         setIsLoading(true);
         setIsProcessing(true);
         setDuration(d);
         setStyle(s);
+        setAccentColor(accent);
+        setColorName(colorN);
 
         // 1. Upload & Extract Text
         const formData = new FormData();
@@ -423,7 +448,9 @@ export default function DashboardCreatePage() {
                     policy_text: policyText, // Send Policy
                     learning_objective: learningObjective, // Send LO
                     country: country,
-                    user_id: session.user.id // Pass User ID
+                    user_id: session.user.id, // Pass User ID
+                    accent_color: accentColor, // Pass accent color hex
+                    color_name: colorName // Pass color name for style prompt
                 })
             });
             const data = await res.json();
@@ -479,10 +506,7 @@ export default function DashboardCreatePage() {
 
                 const data = await res.json();
 
-                if (data.video_url) {
-                    setVideoUrl(data.video_url);
-                    setIsExporting(false);
-                }
+                // No longer track video_url locally - we redirect on completion
 
                 if (data.status === "failed" || data.status === "error") {
                     setError("Generation failed. Please try again.");
@@ -496,12 +520,11 @@ export default function DashboardCreatePage() {
                 }
 
                 if (data.status === "completed") {
-                    setSlides(data.data);
+                    // Redirect to the canonical player page
+                    if (pollInterval.current) clearInterval(pollInterval.current);
                     setIsLoading(false);
                     setIsGenerating(false);
-                    setView("playing");
-
-                    if (pollInterval.current) clearInterval(pollInterval.current);
+                    router.push(`/dashboard/player?id=${id}`);
                 }
             } catch (e) { console.error(e); }
         }, 1000);
@@ -521,27 +544,9 @@ export default function DashboardCreatePage() {
 
     const loadFromHistory = (id: string) => {
         setCourseId(id);
-        setVideoUrl(undefined);
-        setIsExporting(false);
         setView("designing");
         setStatusText("Loading Course Assets...");
         pollStatus(id);
-    };
-
-    const handleExport = async () => {
-        if (!courseId || !session) return;
-        setIsExporting(true);
-        try {
-            await fetch(`http://127.0.0.1:8000/export-video/${courseId}`, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${session.access_token}`
-                }
-            });
-        } catch (e) {
-            console.error("Export failed", e);
-            setIsExporting(false);
-        }
     };
 
 
@@ -600,18 +605,8 @@ export default function DashboardCreatePage() {
                 {/* Designing view is handled by the modal - show empty placeholder */}
                 {view === "designing" && !isGenerating && (
                     <div className="text-center text-slate-500 py-20">
-                        Processing complete. Loading player...
+                        Processing complete. Redirecting to player...
                     </div>
-                )}
-
-                {view === "playing" && (
-                    <SeamlessPlayer
-                        slides={slides}
-                        onReset={() => setView("setup")}
-                        videoUrl={videoUrl}
-                        onExport={handleExport}
-                        isExporting={isExporting}
-                    />
                 )}
             </div>
         </div>
