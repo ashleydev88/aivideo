@@ -21,10 +21,90 @@ import traceback
 
 # --- MOVIEPY IMPORTS ---
 # Ensure you have run: pip install "moviepy<2.0"
-from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeVideoClip
+import random
+
+# --- KEN BURNS EFFECT FUNCTIONS ---
+KEN_BURNS_EFFECTS = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down']
+
+def apply_ken_burns(clip, effect_type, base_size=(1920, 1080)):
+    """
+    Apply Ken Burns effect (pan/zoom) to an ImageClip.
+    Returns a new clip with the effect applied.
+    """
+    duration = clip.duration
+    w, h = base_size
+    
+    # Scale factor for zoom effects (1.0 to 1.15)
+    zoom_range = 0.15
+    # Pan distance for pan effects (pixels)
+    pan_distance = int(w * 0.08)
+    
+    if effect_type == 'zoom_in':
+        # Start at 100%, zoom to 115%
+        def zoom_in_effect(t):
+            scale = 1.0 + (zoom_range * t / duration)
+            new_w, new_h = int(w * scale), int(h * scale)
+            return (new_w, new_h)
+        
+        resized = clip.resize(zoom_in_effect)
+        # Keep centered
+        return resized.set_position(lambda t: (
+            (w - (w * (1.0 + zoom_range * t / duration))) / 2,
+            (h - (h * (1.0 + zoom_range * t / duration))) / 2
+        ))
+    
+    elif effect_type == 'zoom_out':
+        # Start at 115%, zoom to 100%
+        def zoom_out_effect(t):
+            scale = 1.0 + zoom_range - (zoom_range * t / duration)
+            new_w, new_h = int(w * scale), int(h * scale)
+            return (new_w, new_h)
+        
+        resized = clip.resize(zoom_out_effect)
+        return resized.set_position(lambda t: (
+            (w - (w * (1.0 + zoom_range - zoom_range * t / duration))) / 2,
+            (h - (h * (1.0 + zoom_range - zoom_range * t / duration))) / 2
+        ))
+    
+    elif effect_type == 'pan_left':
+        # Start right, pan left
+        clip = clip.resize(1.15)  # Slightly larger to allow panning
+        return clip.set_position(lambda t: (
+            -int((pan_distance * 2) * t / duration) - (w * 0.075),
+            -(h * 0.075)
+        ))
+    
+    elif effect_type == 'pan_right':
+        # Start left, pan right
+        clip = clip.resize(1.15)
+        return clip.set_position(lambda t: (
+            int((pan_distance * 2) * t / duration) - (w * 0.15) - pan_distance,
+            -(h * 0.075)
+        ))
+    
+    elif effect_type == 'pan_up':
+        # Start low, pan up
+        clip = clip.resize(1.15)
+        return clip.set_position(lambda t: (
+            -(w * 0.075),
+            -int((pan_distance * 2) * t / duration) - (h * 0.075)
+        ))
+    
+    elif effect_type == 'pan_down':
+        # Start high, pan down
+        clip = clip.resize(1.15)
+        return clip.set_position(lambda t: (
+            -(w * 0.075),
+            int((pan_distance * 2) * t / duration) - (h * 0.15) - pan_distance
+        ))
+    
+    # Default: no effect
+    return clip
 
 # 1. LOAD SECRETS
 load_dotenv()
+
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ELEVEN_LABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
@@ -39,12 +119,12 @@ VOICE_ID = "aHCytOTnUOgfGPn5n89j"
 # --- CONFIGURATION FLAGS ---
 ENABLE_SCRIPT_VALIDATION = True  # Set to False to skip validation 
 
-# --- STYLE PROMPTS ---
+# --- STYLE PROMPTS (use {primary_color} placeholder for dynamic color injection) ---
 
 MINIMALIST_PROMPT = (
     "A clean, modern flat vector art style inspired by high-end tech SaaS interfaces. "
     "The aesthetic relies on geometric abstraction, ample negative space, and razor-sharp precision to convey clarity. "
-    "The palette is strictly monochromatic or duotone (e.g., shades of teal and slate) with high-contrast elements for readability. "
+    "The palette is strictly monochromatic or duotone (shades of {primary_color} and slate) with high-contrast elements for readability. "
     "Backgrounds are solid, muted colours or subtle geometric patterns that do not distract. "
     "The overall look is functional, efficient, and corporate-modern, similar to 'Corporate Memphis' but more restrained and less abstract. "
     "Scenes should focus on metaphorical representations of concepts—using icons, charts, and simplified shapes—rather than detailed character studies."
@@ -54,7 +134,7 @@ MINIMALIST_PROMPT = (
 PHOTO_REALISTIC_PROMPT = (
     "A high-resolution, cinematic stock photography aesthetic with a focus on authenticity and modern office realism. "
     "The style utilizes soft, natural lighting (simulated window light) and shallow depth of field (bokeh) to isolate the subject from the background. "
-    "The palette is true-to-life but slightly colour-graded for a cohesive 'editorial' look—cool, crisp tones for corporate settings or warmer tones for human interactions. "
+    "The palette is true-to-life but with a subtle {primary_color} colour-grade for a cohesive 'editorial' look. "
     "Backgrounds should be blurred modern workspaces, glass walls, or generic corporate environments. "
     "The overall look is trustworthy, serious, and high-production value. "
     "Scenes should depict diverse professionals in candid, 'in-action' moments rather than stiff poses, or close-ups of relevant objects (laptops, safety gear, documents) on desks."
@@ -64,16 +144,29 @@ PHOTO_REALISTIC_PROMPT = (
 TECH_ISOMETRIC_PROMPT = (
     "A clean, precise isometric 3D illustration style, popular in modern tech documentation. "
     "The style uses a fixed orthographic camera angle to show systems, architecture, and workflows clearly. "
-    "The palette is bright and clean, using white, soft greys, and a primary brand color (like teal or blue) for emphasis. "
+    "The palette is bright and clean, using white, soft greys, and {primary_color} as the primary brand color for emphasis. "
     "Backgrounds are solid or faint grids. "
     "The overall look is engineered, structured, and informative. "
     "Scenes typically show server racks, office floor plans, devices, and connected diagrams in a miniature world format."
 )
 
+# Style mapping with prompt template, default accent hex, and color name
 STYLE_MAPPING = {
-    "Minimalist Vector": MINIMALIST_PROMPT,
-    "Photo Realistic": PHOTO_REALISTIC_PROMPT,
-    "Tech Isometric": TECH_ISOMETRIC_PROMPT,
+    "Minimalist Vector": {
+        "prompt": MINIMALIST_PROMPT,
+        "default_accent": "#14b8a6",
+        "default_color_name": "teal"
+    },
+    "Photo Realistic": {
+        "prompt": PHOTO_REALISTIC_PROMPT,
+        "default_accent": "#3b82f6",
+        "default_color_name": "blue"
+    },
+    "Tech Isometric": {
+        "prompt": TECH_ISOMETRIC_PROMPT,
+        "default_accent": "#0ea5e9",
+        "default_color_name": "sky blue"
+    },
 }
 
 # --- DURATION STRATEGIES ---
@@ -191,6 +284,8 @@ class ScriptRequest(BaseModel):
     learning_objective: str # Added for context
     country: str = "USA" # Default to USA
     user_id: str  # Required: User's UUID for storage paths
+    accent_color: str = None  # Optional: User-selected accent color hex (e.g., "#14b8a6")
+    color_name: str = None  # Optional: Color name for style prompt (e.g., "teal")
 
 # --- HELPERS ---
 def extract_json_from_response(text_content):
@@ -321,7 +416,7 @@ def get_fonts():
     return regular_path, bold_path
 
 # --- VISUAL GENERATOR (Layout Aware) ---
-def render_slide_visual(image_path, text_content, layout="split"):
+def render_slide_visual(image_path, text_content, layout="split", accent_color="#14b8a6"):
     # 1. Setup Canvas (1920x1080)
     canvas = Image.new('RGB', (1920, 1080), '#f8fafc') # Slate-50 background (clean white/grey)
     draw = ImageDraw.Draw(canvas)
@@ -375,7 +470,7 @@ def render_slide_visual(image_path, text_content, layout="split"):
     
     if text_content and layout != "image_only": # Double check
         text_color = "#0f172a" # Slate-900 (Dark)
-        accent_color = "#2563eb" # Blue-600
+        # accent_color is now passed as parameter (default: teal-500)
         quote_color = "#475569" # Slate-600
         
         lines = text_content.split('\n')
@@ -516,6 +611,163 @@ def draw_markdown_text(draw, x_start, y_start, text, max_width_px, font_reg, fon
     return curr_y + line_height
 
 
+# --- KINETIC TEXT RENDERING SYSTEM ---
+def render_kinetic_text_frames(text_content, layout="split", accent_color="#14b8a6", duration_seconds=15, fps=24):
+    """
+    Generate a sequence of RGBA frames with staggered text reveal animation.
+    Returns: list of PIL Images with transparency (RGBA mode)
+    
+    Animation: Each line appears 0.25 seconds after the previous, matching frontend RichTextRenderer.
+    """
+    if not text_content or layout == "image_only":
+        return None  # No text overlay needed
+    
+    total_frames = int(duration_seconds * fps)
+    reveal_delay_seconds = 0.25  # Time between each line reveal
+    reveal_delay_frames = int(reveal_delay_seconds * fps)
+    
+    # Parse lines
+    lines = [l.strip() for l in text_content.split('\n') if l.strip()]
+    if not lines:
+        return None
+    
+    frames = []
+    
+    # Load fonts
+    reg_path, bold_path = get_fonts()
+    try:
+        if reg_path and bold_path:
+            base_size = 50 if layout == "split" else 60
+            title_size = 80 if layout == "split" else 100
+            title_font = ImageFont.truetype(bold_path, title_size)
+            body_font = ImageFont.truetype(reg_path, base_size)
+            bold_body_font = ImageFont.truetype(bold_path, base_size)
+            quote_font = ImageFont.truetype(reg_path, base_size)
+        else:
+            raise OSError("Fonts missing")
+    except OSError:
+        title_font = ImageFont.load_default()
+        body_font = ImageFont.load_default()
+        bold_body_font = ImageFont.load_default()
+        quote_font = ImageFont.load_default()
+    
+    text_color = "#0f172a"
+    quote_color = "#475569"
+    
+    # Coordinates
+    if layout == "split":
+        x_margin = 120
+        y_start = 240
+        max_width = 20
+        canvas_width = 960  # Left half only
+    else:  # text_only
+        x_margin = 200
+        y_start = 200
+        max_width = 28
+        canvas_width = 1920
+    
+    # Generate frames
+    for frame_idx in range(total_frames):
+        # Determine how many lines are visible at this frame
+        visible_line_count = min(len(lines), (frame_idx // reveal_delay_frames) + 1)
+        
+        # Create transparent canvas (RGBA)
+        canvas = Image.new('RGBA', (canvas_width, 1080), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(canvas)
+        
+        y_cursor = y_start
+        
+        for line_idx, line in enumerate(lines[:visible_line_count]):
+            # Calculate fade-in alpha for this line
+            line_start_frame = line_idx * reveal_delay_frames
+            frames_since_appear = frame_idx - line_start_frame
+            fade_duration_frames = int(0.3 * fps)  # 0.3s fade in
+            
+            if frames_since_appear < fade_duration_frames:
+                alpha = int((frames_since_appear / fade_duration_frames) * 255)
+            else:
+                alpha = 255
+            
+            # --- Render each line type ---
+            if line.startswith("#"):
+                clean_line = line.lstrip("#").strip()
+                wrapper = textwrap.TextWrapper(width=int(max_width // 1.5))
+                header_lines = wrapper.wrap(clean_line)
+                
+                max_header_width = 0
+                for h_line in header_lines:
+                    bbox = draw.textbbox((0, 0), h_line, font=title_font)
+                    max_header_width = max(max_header_width, bbox[2] - bbox[0])
+                
+                for h_line in header_lines:
+                    color_with_alpha = (*tuple(int(text_color[i:i+2], 16) for i in (1, 3, 5)), alpha)
+                    draw.text((x_margin, y_cursor), h_line, font=title_font, fill=color_with_alpha)
+                    y_cursor += int(title_font.size * 1.2)
+                
+                # Underline
+                y_cursor += 20
+                accent_rgb = tuple(int(accent_color[i:i+2], 16) for i in (1, 3, 5))
+                draw.rectangle([x_margin, y_cursor, x_margin + max_header_width + 20, y_cursor + 8], 
+                             fill=(*accent_rgb, alpha))
+                y_cursor += 60
+            
+            elif line.startswith(">") or line.startswith('"'):
+                clean_line = line.lstrip(">").strip('"').strip()
+                wrapper = textwrap.TextWrapper(width=max_width)
+                wrapped = wrapper.wrap(clean_line)
+                
+                # Quote bar
+                accent_rgb = tuple(int(accent_color[i:i+2], 16) for i in (1, 3, 5))
+                draw.rectangle([x_margin - 30, y_cursor, x_margin - 20, y_cursor + (len(wrapped) * 70)],
+                             fill=(*accent_rgb, alpha))
+                
+                for w_line in wrapped:
+                    color_with_alpha = (*tuple(int(quote_color[i:i+2], 16) for i in (1, 3, 5)), alpha)
+                    draw.text((x_margin, y_cursor), w_line, font=quote_font, fill=color_with_alpha)
+                    y_cursor += int(body_font.size * 1.4)
+                y_cursor += 40
+            
+            else:
+                # Standard bullet/text
+                clean_line = line.replace("-", "").strip()
+                
+                if line.startswith("-"):
+                    accent_rgb = tuple(int(accent_color[i:i+2], 16) for i in (1, 3, 5))
+                    draw.text((x_margin - 40, y_cursor), "•", font=body_font, fill=(*accent_rgb, alpha))
+                
+                # Simple text rendering (no bold parsing for perf)
+                color_with_alpha = (*tuple(int(text_color[i:i+2], 16) for i in (1, 3, 5)), alpha)
+                wrapper = textwrap.TextWrapper(width=max_width)
+                wrapped = wrapper.wrap(clean_line)
+                for w_line in wrapped:
+                    draw.text((x_margin, y_cursor), w_line, font=body_font, fill=color_with_alpha)
+                    y_cursor += int(body_font.size * 1.4)
+                y_cursor += 30
+        
+        frames.append(canvas)
+    
+    return frames
+
+
+def create_text_overlay_clip(frames, duration):
+    """
+    Convert list of PIL RGBA frames to a MoviePy clip for compositing.
+    """
+    if not frames:
+        return None
+    
+    import numpy as np
+    
+    # Convert PIL images to numpy arrays
+    frame_arrays = [np.array(f) for f in frames]
+    
+    # Create clip from frames
+    from moviepy.editor import ImageSequenceClip
+    fps = len(frames) / duration
+    text_clip = ImageSequenceClip(frame_arrays, fps=fps)
+    return text_clip
+
+
 def validate_script(script_output, context_package):
     """
     Validates script quality before proceeding to media generation.
@@ -568,7 +820,7 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
         return {"approved": True, "issues": ["Validation mechanism failed"], "suggestions": []}
 
 # --- WORKER 1: DRAFT COURSE GENERATION ---
-def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str):
+def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str, accent_color: str = "#14b8a6"):
     print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
     
     # Update status to generating_media before starting slide generation
@@ -617,11 +869,18 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
                     "audio": audio_url,
                     "visual_text": slide.get("visual_text", ""),
                     "duration": duration_ms,
-                    "layout": slide.get("layout", "split")
+                    "layout": slide.get("layout", "split"),
+                    "accent_color": accent_color  # Store accent color for video compilation
                 })
 
-        supabase_admin.table("courses").update({"slide_data": final_slides, "status": "completed"}).eq("id", course_id).execute()
-        print("✅ Draft Course Completed")
+        supabase_admin.table("courses").update({
+            "slide_data": final_slides, 
+            "status": "Assets ready, starting video compilation..."
+        }).eq("id", course_id).execute()
+        print("✅ Asset Generation Completed, starting video compilation...")
+        
+        # Auto-trigger video compilation
+        compile_video_job(course_id, user_id)
 
     except Exception as e:
         handle_failure(course_id, user_id, e, {"stage": "generate_course_assets", "style": style_prompt})
@@ -629,7 +888,14 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
 
 # --- WORKER 2: VIDEO EXPORT (CLEAN SPLIT SCREEN) ---
 def compile_video_job(course_id: str, user_id: str):
-    print(f"🎬 Starting Compilation: {course_id} for user: {user_id}")
+    """
+    Compile course slides into MP4 with Ken Burns effects and kinetic text animations.
+    """
+    print(f"🎬 Starting Enhanced Compilation: {course_id} for user: {user_id}")
+    
+    # Update status
+    supabase_admin.table("courses").update({"status": "Compiling video..."}).eq("id", course_id).execute()
+    
     try:
         res = supabase_admin.table("courses").select("slide_data").eq("id", course_id).execute()
         if not res.data: return
@@ -639,7 +905,14 @@ def compile_video_job(course_id: str, user_id: str):
             clips = []
             
             for i, slide in enumerate(slides):
-                print(f"   ⚡ Processing Slide {i+1}...")
+                print(f"   ⚡ Processing Slide {i+1}/{len(slides)}...")
+                supabase_admin.table("courses").update({
+                    "status": f"Rendering slide {i+1} of {len(slides)}..."
+                }).eq("id", course_id).execute()
+                
+                layout = slide.get('layout', 'split')
+                accent_color = slide.get('accent_color', '#14b8a6')
+                visual_text = slide.get('visual_text', '')
                 
                 # 1. Download Background Image
                 bg_path = os.path.join(temp_dir, f"bg_{i}.jpg")
@@ -658,10 +931,26 @@ def compile_video_job(course_id: str, user_id: str):
                     print(f"   ⚠️ Using fallback image for Slide {i+1}")
                     Image.new('RGB', (1920, 1080), '#f8fafc').save(bg_path)
                 
-                # 2. Apply Custom Layout
-                layout = slide.get('layout', 'split')
-                # Even "image_only" goes through render_slide_visual to get the full size check/resize
-                bg_path = render_slide_visual(bg_path, slide.get('visual_text'), layout)
+                # 2. Resize/prepare background (no static text baked in for split/text_only)
+                # For image_only, we still use render_slide_visual to ensure correct sizing
+                if layout == "image_only":
+                    bg_path = render_slide_visual(bg_path, None, layout, accent_color)
+                else:
+                    # Just resize image to fit right side or full screen
+                    img = Image.open(bg_path)
+                    if layout == "split":
+                        # Create slate background with image on right
+                        canvas = Image.new('RGB', (1920, 1080), '#f8fafc')
+                        ratio = 1080 / img.height
+                        new_size = (int(img.width * ratio), 1080)
+                        img = img.resize(new_size, Image.Resampling.LANCZOS)
+                        left = (img.width - 960) / 2
+                        img = img.crop((left, 0, left + 960, 1080))
+                        canvas.paste(img, (960, 0))
+                        canvas.save(bg_path)
+                    else:  # text_only - just use slate background
+                        canvas = Image.new('RGB', (1920, 1080), '#f8fafc')
+                        canvas.save(bg_path)
 
                 # 3. Download Audio
                 audio_path = os.path.join(temp_dir, f"audio_{i}.mp3")
@@ -676,23 +965,69 @@ def compile_video_job(course_id: str, user_id: str):
                     except Exception as e:
                         print(f"   ⚠️ Audio download error: {e}")
 
-                # 4. Create Video Clip
-                # Simple and robust: Image + Audio
+                # 4. Determine duration
                 if has_audio:
                     audio_clip = AudioFileClip(audio_path)
                     duration = audio_clip.duration
-                    image_clip = ImageClip(bg_path).set_duration(duration)
-                    image_clip = image_clip.set_audio(audio_clip)
                 else:
                     print(f"   ⚠️ Missing audio for Slide {i+1}, using default duration.")
                     duration = slide.get('duration', 15000) / 1000.0
-                    image_clip = ImageClip(bg_path).set_duration(duration)
+                    audio_clip = None
 
-                clips.append(image_clip)
+                # 5. Create base image clip with Ken Burns effect
+                base_clip = ImageClip(bg_path).set_duration(duration)
+                
+                # Apply Ken Burns (random effect per slide)
+                effect_type = random.choice(KEN_BURNS_EFFECTS)
+                print(f"      🎥 Applying Ken Burns: {effect_type}")
+                animated_bg = apply_ken_burns(base_clip, effect_type)
+                
+                # Create a container for compositing (ensures 1920x1080 output)
+                # The Ken Burns effect may produce larger/offset clips
+                container = ImageClip(bg_path).set_duration(duration).set_opacity(0)  # Invisible base
+                
+                # 6. Generate kinetic text overlay (if applicable)
+                if visual_text and layout != "image_only":
+                    print(f"      ✨ Generating kinetic text ({len(visual_text.split(chr(10)))} lines)...")
+                    text_frames = render_kinetic_text_frames(
+                        visual_text, 
+                        layout=layout, 
+                        accent_color=accent_color, 
+                        duration_seconds=duration, 
+                        fps=24
+                    )
+                    
+                    if text_frames:
+                        text_overlay = create_text_overlay_clip(text_frames, duration)
+                        text_overlay = text_overlay.set_position((0, 0))
+                        
+                        # Composite: background + text
+                        final_slide = CompositeVideoClip(
+                            [animated_bg, text_overlay], 
+                            size=(1920, 1080)
+                        ).set_duration(duration)
+                    else:
+                        final_slide = CompositeVideoClip(
+                            [animated_bg], 
+                            size=(1920, 1080)
+                        ).set_duration(duration)
+                else:
+                    # Image only - just Ken Burns
+                    final_slide = CompositeVideoClip(
+                        [animated_bg], 
+                        size=(1920, 1080)
+                    ).set_duration(duration)
+                
+                # 7. Add audio
+                if audio_clip:
+                    final_slide = final_slide.set_audio(audio_clip)
+                
+                clips.append(final_slide)
 
-            # 5. Concatenate & Render
+            # 8. Concatenate & Render
             print("   🎞️ Rendering Final Video...")
-            # method="compose" ensures they are stitched cleanly
+            supabase_admin.table("courses").update({"status": "Encoding final video..."}).eq("id", course_id).execute()
+            
             final_video = concatenate_videoclips(clips, method="compose")
             
             output_path = os.path.join(temp_dir, "final_course.mp4")
@@ -701,16 +1036,19 @@ def compile_video_job(course_id: str, user_id: str):
                 fps=24, 
                 codec="libx264", 
                 audio_codec="aac",
-                logger=None # Keeps console cleaner
+                logger=None
             )
 
-            # 6. Upload
+            # 9. Upload
             print("   ☁️ Uploading to Supabase...")
             with open(output_path, 'rb') as f:
                 video_url = upload_asset(f.read(), f"full_course_{course_id}.mp4", "video/mp4", user_id)
 
-            supabase_admin.table("courses").update({"video_url": video_url}).eq("id", course_id).execute()
-            print(f"✅ Video Ready: {video_url}")
+            supabase_admin.table("courses").update({
+                "video_url": video_url,
+                "status": "completed"
+            }).eq("id", course_id).execute()
+            print(f"✅ Enhanced Video Ready: {video_url}")
 
     except Exception as e:
          handle_failure(course_id, user_id, e, {"stage": "compile_video_job"})
@@ -923,7 +1261,7 @@ async def generate_script(request: ScriptRequest, background_tasks: BackgroundTa
         "topics": topics_list,
         "duration": request.duration,
         "target_slides": target_slides,
-        "style_guide": STYLE_MAPPING.get(request.style, MINIMALIST_PROMPT),
+        "style_guide": STYLE_MAPPING.get(request.style, {"prompt": MINIMALIST_PROMPT})["prompt"],
         "strategy_tier": strategy["purpose"],
         "country": request.country
     }
@@ -1174,11 +1512,22 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
             metadata["validation_last_result"] = validation_result
             supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
 
-        # Determine Style Prompt
-        style_prompt = STYLE_MAPPING.get(request.style, MINIMALIST_PROMPT)
+        # Determine Style Prompt and Accent Color
+        style_config = STYLE_MAPPING.get(request.style, {
+            "prompt": MINIMALIST_PROMPT,
+            "default_accent": "#14b8a6",
+            "default_color_name": "teal"
+        })
+        
+        # Use user-selected color if provided, otherwise use style default
+        accent_color = request.accent_color or style_config["default_accent"]
+        color_name = request.color_name or style_config["default_color_name"]
+        
+        # Inject color into style prompt
+        style_prompt = style_config["prompt"].format(primary_color=color_name)
         
         # Run media generation directly (not as a separate background task since we're already in one)
-        generate_course_assets(course_id, script_plan, style_prompt, request.user_id)
+        generate_course_assets(course_id, script_plan, style_prompt, request.user_id, accent_color)
         
     except Exception as e:
         print(f"❌ Script Generation Error: {e}")
