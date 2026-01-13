@@ -26,7 +26,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
     const [selectedColors, setSelectedColors] = useState<Record<string, { hex: string, name: string }>>({
         "Minimalist Vector": { hex: "#14b8a6", name: "teal" },
         "Photo Realistic": { hex: "#3b82f6", name: "blue" },
-        "Tech Isometric": { hex: "#0ea5e9", name: "sky blue" },
+        "Sophisticated Watercolour": { hex: "#0ea5e9", name: "sky blue" },
     });
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,7 +56,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
             image: "https://ctkhjhfmwttpjtmtqjdh.supabase.co/storage/v1/object/sign/global-assets/Photo%20realistic%20sample.webp?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV80ZjM2ZjBlYi1hYjBiLTQ5NjQtOGE0My1hMmEyZGUzOGM4NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJnbG9iYWwtYXNzZXRzL1Bob3RvIHJlYWxpc3RpYyBzYW1wbGUud2VicCIsImlhdCI6MTc2ODEyNDU2NSwiZXhwIjo0OTIxNzI0NTY1fQ.aDoO2jXmUg4_5KYntb8HPv8_y73pR2oLZaexBYpMf0Q"
         },
         {
-            name: "Tech Isometric",
+            name: "Sophisticated Watercolour",
             image: "https://ctkhjhfmwttpjtmtqjdh.supabase.co/storage/v1/object/sign/global-assets/Tech%20isometric%20sample.webp?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV80ZjM2ZjBlYi1hYjBiLTQ5NjQtOGE0My1hMmEyZGUzOGM4NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJnbG9iYWwtYXNzZXRzL1RlY2ggaXNvbWV0cmljIHNhbXBsZS53ZWJwIiwiaWF0IjoxNzY4MTI0NTk1LCJleHAiOjQ5MjE3MjQ1OTV9.-uCEwrWH2-aq8cawlSV-rAxtdEry4ab83hwYSyusbVk"
         },
     ];
@@ -177,15 +177,21 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                     <label className="flex items-center gap-2 text-lg font-bold mb-6 text-slate-800">
                         <Clock size={20} className="text-teal-700" /> Course Duration
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                        {[3, 5, 10, 15, 20].map(m => (
+                    <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+                        {[1, 3, 5, 10, 15, 20].map(m => (
                             <button
                                 key={m}
                                 onClick={() => setDuration(m)}
                                 className={`py-3 px-4 rounded-lg font-medium transition-all
-                                    ${duration === m ? 'bg-teal-700 text-white shadow-md scale-105' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
+                                    ${duration === m
+                                        ? (m === 1
+                                            ? 'bg-amber-500 text-white shadow-md scale-105'
+                                            : 'bg-teal-700 text-white shadow-md scale-105')
+                                        : (m === 1
+                                            ? 'bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-300'
+                                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600')}`}
                             >
-                                {m} Mins
+                                {m} Min{m === 1 ? ' (dev)' : 's'}
                             </button>
                         ))}
                     </div>

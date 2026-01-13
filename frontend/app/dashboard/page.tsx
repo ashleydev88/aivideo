@@ -25,6 +25,10 @@ import {
     Trash2,
 } from "lucide-react";
 import { LoadingScreen } from '@/components/ui/loading-screen';
+import { useCourseGeneration } from "@/lib/CourseGenerationContext";
+import { GenerationProgressBar } from "@/components/GenerationProgressBar";
+import { GenerationPopover } from "@/components/GenerationPopover";
+import CourseGenerationModal from "@/components/CourseGenerationModal";
 
 interface Project {
     id: string;
@@ -51,6 +55,15 @@ export default function DashboardPage() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
+    const [showGenerationModal, setShowGenerationModal] = useState(false);
+    const { activeGeneration, clearGeneration } = useCourseGeneration();
+
+    // Check if a project is currently being generated
+    const isProjectGenerating = (projectId: string) => {
+        return activeGeneration?.courseId === projectId &&
+            activeGeneration.status !== "completed" &&
+            !activeGeneration.error;
+    };
 
     useEffect(() => {
         const getUserAndProjects = async () => {
@@ -292,13 +305,24 @@ export default function DashboardPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <span
-                                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(
-                                                    project.status
-                                                )}`}
-                                            >
-                                                {project.status || "Draft"}
-                                            </span>
+                                            {isProjectGenerating(project.id) ? (
+                                                <GenerationPopover>
+                                                    <div
+                                                        className="w-32 cursor-pointer"
+                                                        onClick={() => setShowGenerationModal(true)}
+                                                    >
+                                                        <GenerationProgressBar />
+                                                    </div>
+                                                </GenerationPopover>
+                                            ) : (
+                                                <span
+                                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(
+                                                        project.status
+                                                    )}`}
+                                                >
+                                                    {project.status || "Draft"}
+                                                </span>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
@@ -370,6 +394,22 @@ export default function DashboardPage() {
                     </div>
                 )}
             </div>
+
+            {/* Course Generation Modal - opened from dashboard when clicking on in-progress course */}
+            {showGenerationModal && activeGeneration && (
+                <CourseGenerationModal
+                    isOpen={showGenerationModal}
+                    currentPhase={activeGeneration.phase === "script" ? "script" : "designing"}
+                    statusText={activeGeneration.status}
+                    error={activeGeneration.error}
+                    onRetry={() => {
+                        clearGeneration();
+                        setShowGenerationModal(false);
+                    }}
+                    validationEnabled={true}
+                    onMinimize={() => setShowGenerationModal(false)}
+                />
+            )}
         </div>
     );
 }
