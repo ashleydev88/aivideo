@@ -271,7 +271,11 @@ def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dic
          print(f"   ❌ CRITICAL: Failed to delete course {course_id}: {e}")
 
 def upload_asset(file_content, filename, content_type, user_id: str):
-    """Upload asset to Supabase storage with user_id folder prefix for RLS."""
+    """Upload asset to Supabase storage with user_id folder prefix for RLS.
+    
+    Returns the storage path (not a signed URL) for on-demand URL generation.
+    Format: {user_id}/{filename}
+    """
     if not file_content: return None 
     bucket = "course-assets"
     # Use user_id as folder prefix for RLS policy compatibility
@@ -279,9 +283,9 @@ def upload_asset(file_content, filename, content_type, user_id: str):
     try:
         # Use admin client to bypass RLS for backend uploads
         supabase_admin.storage.from_(bucket).upload(path=path, file=file_content, file_options={"content-type": content_type})
-        # Use signed URL (1 hour expiry) instead of public URL for private bucket with RLS
-        signed_url_response = supabase_admin.storage.from_(bucket).create_signed_url(path, 3600)
-        return signed_url_response.get("signedURL")
+        # Return the storage path instead of signed URL
+        # Fresh signed URLs will be generated on-demand via /get-signed-url endpoint
+        return path
     except Exception as e:
         print(f"❌ Supabase Upload Error: {e}")
         return None
@@ -736,7 +740,7 @@ def compile_video_job(course_id: str, user_id: str):
                 # 4. Determine duration
                 if has_audio:
                     audio_clip = AudioFileClip(audio_path)
-                    duration = audio_clip.duration
+                    duration = audio_clip.duration + 1.5  # Add 1.5s transition buffer
                 else:
                     print(f"   ⚠️ Missing audio for Slide {i+1}, using default duration.")
                     duration = slide.get('duration', 15000) / 1000.0
@@ -797,6 +801,63 @@ async def get_status(course_id: str, authorization: str = Header(None)):
         raise HTTPException(status_code=404, detail="Course not found or access denied")
     data = response.data[0]
     return {"status": data.get("status", "processing"), "data": data.get("slide_data"), "video_url": data.get("video_url")}
+
+@app.post("/get-signed-url")
+async def get_signed_url(request: Request, authorization: str = Header(None)):
+    """
+    Generate a fresh signed URL for a storage asset.
+    
+    This endpoint validates that the user owns the asset (path starts with their user_id)
+    and returns a short-lived signed URL (15 minutes) for secure access.
+    
+    This ensures:
+    - Users have unlimited access to their own content (fresh URLs on demand)
+    - Shared URLs expire quickly and can't be used by others
+    """
+    user_id = get_user_id_from_token(authorization)
+    
+    body = await request.json()
+    path = body.get("path")
+    
+    if not path:
+        raise HTTPException(status_code=400, detail="Path is required")
+    
+    # Handle legacy full signed URLs - extract the storage path
+    if path.startswith("http"):
+        # Legacy URL format: https://<project>.supabase.co/storage/v1/object/sign/course-assets/<user_id>/<filename>?token=...
+        # We need to extract: <user_id>/<filename>
+        try:
+            # Find "course-assets/" in the URL and extract everything after it until "?"
+            if "/course-assets/" in path:
+                # Extract path after "course-assets/"
+                after_bucket = path.split("/course-assets/")[1]
+                # Remove query string (token)
+                extracted_path = after_bucket.split("?")[0]
+                path = extracted_path
+                print(f"   🔄 Extracted path from legacy URL: {path}")
+            else:
+                raise HTTPException(status_code=400, detail="Invalid legacy URL format")
+        except Exception as e:
+            print(f"   ❌ Failed to parse legacy URL: {e}")
+            raise HTTPException(status_code=400, detail="Could not parse legacy URL")
+    
+    # Security: Validate user owns this asset (path must start with their user_id)
+    if not path.startswith(f"{user_id}/"):
+        raise HTTPException(status_code=403, detail="Access denied to this asset")
+    
+    try:
+        bucket = "course-assets"
+        # Generate a fresh signed URL with 15-minute expiry (900 seconds)
+        signed_url_response = supabase_admin.storage.from_(bucket).create_signed_url(path, 900)
+        signed_url = signed_url_response.get("signedURL")
+        
+        if not signed_url:
+            raise HTTPException(status_code=500, detail="Failed to generate signed URL")
+        
+        return {"signed_url": signed_url, "expires_in": 900}
+    except Exception as e:
+        print(f"❌ Signed URL Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate signed URL")
 
 @app.get("/history")
 async def get_history(authorization: str = Header(None)):
