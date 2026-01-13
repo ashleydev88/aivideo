@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, Circle, AlertCircle, Minimize2 } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -8,6 +8,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface CourseGenerationModalProps {
     isOpen: boolean;
@@ -16,6 +17,7 @@ interface CourseGenerationModalProps {
     error?: string | null;
     onRetry?: () => void;
     validationEnabled?: boolean;
+    onMinimize?: () => void;
 }
 
 type StepStatus = "pending" | "active" | "completed" | "error";
@@ -201,20 +203,33 @@ export default function CourseGenerationModal({
     error,
     onRetry,
     validationEnabled = true,
+    onMinimize,
 }: CourseGenerationModalProps) {
     const steps = getSteps(validationEnabled);
     const stepStatuses = getStepStatuses(currentPhase, statusText, error || null);
+    const canMinimize = Boolean(onMinimize);
 
     return (
         <Dialog open={isOpen}>
             <DialogContent
                 hideCloseButton
-                onInteractOutside={(e) => e.preventDefault()}
-                onEscapeKeyDown={(e) => e.preventDefault()}
+                onInteractOutside={(e) => canMinimize ? onMinimize?.() : e.preventDefault()}
+                onEscapeKeyDown={(e) => canMinimize ? onMinimize?.() : e.preventDefault()}
                 className="sm:max-w-lg p-0 overflow-hidden"
             >
                 {/* Header with Gradient */}
-                <div className="bg-gradient-to-r from-teal-600 to-cyan-600 p-6 text-center">
+                <div className="bg-gradient-to-r from-teal-600 to-cyan-600 p-6 text-center relative">
+                    {/* Minimize Button */}
+                    {canMinimize && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onMinimize}
+                            className="absolute top-3 right-3 h-8 w-8 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                        >
+                            <Minimize2 className="h-4 w-4" />
+                        </Button>
+                    )}
                     <div className="flex justify-center mb-4">
                         <div className="relative w-16 h-16">
                             <div className="absolute inset-0 rounded-full bg-white/20 animate-ping" />
@@ -311,12 +326,15 @@ export default function CourseGenerationModal({
                     </div>
                 )}
 
-                {/* Warning Alert */}
+                {/* Warning/Info Alert */}
                 {!error && (
                     <div className="px-6 pb-6">
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                            <p className="text-sm text-amber-700 text-center font-medium">
-                                ⚠️ This may take up to 5 minutes. Please do not close this window.
+                        <div className={`p-3 ${canMinimize ? 'bg-teal-50 border-teal-200' : 'bg-amber-50 border-amber-200'} border rounded-xl`}>
+                            <p className={`text-sm ${canMinimize ? 'text-teal-700' : 'text-amber-700'} text-center font-medium`}>
+                                {canMinimize
+                                    ? "✨ You can minimize this and check progress from your Dashboard"
+                                    : "⚠️ This may take up to 5 minutes. Please do not close this window."
+                                }
                             </p>
                         </div>
                     </div>

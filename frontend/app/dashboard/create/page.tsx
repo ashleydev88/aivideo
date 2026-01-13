@@ -1,14 +1,23 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { CheckCircle2, PlayCircle } from 'lucide-react';
 import SetupForm from '@/components/SetupForm';
 import PlanningEditor from '@/components/PlanningEditor';
 import ProcessingModal from '@/components/ProcessingModal';
-import CourseGenerationModal from '@/components/CourseGenerationModal';
 import { createClient } from '@/lib/supabase/client';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useCourseGeneration } from '@/lib/CourseGenerationContext';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Loader2, Rocket } from "lucide-react";
 
 // --- INTERFACES ---
 interface Slide {
@@ -293,7 +302,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl }:
 }
 
 // --- MAIN PAGE ---
-export default function DashboardCreatePage() {
+function DashboardCreatePageContent() {
     const [view, setView] = useState<"setup" | "planning" | "designing">("setup");
     const [isLoading, setIsLoading] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -321,8 +330,12 @@ export default function DashboardCreatePage() {
 
     // Generation Modal State
     const [isGenerating, setIsGenerating] = useState(false);
+    const [showConfirmation, setShowConfirmation] = useState(false);
     const [generationPhase, setGenerationPhase] = useState<"script" | "designing">("script");
     const [validationEnabled, setValidationEnabled] = useState(true);
+
+    // Global context for background generation
+    const { startGeneration } = useCourseGeneration();
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -457,9 +470,14 @@ export default function DashboardCreatePage() {
             if (data.status === "started") {
                 setCourseId(data.course_id);
                 setValidationEnabled(data.validation_enabled ?? true);
-                setGenerationPhase("designing");
-                setView("designing");
-                pollStatus(data.course_id);
+
+                // Start tracking in global context
+                startGeneration(data.course_id);
+
+                // Show confirmation popup instead of blocking modal
+                setIsGenerating(false);
+                setIsLoading(false);
+                setShowConfirmation(true);
             } else if (data.status === "error") {
                 setError(data.message || "Failed to start course generation.");
             }
@@ -562,15 +580,41 @@ export default function DashboardCreatePage() {
             {/* Processing Modal (Setup -> Planning transition) */}
             <ProcessingModal isOpen={isProcessing} />
 
-            {/* Course Generation Modal (Planning -> Designing transition) */}
-            <CourseGenerationModal
-                isOpen={isGenerating}
-                currentPhase={generationPhase}
-                statusText={statusText}
-                error={error}
-                onRetry={handleGenerationRetry}
-                validationEnabled={validationEnabled}
-            />
+            {/* Confirmation Dialog - shown after generation starts */}
+            <Dialog open={showConfirmation}>
+                <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+                    <div className="bg-gradient-to-r from-teal-600 to-cyan-600 p-6 text-center">
+                        <div className="flex justify-center mb-4">
+                            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
+                                <Rocket className="w-8 h-8 text-white" />
+                            </div>
+                        </div>
+                        <DialogHeader className="space-y-1">
+                            <DialogTitle className="text-2xl font-bold text-white">
+                                We're On It! 🎬
+                            </DialogTitle>
+                            <DialogDescription className="text-teal-100 text-base">
+                                Your video is being crafted in the background
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <p className="text-slate-600 text-center">
+                            You can check progress anytime from your <span className="font-semibold text-teal-700">Dashboard</span>.
+                            We'll show a progress bar on your course while it's being created.
+                        </p>
+                        <Button
+                            className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                            onClick={() => {
+                                setShowConfirmation(false);
+                                router.push('/dashboard');
+                            }}
+                        >
+                            Go to Dashboard
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Background Gradients */}
             <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80 pointer-events-none" aria-hidden="true">
@@ -613,3 +657,11 @@ export default function DashboardCreatePage() {
     );
 }
 
+// Wrap with Suspense for useSearchParams
+export default function DashboardCreatePage() {
+    return (
+        <Suspense fallback={<LoadingScreen message="Loading course creator..." />}>
+            <DashboardCreatePageContent />
+        </Suspense>
+    );
+}

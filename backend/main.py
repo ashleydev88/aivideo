@@ -57,7 +57,8 @@ MINIMALIST_PROMPT = (
     "The palette is strictly monochromatic or duotone (shades of {primary_color} and slate) with high-contrast elements for readability. "
     "Backgrounds are solid, muted colours or subtle geometric patterns that do not distract. "
     "The overall look is functional, efficient, and corporate-modern, similar to 'Corporate Memphis' but more restrained and less abstract. "
-    "Scenes should focus on metaphorical representations of concepts—using icons, charts, and simplified shapes—rather than detailed character studies."
+    "Scenes should focus on metaphorical representations of concepts—using icons, charts, and simplified shapes—rather than detailed character studies. "
+    "CRITICAL: Ensuring no text, signage, numbers or readable characters appear anywhere in the composition."
 )
 
 
@@ -67,17 +68,25 @@ PHOTO_REALISTIC_PROMPT = (
     "The palette is true-to-life but with a subtle {primary_color} colour-grade for a cohesive 'editorial' look. "
     "Backgrounds should be blurred modern workspaces, glass walls, or generic corporate environments. "
     "The overall look is trustworthy, serious, and high-production value. "
-    "Scenes should depict diverse professionals in candid, 'in-action' moments rather than stiff poses, or close-ups of relevant objects (laptops, safety gear, documents) on desks."
+    "Scenes should depict diverse professionals in candid, 'in-action' moments rather than stiff poses, or close-ups of relevant objects (laptops, safety gear, documents) on desks. "
+    "CRITICAL: Ensuring no text, signage, numbers or readable characters appear anywhere in the composition."
 )
 
 
-TECH_ISOMETRIC_PROMPT = (
-    "A clean, precise isometric 3D illustration style, popular in modern tech documentation. "
-    "The style uses a fixed orthographic camera angle to show systems, architecture, and workflows clearly. "
-    "The palette is bright and clean, using white, soft greys, and {primary_color} as the primary brand color for emphasis. "
-    "Backgrounds are solid or faint grids. "
-    "The overall look is engineered, structured, and informative. "
-    "Scenes typically show server racks, office floor plans, devices, and connected diagrams in a miniature world format."
+WATERCOLOUR_PROMPT = (
+    "A sophisticated corporate illustration in a semi-realistic, hand-drawn aesthetic. "
+    "The style features distinct, expressive charcoal or ink outlines combined with soft, "
+    "textured watercolour-style colouring. "
+    "The palette is restrained and professional: primarily navy blues, cool greys, and crisp "
+    "whites, with selective warm accents of {primary_color}, mustard yellow and beige. "
+    "Backgrounds are often simplified, airy, or fade into a white vignette. "
+    "The overall look is polished yet human, evocative of high-end editorial illustrations for "
+    "business technology. "
+    "Scenes should prioritize relevant objects, tools, and conceptual diagrams over "
+    "human subjects where possible, "
+    "though diverse professionals and office environments can be used when a human "
+    "element is essential. "
+    "CRITICAL: Ensuring no text, signage, numbers or readable characters appear anywhere in the composition."
 )
 
 # Style mapping with prompt template, default accent hex, and color name
@@ -92,8 +101,8 @@ STYLE_MAPPING = {
         "default_accent": "#3b82f6",
         "default_color_name": "blue"
     },
-    "Tech Isometric": {
-        "prompt": TECH_ISOMETRIC_PROMPT,
+    "Sophisticated Watercolour": {
+        "prompt": WATERCOLOUR_PROMPT,
         "default_accent": "#0ea5e9",
         "default_color_name": "sky blue"
     },
@@ -101,6 +110,17 @@ STYLE_MAPPING = {
 
 # --- DURATION STRATEGIES ---
 DURATION_STRATEGIES = {
+    # DEV ONLY - 1 minute option for quick testing
+    1: {
+        "purpose": "DEV ONLY - Quick testing with minimal API calls",
+        "topic_count": "1-2 topics maximum",
+        "slide_range": "2-4 slides",
+        "avg_slide_duration": "15-20 seconds",
+        "depth_level": "Surface - bare essentials only",
+        "focus": "Quick test of generation pipeline",
+        "slides_per_topic": "1-2 slides per topic",
+        "content_priorities": ["Single key point", "Minimal API usage"]
+    },
     3: {
         "purpose": "Executive briefing - need to know NOW",
         "topic_count": "3-4 essential topics",
@@ -612,15 +632,23 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
 def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str, accent_color: str = "#14b8a6"):
     print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
     
-    # Update status to generating_media before starting slide generation
-    supabase_admin.table("courses").update({"status": "generating_media"}).eq("id", course_id).execute()
+    # Update status and progress phase to media generation
+    supabase_admin.table("courses").update({
+        "status": "generating_media",
+        "progress_phase": "media",
+        "progress_current_step": 0
+    }).eq("id", course_id).execute()
     
     try:
         final_slides = []
         
         with tempfile.TemporaryDirectory() as temp_dir:
             for i, slide in enumerate(script_plan):
-                supabase_admin.table("courses").update({"status": f"Drafting Slide {i+1} of {len(script_plan)}..."}).eq("id", course_id).execute()
+                # Update progress for each slide
+                supabase_admin.table("courses").update({
+                    "status": f"Drafting Slide {i+1} of {len(script_plan)}...",
+                    "progress_current_step": i + 1
+                }).eq("id", course_id).execute()
                 
                 # 1. Audio - fail immediately if generation fails
                 audio_data = generate_audio(slide["text"])
@@ -675,6 +703,26 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
         handle_failure(course_id, user_id, e, {"stage": "generate_course_assets", "style": style_prompt})
 
 
+
+def get_asset_url(path_or_url):
+    """
+    Helper to resolve a path or URL. 
+    If it's a storage path (no scheme), generates a signed URL.
+    """
+    if not path_or_url: return None
+    if path_or_url.startswith("http"): return path_or_url
+    
+    try:
+        # Generate signed URL valid for 10 mins
+        res = supabase_admin.storage.from_("course-assets").create_signed_url(path_or_url, 600)
+        # Handle dict response (standard in recent SDKs)
+        if isinstance(res, dict) and "signedURL" in res:
+             return res["signedURL"]
+        return res 
+    except Exception as e:
+        print(f"⚠️ Failed to sign URL for {path_or_url}: {e}")
+        return path_or_url
+
 # --- WORKER 2: VIDEO EXPORT (CLEAN SPLIT SCREEN) ---
 def compile_video_job(course_id: str, user_id: str):
     """
@@ -682,8 +730,12 @@ def compile_video_job(course_id: str, user_id: str):
     """
     print(f"🎬 Starting Static Compilation: {course_id} for user: {user_id}")
     
-    # Update status
-    supabase_admin.table("courses").update({"status": "Compiling video..."}).eq("id", course_id).execute()
+    # Update status and progress phase to compiling
+    supabase_admin.table("courses").update({
+        "status": "Compiling video...",
+        "progress_phase": "compiling",
+        "progress_current_step": 0
+    }).eq("id", course_id).execute()
     
     try:
         res = supabase_admin.table("courses").select("slide_data").eq("id", course_id).execute()
@@ -695,8 +747,10 @@ def compile_video_job(course_id: str, user_id: str):
             
             for i, slide in enumerate(slides):
                 print(f"   ⚡ Processing Slide {i+1}/{len(slides)}...")
+                # Update progress for each slide during compilation
                 supabase_admin.table("courses").update({
-                    "status": f"Rendering slide {i+1} of {len(slides)}..."
+                    "status": f"Rendering slide {i+1} of {len(slides)}...",
+                    "progress_current_step": i + 1
                 }).eq("id", course_id).execute()
                 
                 layout = slide.get('layout', 'split')
@@ -708,7 +762,8 @@ def compile_video_job(course_id: str, user_id: str):
                 download_ok = False
                 if slide.get('image'):
                     try:
-                        resp = requests.get(slide['image'])
+                        image_url = get_asset_url(slide['image'])
+                        resp = requests.get(image_url)
                         if resp.status_code == 200:
                             with open(bg_path, 'wb') as f:
                                 f.write(resp.content)
@@ -729,7 +784,8 @@ def compile_video_job(course_id: str, user_id: str):
                 has_audio = False
                 if slide.get('audio'):
                     try:
-                        resp = requests.get(slide['audio'])
+                        audio_url = get_asset_url(slide['audio'])
+                        resp = requests.get(audio_url)
                         if resp.status_code == 200:
                             with open(audio_path, 'wb') as f:
                                 f.write(resp.content)
@@ -800,7 +856,14 @@ async def get_status(course_id: str, authorization: str = Header(None)):
     if not response.data:
         raise HTTPException(status_code=404, detail="Course not found or access denied")
     data = response.data[0]
-    return {"status": data.get("status", "processing"), "data": data.get("slide_data"), "video_url": data.get("video_url")}
+    return {
+        "status": data.get("status", "processing"), 
+        "data": data.get("slide_data"), 
+        "video_url": data.get("video_url"),
+        "progress_phase": data.get("progress_phase"),
+        "progress_current_step": data.get("progress_current_step"),
+        "progress_total_steps": data.get("progress_total_steps")
+    }
 
 @app.post("/get-signed-url")
 async def get_signed_url(request: Request, authorization: str = Header(None)):
@@ -1174,12 +1237,12 @@ Pacing Strategy:
         f"IMAGE PROMPT RULES (prompt field):\n"
         f"CRITICAL: Each prompt must be detailed and contextually specific.\n\n"
         f"1. SUBJECT FOCUS: Prioritize relevant objects, diagrams, and conceptual visuals over human subjects. Use humans only when essential for context.\n"
-        f"2. TEXT RENDERING: ONLY include text within images if it can be rendered perfectly (e.g., a simple UI label or a clear sign). If unsure about perfect text rendering, favor wordless visual concepts.\n\n"
+        f"2. TEXT RENDERING: NEVER include text, letters, or numbers within images. The image should be entirely wordless. Focus on visual metaphors and symbols instead of labels or signs.\n\n"
         f"Template: \"Professional e-learning illustration: [SUBJECT] [ACTION/CONTEXT]. [VISUAL STYLE from guide]. [SPECIFIC DETAILS: clothing, setting, objects, composition]. [MOOD/EMOTION]. High quality, well-lit, modern corporate aesthetic.\"\n\n"
         f"Examples:\n"
-        f"✅ OBJECT FOCUS: \"Professional e-learning illustration: A modern laptop displaying a generic 'Security Notification' shield icon. Soft glow from the screen, desk accessories like a coffee mug and notebook in the background. Minimalist office setting. Alert and focused mood. High quality, natural lighting, modern corporate aesthetic.\"\n"
-        f"✅ DIAGRAM FOCUS: \"Professional e-learning illustration: A conceptual 3D isometric flowchart showing data moving securely between three generic platform nodes. Clean lines, glowing blue connection paths. Airy white background. Organized and technical mood. High quality, crisp details, modern corporate aesthetic.\"\n"
-        f"✅ HUMAN FOCUS (use sparingly): \"Professional e-learning illustration: Diverse team of three reviewing documents at modern conference table. Medium shot showing hands pointing at papers, laptop visible. Business casual attire, bright office with plants. Collaborative and focused mood. High quality, natural lighting, modern corporate aesthetic.\"\n\n"
+        f"✅ OBJECT FOCUS: \"Professional e-learning illustration: A modern laptop displaying a generic 'Security Notification' shield icon. No text on screen. Soft glow from the screen, desk accessories like a coffee mug and notebook in the background. Minimalist office setting. Alert and focused mood. High quality, natural lighting, modern corporate aesthetic. No text or lettering.\"\n"
+        f"✅ DIAGRAM FOCUS: \"Professional e-learning illustration: A conceptual 3D isometric flowchart showing data moving securely between three generic nodes. No labels or text. Clean lines, glowing blue connection paths. Airy white background. Organized and technical mood. High quality, crisp details, modern corporate aesthetic. Wordless composition.\"\n"
+        f"✅ HUMAN FOCUS (use sparingly): \"Professional e-learning illustration: Diverse team of three reviewing documents at modern conference table. Medium shot showing hands pointing at papers, laptop visible. No readable text on papers or screen. Business casual attire, bright office with plants. Collaborative and focused mood. High quality, natural lighting, modern corporate aesthetic. Entirely wordless.\"\n\n"
         f"❌ BAD: \"People in meeting\"\n\n"
         f"- Vary subjects: Use a mix of objects, diagrams, and environments.\n"
         f"- Match emotional tone to content (concerned for risks, optimistic for benefits)\n"
@@ -1206,7 +1269,7 @@ Pacing Strategy:
         f"☐ Exactly {context_package['target_slides']} slides\n"
         f"☐ Covers all topics from the learning path\n"
         f"☐ Each slide has 30-40 word narration\n"
-        f"☐ Image prompts are detailed and varied\n"
+        f"☐ Image prompts are detailed, varied, and STRICTLY wordless (no text)\n"
         f"☐ Layout distribution approximately matches 70/15/15\n"
         f"☐ Story flows logically from hook to conclusion\n"
         f"☐ Policy-specific information is included (not generic advice)\n"
@@ -1249,6 +1312,13 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
     This runs asynchronously so the frontend can poll for status updates.
     """
     try:
+        # Initialize progress tracking
+        supabase_admin.table("courses").update({
+            "progress_phase": "script",
+            "progress_current_step": 0,
+            "progress_total_steps": 0
+        }).eq("id", course_id).execute()
+        
         messages = [{"role": "user", "content": base_prompt}]
         script_plan = []
         max_retries = 2
@@ -1264,12 +1334,21 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
             data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
             
+            # Update total steps now that we know the slide count
+            total_slides = len(script_plan)
+            supabase_admin.table("courses").update({
+                "progress_total_steps": total_slides
+            }).eq("id", course_id).execute()
+            
             # Skip validation if disabled
             if not ENABLE_SCRIPT_VALIDATION:
                 break
             
-            # Update status to validating
-            supabase_admin.table("courses").update({"status": "validating"}).eq("id", course_id).execute()
+            # Update status and phase to validating
+            supabase_admin.table("courses").update({
+                "status": "validating",
+                "progress_phase": "validation"
+            }).eq("id", course_id).execute()
             
             validation_result = validate_script(script_plan, context_package)
             
