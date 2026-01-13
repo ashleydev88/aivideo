@@ -26,6 +26,57 @@ function PlayerContent() {
     const [loading, setLoading] = useState(true);
     const [project, setProject] = useState<Project | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+    // Helper to get fresh signed URL for video playback
+    const getSignedUrl = async (path: string, token: string): Promise<string | null> => {
+        // If it's already a full URL (legacy), try to use it directly
+        // The backend will return it as-is or the video element will fail gracefully
+        if (path.startsWith("http")) {
+            // For legacy URLs, still try to get a fresh one via backend
+            // This handles the case where the stored URL is expired
+            try {
+                const response = await fetch("http://localhost:8000/get-signed-url", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ path }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.signed_url;
+                }
+            } catch (err) {
+                console.warn("Failed to refresh legacy URL, using original:", err);
+            }
+            return path; // Fallback to original URL
+        }
+
+        // New format: storage path - get fresh signed URL
+        try {
+            const response = await fetch("http://localhost:8000/get-signed-url", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                },
+                body: JSON.stringify({ path }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to get signed URL");
+            }
+
+            const data = await response.json();
+            return data.signed_url;
+        } catch (err) {
+            console.error("Error getting signed URL:", err);
+            return null;
+        }
+    };
 
     useEffect(() => {
         const fetchProject = async () => {
@@ -52,6 +103,12 @@ function PlayerContent() {
                 if (!data) throw new Error("Project not found");
 
                 setProject(data);
+
+                // If there's a video, get a fresh signed URL
+                if (data.video_url) {
+                    const freshUrl = await getSignedUrl(data.video_url, session.access_token);
+                    setVideoUrl(freshUrl);
+                }
             } catch (err: any) {
                 console.error("Error fetching project:", err);
                 setError(err.message || "Failed to load project");
@@ -81,7 +138,7 @@ function PlayerContent() {
     }
 
     // Determine which player to show
-    const hasVideo = !!project.video_url;
+    const hasVideo = !!videoUrl;
     const hasSlides = project.slide_data && project.slide_data.length > 0;
 
     return (
@@ -105,7 +162,7 @@ function PlayerContent() {
                         /* Prefer pre-rendered video if available */
                         <div className="aspect-video flex items-center justify-center bg-black">
                             <video
-                                src={project.video_url}
+                                src={videoUrl}
                                 controls
                                 className="w-full h-full"
                                 playsInline

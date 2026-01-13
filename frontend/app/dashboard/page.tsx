@@ -307,9 +307,35 @@ export default function DashboardPage() {
                                                         variant="ghost"
                                                         size="sm"
                                                         className="h-8 w-8 p-0 text-slate-500 hover:text-teal-700"
-                                                        onClick={() => {
-                                                            // Trigger download or view
-                                                            window.open(project.video_url, "_blank");
+                                                        onClick={async () => {
+                                                            // Get fresh signed URL before download
+                                                            try {
+                                                                const { data: { session } } = await supabase.auth.getSession();
+                                                                if (!session) {
+                                                                    router.push("/login");
+                                                                    return;
+                                                                }
+
+                                                                const response = await fetch("http://localhost:8000/get-signed-url", {
+                                                                    method: "POST",
+                                                                    headers: {
+                                                                        "Content-Type": "application/json",
+                                                                        "Authorization": `Bearer ${session.access_token}`,
+                                                                    },
+                                                                    body: JSON.stringify({ path: project.video_url }),
+                                                                });
+
+                                                                if (response.ok) {
+                                                                    const data = await response.json();
+                                                                    window.open(data.signed_url, "_blank");
+                                                                } else {
+                                                                    // Fallback to original URL (may not work if expired)
+                                                                    window.open(project.video_url, "_blank");
+                                                                }
+                                                            } catch (error) {
+                                                                console.error("Error getting signed URL:", error);
+                                                                window.open(project.video_url, "_blank");
+                                                            }
                                                         }}
                                                     >
                                                         <Download className="h-4 w-4" />
