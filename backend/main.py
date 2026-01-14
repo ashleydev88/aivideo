@@ -41,6 +41,7 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 # --- CONFIGURATION ---
+LLM_MODEL_NAME = "claude-haiku-4-5"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 
 # --- CONFIGURATION FLAGS ---
@@ -313,7 +314,7 @@ def generate_audio(text):
     headers = {"xi-api-key": ELEVEN_LABS_API_KEY, "Content-Type": "application/json"}
     payload = {
         "text": text, 
-        "model_id": "eleven_multilingual_v2", 
+        "model_id": "eleven_flash_v2_5", 
         "voice_settings": {
             "stability": 0.5, 
             "similarity_boost": 0.75,
@@ -339,14 +340,30 @@ def generate_audio(text):
         print(f"   ❌ ElevenLabs Connection Error: {e}")
     return None, None
 
-def generate_image_imagen(prompt):
-    print(f"   🎨 Generating image (Imagen 4 Fast)...")
+def generate_image_replicate(prompt):
+    print(f"   ⚡ Generating image (SDXL Lightning)...")
     try:
-        output = replicate.run("google/imagen-4-fast", input={"prompt": prompt, "aspect_ratio": "16:9", "safety_filter_level": "block_only_high", "output_format": "jpg"})
-        image_url = output.url if hasattr(output, 'url') else str(output)
+        # Using bytedance/sdxl-lightning-4step for speed and cost
+        output = replicate.run(
+            "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
+            input={
+                "prompt": prompt,
+                "width": 1280, 
+                "height": 720,
+                "scheduler": "K_EULER",
+                "num_inference_steps": 4,
+                "negative_prompt": "text, watermark, ugly, blurry, low quality"
+            }
+        )
+        # Replicate usually returns a list of outputs for this model, or a single string url
+        if isinstance(output, list) and len(output) > 0:
+            image_url = output[0]
+        else:
+            image_url = output if hasattr(output, 'url') else str(output)
+            
         return requests.get(image_url).content
     except Exception as e:
-        print(f"   ❌ Replicate/Imagen Error: {e}")
+        print(f"   ❌ Replicate/SDXL Error: {e}")
     return None
 
 # --- ROBUST FONT MANAGER ---
@@ -605,34 +622,50 @@ class PipelineManager:
             })
 
         prompt = f"""
-You are the Visual Director for a high-end video production.
-Your task is to assign the optimal VISUAL FORMAT for each slide in this script.
+You are a World-Class Instructional Designer and Video Director.
+Your task is to assign the optimal VISUAL FORMAT for each slide to maximize learning retention and engagement.
 
 AVAILABLE FORMATS:
-1. "chart": Use for processes (steps, flows), lists of rules, data comparisons, or timelines.
-2. "hybrid": Use for complex topics that need BOTH an image (metaphor) AND kinetic text (definition/list) overlay.
-3. "kinetic_text": Use for strong definitions, quotes, or short impactful statements.
-4. "image": Use for general concepts, storytelling, or scenarios (Watercolour style).
+1. "hybrid" (Image + Kinetic Text): 
+   - BEST FOR: Complex concepts needing a metaphor + definition.
+   - Layout: Image on Right, Kinetic Text on Left.
+   - Use when you need to anchor a visual metaphor while explaining a key term.
+
+2. "image" (Image Only):
+   - BEST FOR: Storytelling, emotional impact, scene-setting, or strong visual metaphors.
+   - Layout: Full screen image.
+   - Use when the narration is descriptive and the visual needs to take center stage.
+
+3. "chart" (Data/Process Visualization):
+   - BEST FOR: Processes, steps, comparisons, lists, statistics, or flow.
+   - Layout: Clean, professional animated chart/diagram types.
+   - Use whenever the text implies structure (First, Second; vs; increasing/decreasing).
+
+4. "kinetic_text" (Text Only):
+   - BEST FOR: Short powerful quotes, definitions, or critical takeaways.
+   - Layout: Large, animated typography.
+   - Use for emphasis or when no visual metaphor is strong enough.
 
 RULES:
-- If the text describes a sequence (First, Second, Finally), it MUST be a "chart".
-- If the text lists 3+ items (bullet points), it should be a "chart" (Process List).
-- If the text is a direct quote or short definition, prefer "kinetic_text".
-- Use "hybrid" for complex slides where an image alone is too vague.
-- Default to "image" if uncertain.
+- "Process" language ("steps", "stages", "flow") MUST be a "chart".
+- lists of 3+ items should be a "chart" (List view).
+- Emotional/Scenario content works best as "image".
+- Key definitions work best as "hybrid" or "kinetic_text".
+- Use "kinetic_text" for strong, short statements (quotes, warnings, key facts).
+- DIVERSIFY: Avoid using the same format for more than 2 slides in a row.
 
 INPUT SLIDES:
 {json.dumps(slides_context, indent=2)}
 
 OUTPUT (JSON):
 [
-  {{ "id": 1, "type": "image", "reason": "Concept introduction" }},
-  {{ "id": 2, "type": "chart", "reason": "3-step process described" }}
+  {{ "id": 1, "type": "image", "reason": "Opening scene setting" }},
+  {{ "id": 2, "type": "hybrid", "reason": "Defining the core concept" }}
 ]
 """
         try:
             completion = self.client.messages.create(
-                model="claude-sonnet-4-5-20250929", # Fast model
+                model=LLM_MODEL_NAME, # Fast model
                 max_tokens=2000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -664,34 +697,41 @@ OUTPUT (JSON):
         """
         print("     📊 Generating Chart Data...")
         prompt = f"""
-You are a Data Visualization Specialist.
-Extract structured data from this text to build a process diagram or list.
+You are a Data Visualization Specialist designing a slide for a high-end corporate video.
+Extract structured data from the narration to build a professional, animated chart or diagram.
 
 CONTEXT:
-Text: {slide_text}
+Narration: {slide_text}
 Visual Note: {visual_note}
 
 TASK:
-Return a JSON object describing the chart.
+Return a JSON object that perfectly represents this content visually.
 
-FORMATS:
-- "process": A sequential list of steps.
-- "list": A non-sequential list of items.
+AVAILABLE CHART TYPES:
+- "process": Sequential steps (1 -> 2 -> 3).
+- "list": Unordered items or bullet points.
+- "comparison": Vs. or Side-by-Side comparison.
+- "statistic": A key number with a label.
+- "pyramid": Hierarchical data.
 
 OUTPUT (JSON):
 {{
-  "title": "Title of the chart",
-  "type": "process" | "list",
+  "title": "Short, punchy title",
+  "type": "process|list|comparison|statistic|pyramid",
   "items": [
-    {{ "label": "Step 1", "description": "Short desc" }},
-    {{ "label": "Step 2", "description": "Short desc" }}
+    {{ "label": "Step 1", "description": "Short description (max 5 words)" }},
+    {{ "label": "Step 2", "description": "..." }}
   ]
 }}
-LIMIT: Max 4-5 items. Keep text SHORT.
+
+CRITICAL:
+- Keep text labels SHORT (1-5 words) for clean UI.
+- Max 5-6 items for readability.
+- Ensure the data structure supports checking off items in sync with narration.
 """
         try:
             completion = self.client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model=LLM_MODEL_NAME,
                 max_tokens=1000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -741,7 +781,7 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
     
     try:
         completion = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model=LLM_MODEL_NAME,
             max_tokens=20000,
             messages=[{"role": "user", "content": validation_prompt}]
         )
@@ -800,23 +840,25 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
                 image_url = None
                 chart_data = None
                 
+                # BRANCH A: Chart Generation
                 if visual_type == "chart":
-                    # Generate Chart Data instead of Image
-                    pipeline = PipelineManager(client) # Client is global
+                    pipeline = PipelineManager(client)
                     chart_data = pipeline.generate_chart_data(slide["text"], slide.get("visual_text", ""))
                     if not chart_data:
-                        # Fallback if chart gen fails
-                        print(f"   ⚠️ Chart Gen failed, falling back to image for slide {i+1}")
-                        visual_type = "image"
+                        print(f"   ⚠️ Chart Gen failed, falling back to kinetic_text for slide {i+1}")
+                        visual_type = "kinetic_text"
                 
-                # If still image (or fallback), generate image
-                if visual_type != "chart":
+                # BRANCH B: Image Generation (Only for 'image' and 'hybrid')
+                if visual_type in ["image", "hybrid"]:
                     full_prompt = f"{style_prompt}. {slide['prompt']}"
-                    image_data = generate_image_imagen(full_prompt)
+                    image_data = generate_image_replicate(full_prompt)
                     if image_data is None:
-                        raise Exception(f"Image generation failed for slide {i+1}. API issue detected.")
-                    image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                    image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
+                        # Soft fail - fallback to kinetic text if image gen fails
+                        print(f"   ⚠️ Image Gen failed, falling back to kinetic_text")
+                        visual_type = "kinetic_text"
+                    else:
+                        image_filename = f"visual_{i}_{int(time.time())}.jpg"
+                        image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
                 
                 final_slides.append({
                     "id": i + 1,
@@ -845,17 +887,18 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
 
 
 
-def get_asset_url(path_or_url):
+def get_asset_url(path_or_url, validity=600):
     """
     Helper to resolve a path or URL. 
     If it's a storage path (no scheme), generates a signed URL.
+    Validity defaults to 10 mins (600s), but can be extended for rendering jobs.
     """
     if not path_or_url: return None
     if path_or_url.startswith("http"): return path_or_url
     
     try:
-        # Generate signed URL valid for 10 mins
-        res = supabase_admin.storage.from_("course-assets").create_signed_url(path_or_url, 600)
+        # Generate signed URL 
+        res = supabase_admin.storage.from_("course-assets").create_signed_url(path_or_url, validity)
         # Handle dict response (standard in recent SDKs)
         if isinstance(res, dict) and "signedURL" in res:
              return res["signedURL"]
@@ -884,6 +927,17 @@ def trigger_remotion_render(course_id: str, user_id: str):
         course_data = res.data[0]
         slides = course_data.get('slide_data', [])
         accent_color = course_data.get('accent_color', '#14b8a6')
+
+        # 1.5 Pre-sign URLs for Remotion Lambda (Needs public access)
+        print("   🔑 Signing assets for Lambda...")
+        for slide in slides:
+            # Sign Audio (1 hour validity)
+            if slide.get("audio") and not slide["audio"].startswith("http"):
+                 slide["audio"] = get_asset_url(slide["audio"], 3600)
+            
+            # Sign Image (1 hour validity)
+            if slide.get("image") and not slide["image"].startswith("http"):
+                 slide["image"] = get_asset_url(slide["image"], 3600)
 
         # 2. Prepare Payload
         payload = {
@@ -1179,7 +1233,7 @@ async def generate_plan(request: PlanRequest):
     
     try:
         completion = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model=LLM_MODEL_NAME,
             max_tokens=20000,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -1405,7 +1459,8 @@ Pacing Strategy:
             "status": "generating_script", 
             "name": request.title,
             "metadata": metadata,
-            "user_id": request.user_id
+            "user_id": request.user_id,
+            "accent_color": request.accent_color # Save preferenec
         }).execute()
         course_id = response.data[0]['id']
     except Exception as e:
@@ -1445,7 +1500,7 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
         for attempt in range(max_retries):
             # Generate Script
             completion = client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model=LLM_MODEL_NAME,
                 max_tokens=20000,
                 messages=messages
             )
