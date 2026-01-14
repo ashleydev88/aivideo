@@ -1,0 +1,35 @@
+{
+  "name": "remotion-renderer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/server.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@remotion/bundler": "^4.0.405",
+    "@remotion/cli": "^4.0.405",
+    "@remotion/lambda": "^4.0.405",
+    "@remotion/renderer": "^4.0.405",
+    "@types/node": "^25.0.8",
+    "@types/react": "^19.2.8",
+    "autoprefixer": "^10.4.23",
+    "body-parser": "^2.2.2",
+    "express": "^5.2.1",
+    "postcss": "^8.5.6",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remotion": "^4.0.405",
+    "tailwindcss": "^4.1.18",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/body-parser": "^1.19.6",
+    "@types/express": "^5.0.6"
+  }
+}

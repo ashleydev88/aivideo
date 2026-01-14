@@ -27,3 +27,10 @@ frontend/.env.production.local
 
 # Root
 .env
+
+# Remotion
+remotion-renderer/.env
+remotion-renderer/node_modules/
+remotion-renderer/out/
+remotion-renderer/build/
+remotion-renderer/dist/
