@@ -5,13 +5,9 @@ import requests
 import traceback
 import tempfile
 import textwrap
-from PIL import Image, ImageDraw, ImageFont
+import tempfile
+import textwrap
 
-# --- PILLOW COMPATIBILITY FIX ---
-# MoviePy 1.0.3 uses PIL.Image.ANTIALIAS which was removed in Pillow 10.0.0
-# Add compatibility alias for ANTIALIAS -> LANCZOS
-if not hasattr(Image, 'ANTIALIAS'):
-    Image.ANTIALIAS = Image.Resampling.LANCZOS
 from fastapi import FastAPI, BackgroundTasks, File, UploadFile, Form, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -27,7 +23,7 @@ import traceback
 
 # --- MOVIEPY IMPORTS ---
 # Ensure you have run: pip install "moviepy<2.0"
-from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeVideoClip
+from moviepy.editor import AudioFileClip
 import random
 
 
@@ -312,7 +308,7 @@ def upload_asset(file_content, filename, content_type, user_id: str):
 
 def generate_audio(text):
     print(f"   🎙️ Generating audio...")
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}/with-timestamps"
     headers = {"xi-api-key": ELEVEN_LABS_API_KEY, "Content-Type": "application/json"}
     payload = {
         "text": text, 
@@ -326,12 +322,21 @@ def generate_audio(text):
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         if response.status_code == 200: 
-            return response.content
+            data = response.json()
+            # ElevenLabs returns base64 audio and alignment info in JSON for this endpoint
+            audio_base64 = data.get("audio_base64")
+            alignment = data.get("alignment")
+            
+            if audio_base64:
+                import base64
+                return base64.b64decode(audio_base64), alignment
+            else:
+                print("   ❌ ElevenLabs Response missing audio_base64")
         else:
             print(f"   ❌ ElevenLabs API Error {response.status_code}: {response.text}")
     except Exception as e:
         print(f"   ❌ ElevenLabs Connection Error: {e}")
-    return None
+    return None, None
 
 def generate_image_imagen(prompt):
     print(f"   🎨 Generating image (Imagen 4 Fast)...")
@@ -575,6 +580,124 @@ def draw_markdown_text(draw, x_start, y_start, text, max_width_px, font_reg, fon
 
 # --- KINETIC TEXT RENDERING SYSTEM ---
 
+class PipelineManager:
+    """
+    Orchestrates the granular AI agents for the V2 workflow.
+    """
+    def __init__(self, client):
+        self.client = client
+
+    def assign_visual_types(self, script_data: list) -> list:
+        """
+        Visual Director Agent: Decides the visual format for each slide.
+        Returns the script_data with an added 'visual_type' and 'visual_metadata' field.
+        """
+        print("   🎬 Visual Director: Assigning formats...")
+        
+        # Prepare context for the LLM
+        slides_context = []
+        for slide in script_data:
+            slides_context.append({
+                "id": slide.get("id"),
+                "text": slide.get("text", "")[:100] + "...", # Truncate for token efficiency
+                "visual_note": slide.get("visual_text", "")
+            })
+
+        prompt = f"""
+You are the Visual Director for a high-end video production.
+Your task is to assign the optimal VISUAL FORMAT for each slide in this script.
+
+AVAILABLE FORMATS:
+1. "chart": Use for processes (steps, flows), lists of rules, data comparisons, or timelines.
+2. "hybrid": Use for complex topics that need BOTH an image (metaphor) AND kinetic text (definition/list) overlay.
+3. "kinetic_text": Use for strong definitions, quotes, or short impactful statements.
+4. "image": Use for general concepts, storytelling, or scenarios (Watercolour style).
+
+RULES:
+- If the text describes a sequence (First, Second, Finally), it MUST be a "chart".
+- If the text lists 3+ items (bullet points), it should be a "chart" (Process List).
+- If the text is a direct quote or short definition, prefer "kinetic_text".
+- Use "hybrid" for complex slides where an image alone is too vague.
+- Default to "image" if uncertain.
+
+INPUT SLIDES:
+{json.dumps(slides_context, indent=2)}
+
+OUTPUT (JSON):
+[
+  {{ "id": 1, "type": "image", "reason": "Concept introduction" }},
+  {{ "id": 2, "type": "chart", "reason": "3-step process described" }}
+]
+"""
+        try:
+            completion = self.client.messages.create(
+                model="claude-sonnet-4-5-20250929", # Fast model
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            res_text = completion.content[0].text
+            directives = extract_json_from_response(res_text)
+            
+            # Map directives back to script_data
+            directive_map = {d["id"]: d for d in directives}
+            
+            enriched_script = []
+            for slide in script_data:
+                d = directive_map.get(slide.get("id"), {"type": "image"})
+                slide["visual_type"] = d.get("type", "image")
+                slide["visual_reason"] = d.get("reason", "")
+                enriched_script.append(slide)
+                
+            return enriched_script
+
+        except Exception as e:
+            print(f"   ⚠️ Visual Director Failed: {e}")
+            # Fallback
+            for slide in script_data:
+                slide["visual_type"] = "image"
+            return script_data
+
+    def generate_chart_data(self, slide_text: str, visual_note: str) -> dict:
+        """
+        Chart Generator Agent: Extracts structured data for Recharts/Remotion.
+        """
+        print("     📊 Generating Chart Data...")
+        prompt = f"""
+You are a Data Visualization Specialist.
+Extract structured data from this text to build a process diagram or list.
+
+CONTEXT:
+Text: {slide_text}
+Visual Note: {visual_note}
+
+TASK:
+Return a JSON object describing the chart.
+
+FORMATS:
+- "process": A sequential list of steps.
+- "list": A non-sequential list of items.
+
+OUTPUT (JSON):
+{{
+  "title": "Title of the chart",
+  "type": "process" | "list",
+  "items": [
+    {{ "label": "Step 1", "description": "Short desc" }},
+    {{ "label": "Step 2", "description": "Short desc" }}
+  ]
+}}
+LIMIT: Max 4-5 items. Keep text SHORT.
+"""
+        try:
+            completion = self.client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return extract_json_from_response(completion.content[0].text)
+        except Exception as e:
+             print(f"     ⚠️ Chart Gen Failed: {e}")
+             return None
 
 
 def validate_script(script_output, context_package):
@@ -651,7 +774,7 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
                 }).eq("id", course_id).execute()
                 
                 # 1. Audio - fail immediately if generation fails
-                audio_data = generate_audio(slide["text"])
+                audio_data, alignment = generate_audio(slide["text"])
                 if audio_data is None:
                     raise Exception(f"Audio generation failed for slide {i+1}. API issue detected.")
                 
@@ -671,23 +794,40 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
                 audio_filename = f"narration_{i}_{int(time.time())}.mp3" # Timestamp to avoid collisions
                 audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg", user_id)
                 
-                # 2. Image - fail immediately if generation fails
-                full_prompt = f"{style_prompt}. {slide['prompt']}"
-                image_data = generate_image_imagen(full_prompt)
-                if image_data is None:
-                    raise Exception(f"Image generation failed for slide {i+1}. API issue detected.")
-                    
-                image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
+                # 2. Visual Content Generation (Specialized)
+                visual_type = slide.get("visual_type", "image")
+                image_url = None
+                chart_data = None
+                
+                if visual_type == "chart":
+                    # Generate Chart Data instead of Image
+                    pipeline = PipelineManager(client) # Client is global
+                    chart_data = pipeline.generate_chart_data(slide["text"], slide.get("visual_text", ""))
+                    if not chart_data:
+                        # Fallback if chart gen fails
+                        print(f"   ⚠️ Chart Gen failed, falling back to image for slide {i+1}")
+                        visual_type = "image"
+                
+                # If still image (or fallback), generate image
+                if visual_type != "chart":
+                    full_prompt = f"{style_prompt}. {slide['prompt']}"
+                    image_data = generate_image_imagen(full_prompt)
+                    if image_data is None:
+                        raise Exception(f"Image generation failed for slide {i+1}. API issue detected.")
+                    image_filename = f"visual_{i}_{int(time.time())}.jpg"
+                    image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
                 
                 final_slides.append({
                     "id": i + 1,
-                    "image": image_url,
+                    "image": image_url, # Can be None for charts
                     "audio": audio_url,
+                    "timestamps": alignment,
                     "visual_text": slide.get("visual_text", ""),
                     "duration": duration_ms,
                     "layout": slide.get("layout", "split"),
-                    "accent_color": accent_color  # Store accent color for video compilation
+                    "accent_color": accent_color,
+                    "visual_type": visual_type,
+                    "chart_data": chart_data
                 })
 
         supabase_admin.table("courses").update({
@@ -697,7 +837,7 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
         print("✅ Asset Generation Completed, starting video compilation...")
         
         # Auto-trigger video compilation
-        compile_video_job(course_id, user_id)
+        trigger_remotion_render(course_id, user_id)
 
     except Exception as e:
         handle_failure(course_id, user_id, e, {"stage": "generate_course_assets", "style": style_prompt})
@@ -724,122 +864,64 @@ def get_asset_url(path_or_url):
         return path_or_url
 
 # --- WORKER 2: VIDEO EXPORT (CLEAN SPLIT SCREEN) ---
-def compile_video_job(course_id: str, user_id: str):
+
+
+def trigger_remotion_render(course_id: str, user_id: str):
     """
-    Compile course slides into MP4 with simple static slides (no kinetic effects).
+    Triggers the Node.js Remotion service to render the video.
     """
-    print(f"🎬 Starting Static Compilation: {course_id} for user: {user_id}")
-    
-    # Update status and progress phase to compiling
+    print(f"🎬 Starting Remotion Render: {course_id}")
     supabase_admin.table("courses").update({
-        "status": "Compiling video...",
-        "progress_phase": "compiling",
-        "progress_current_step": 0
+        "status": "Rendering with Remotion...",
+        "progress_phase": "compiling"
     }).eq("id", course_id).execute()
-    
+
     try:
-        res = supabase_admin.table("courses").select("slide_data").eq("id", course_id).execute()
+        # 1. Fetch Data
+        res = supabase_admin.table("courses").select("slide_data, accent_color").eq("id", course_id).execute()
         if not res.data: return
-        slides = res.data[0]['slide_data']
+        course_data = res.data[0]
+        slides = course_data.get('slide_data', [])
+        accent_color = course_data.get('accent_color', '#14b8a6')
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            clips = []
+        # 2. Prepare Payload
+        # We might need to resolve asset URLs if they are private/signed?
+        # But for now assuming public or presigned URLs valid for duration.
+        payload = {
+            "course_id": course_id,
+            "slide_data": slides,
+            "accent_color": accent_color
+        }
+
+        # 3. Call Service
+        import requests
+        print("   📡 Calling Remotion Service...")
+        response = requests.post("http://localhost:8000/render", json=payload, timeout=600) # 10 min timeout
+        
+        if response.status_code != 200:
+            raise Exception(f"Remotion Service Failed: {response.text}")
             
-            for i, slide in enumerate(slides):
-                print(f"   ⚡ Processing Slide {i+1}/{len(slides)}...")
-                # Update progress for each slide during compilation
-                supabase_admin.table("courses").update({
-                    "status": f"Rendering slide {i+1} of {len(slides)}...",
-                    "progress_current_step": i + 1
-                }).eq("id", course_id).execute()
-                
-                layout = slide.get('layout', 'split')
-                accent_color = slide.get('accent_color', '#14b8a6')
-                visual_text = slide.get('visual_text', '')
-                
-                # 1. Download Background Image
-                bg_path = os.path.join(temp_dir, f"bg_{i}.jpg")
-                download_ok = False
-                if slide.get('image'):
-                    try:
-                        image_url = get_asset_url(slide['image'])
-                        resp = requests.get(image_url)
-                        if resp.status_code == 200:
-                            with open(bg_path, 'wb') as f:
-                                f.write(resp.content)
-                            download_ok = True
-                    except Exception as e:
-                        print(f"   ⚠️ Image download error: {e}")
-                
-                if not download_ok:
-                    print(f"   ⚠️ Using fallback image for Slide {i+1}")
-                    Image.new('RGB', (1920, 1080), '#f8fafc').save(bg_path)
-                
-                # 2. Render Static Visual (Image + Text)
-                # This function handles the layout, resizing, and text baking
-                final_image_path = render_slide_visual(bg_path, visual_text, layout, accent_color)
-                
-                # 3. Download Audio
-                audio_path = os.path.join(temp_dir, f"audio_{i}.mp3")
-                has_audio = False
-                if slide.get('audio'):
-                    try:
-                        audio_url = get_asset_url(slide['audio'])
-                        resp = requests.get(audio_url)
-                        if resp.status_code == 200:
-                            with open(audio_path, 'wb') as f:
-                                f.write(resp.content)
-                            has_audio = True
-                    except Exception as e:
-                        print(f"   ⚠️ Audio download error: {e}")
+        result = response.json()
+        output_path = result.get("path")
+        
+        if not output_path or not os.path.exists(output_path):
+            raise Exception("Remotion reported success but file not found.")
 
-                # 4. Determine duration
-                if has_audio:
-                    audio_clip = AudioFileClip(audio_path)
-                    duration = audio_clip.duration + 1.5  # Add 1.5s transition buffer
-                else:
-                    print(f"   ⚠️ Missing audio for Slide {i+1}, using default duration.")
-                    duration = slide.get('duration', 15000) / 1000.0
-                    audio_clip = None
+        # 4. Upload Result
+        print("   ☁️  Uploading Final Video...")
+        with open(output_path, 'rb') as f:
+            video_url = upload_asset(f.read(), f"course_v2_{course_id}.mp4", "video/mp4", user_id)
 
-                # 5. Create Video Clip from Static Image
-                # No Ken Burns, just a static image held for the duration
-                final_slide = ImageClip(final_image_path).set_duration(duration)
-                
-                # 6. Add audio
-                if audio_clip:
-                    final_slide = final_slide.set_audio(audio_clip)
-                
-                clips.append(final_slide)
-
-            # 7. Concatenate & Render
-            print("   🎞️ Rendering Final Video...")
-            supabase_admin.table("courses").update({"status": "Encoding final video..."}).eq("id", course_id).execute()
-            
-            final_video = concatenate_videoclips(clips, method="compose")
-            
-            output_path = os.path.join(temp_dir, "final_course.mp4")
-            final_video.write_videofile(
-                output_path, 
-                fps=24, 
-                codec="libx264", 
-                audio_codec="aac",
-                logger=None
-            )
-
-            # 8. Upload
-            print("   ☁️ Uploading to Supabase...")
-            with open(output_path, 'rb') as f:
-                video_url = upload_asset(f.read(), f"full_course_{course_id}.mp4", "video/mp4", user_id)
-
-            supabase_admin.table("courses").update({
-                "video_url": video_url,
-                "status": "completed"
-            }).eq("id", course_id).execute()
-            print(f"✅ Static Video Ready: {video_url}")
+        # 5. Complete
+        supabase_admin.table("courses").update({
+            "video_url": video_url,
+            "status": "completed"
+        }).eq("id", course_id).execute()
+        print(f"✅ Remotion Video Ready: {video_url}")
 
     except Exception as e:
-         handle_failure(course_id, user_id, e, {"stage": "compile_video_job"})
+        print(f"❌ Remotion Trigger Error: {e}")
+        handle_failure(course_id, user_id, e, {"stage": "remotion_render"})
 
 # --- ROUTES ---
 @app.post("/create")
@@ -935,7 +1017,7 @@ async def export_video(
     authorization: str = Header(None)
 ):
     user_id = get_user_id_from_token(authorization)
-    background_tasks.add_task(compile_video_job, course_id, user_id)
+    background_tasks.add_task(trigger_remotion_render, course_id, user_id)
     return {"status": "export_started"}
 
 @app.get("/subscription")
@@ -1379,6 +1461,11 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
         if ENABLE_SCRIPT_VALIDATION and 'validation_result' in locals():
             metadata["validation_last_result"] = validation_result
             supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
+
+        # --- PIPELINE STEP 2: VISUAL DIRECTOR ---
+        # Enrich the script with visual types (Chart vs Image vs Hybrid)
+        pipeline = PipelineManager(client)
+        script_plan = pipeline.assign_visual_types(script_plan)
 
         # Determine Style Prompt and Accent Color
         style_config = STYLE_MAPPING.get(request.style, {
