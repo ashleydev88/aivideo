@@ -973,7 +973,8 @@ def trigger_remotion_render(course_id: str, user_id: str):
             "--input-props", json.dumps(payload),
             "--output", output_path,
             "--log", "info",
-            "--yes" # Auto confirm
+            "--yes", # Auto confirm
+            "--frames-per-lambda", "200" # Increase frames per lambda to reduce total lambda count
         ]
         
         # 5. Execute Subprocess
