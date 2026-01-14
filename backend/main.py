@@ -5,6 +5,7 @@ import requests
 import traceback
 import tempfile
 import textwrap
+import subprocess # Added for Remotion Lambda
 import tempfile
 import textwrap
 
@@ -868,11 +869,11 @@ def get_asset_url(path_or_url):
 
 def trigger_remotion_render(course_id: str, user_id: str):
     """
-    Triggers the Node.js Remotion service to render the video.
+    Triggers the AWS Lambda Remotion render via CLI subprocess.
     """
-    print(f"🎬 Starting Remotion Render: {course_id}")
+    print(f"🎬 Starting Remotion Lambda Render: {course_id}")
     supabase_admin.table("courses").update({
-        "status": "Rendering with Remotion...",
+        "status": "Rendering with AWS Lambda...",
         "progress_phase": "compiling"
     }).eq("id", course_id).execute()
 
@@ -885,40 +886,76 @@ def trigger_remotion_render(course_id: str, user_id: str):
         accent_color = course_data.get('accent_color', '#14b8a6')
 
         # 2. Prepare Payload
-        # We might need to resolve asset URLs if they are private/signed?
-        # But for now assuming public or presigned URLs valid for duration.
         payload = {
-            "course_id": course_id,
             "slide_data": slides,
             "accent_color": accent_color
         }
-
-        # 3. Call Service
-        import requests
-        print("   📡 Calling Remotion Service...")
-        response = requests.post("http://localhost:8000/render", json=payload, timeout=600) # 10 min timeout
         
-        if response.status_code != 200:
-            raise Exception(f"Remotion Service Failed: {response.text}")
+        # 3. Define Paths & Constants
+        # Serve URL from step 2 (Hardcoded for now as per deployment)
+        SERVE_URL = "https://remotionlambda-euwest2-wxjopockvc.s3.eu-west-2.amazonaws.com/sites/video-renderer/index.html"
+        COMPOSITION_ID = "Main"
+        
+        # Resolve path to remotion-renderer directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        remotion_dir = os.path.join(os.path.dirname(current_dir), "remotion-renderer")
+        
+        # 4. Construct Command
+        # npx remotion lambda render <url> <comp> --input-props='...' --output=out.mp4 --log=verbose
+        # We render to a temp file locally to upload it
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_video:
+            output_path = temp_video.name
             
-        result = response.json()
-        output_path = result.get("path")
+        print(f"   📡 Calling Remotion Lambda... (output: {output_path})")
         
-        if not output_path or not os.path.exists(output_path):
-            raise Exception("Remotion reported success but file not found.")
+        # Ensure PATH includes node pointers (Mac specific fix)
+        env = os.environ.copy()
+        env["PATH"] = f"{env.get('PATH', '')}:/usr/local/bin:/opt/homebrew/bin"
+        
+        cmd = [
+            "npx", "remotion", "lambda", "render",
+            SERVE_URL,
+            COMPOSITION_ID,
+            "--input-props", json.dumps(payload),
+            "--output", output_path,
+            "--log", "info",
+            "--yes" # Auto confirm
+        ]
+        
+        # 5. Execute Subprocess
+        # Run inside remotion-renderer dir to find local remotion package
+        process = subprocess.run(
+            cmd,
+            cwd=remotion_dir,
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        
+        print(f"   ✅ Render CLI Output: {process.stdout[:200]}...")
 
-        # 4. Upload Result
+        # 6. Upload Result
+        if not os.path.exists(output_path):
+             raise Exception("Remotion finished but output file missing.")
+             
         print("   ☁️  Uploading Final Video...")
         with open(output_path, 'rb') as f:
             video_url = upload_asset(f.read(), f"course_v2_{course_id}.mp4", "video/mp4", user_id)
+            
+        # Clean up temp file
+        os.unlink(output_path)
 
-        # 5. Complete
+        # 7. Complete
         supabase_admin.table("courses").update({
             "video_url": video_url,
             "status": "completed"
         }).eq("id", course_id).execute()
         print(f"✅ Remotion Video Ready: {video_url}")
 
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Remotion CLI Error: {e.stderr}")
+        handle_failure(course_id, user_id, Exception(f"Render Failed: {e.stderr}"), {"stage": "remotion_render"})
     except Exception as e:
         print(f"❌ Remotion Trigger Error: {e}")
         handle_failure(course_id, user_id, e, {"stage": "remotion_render"})
