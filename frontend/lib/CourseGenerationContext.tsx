@@ -78,6 +78,11 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
 
             if (res.status === 404) {
                 setActiveGeneration(prev => prev ? { ...prev, error: "Course not found", status: "error" } : null);
+                // Create a hard stop to prevent infinite 404 loops
+                if (pollInterval.current) {
+                    clearInterval(pollInterval.current);
+                    pollInterval.current = null;
+                }
                 return;
             }
 
