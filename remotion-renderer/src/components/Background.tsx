@@ -3,7 +3,7 @@ import { AbsoluteFill } from 'remotion';
 
 export const Background: React.FC = () => {
     return (
-        <AbsoluteFill className="bg-[#fdfbf7]">
+        <AbsoluteFill className="bg-white">
             {/* Simple noise overlay for texture */}
             <div
                 style={{

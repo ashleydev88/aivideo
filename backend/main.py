@@ -13,7 +13,7 @@ from fastapi import FastAPI, BackgroundTasks, File, UploadFile, Form, HTTPExcept
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client
-from anthropic import Anthropic
+from openai import OpenAI
 import replicate
 from dotenv import load_dotenv
 import utils.parser as parser
@@ -33,7 +33,7 @@ import random
 load_dotenv()
 
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ELEVEN_LABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
@@ -41,7 +41,7 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 # --- CONFIGURATION ---
-LLM_MODEL_NAME = "claude-haiku-4-5"
+LLM_MODEL_NAME = "deepseek-ai/deepseek-v3"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 
 # --- CONFIGURATION FLAGS ---
@@ -80,8 +80,7 @@ WATERCOLOUR_PROMPT = (
     "Backgrounds are often simplified, airy, or fade into a white vignette. "
     "The overall look is polished yet human, evocative of high-end editorial illustrations for "
     "business technology. "
-    "Scenes should prioritize relevant objects, tools, and conceptual diagrams over "
-    "human subjects where possible, "
+    "Scenes should prioritize relevant objects, tools over human subjects where possible, "
     "though diverse professionals and office environments can be used when a human "
     "element is essential. "
     "CRITICAL: Ensuring no text, signage, numbers or readable characters appear anywhere in the composition."
@@ -172,7 +171,7 @@ DURATION_STRATEGIES = {
 }
 
 app = FastAPI()
-client = Anthropic(api_key=ANTHROPIC_API_KEY)
+# client = OpenAI(api_key=OPENAI_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Service role client for admin operations (bypasses RLS)
 supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if SUPABASE_SERVICE_ROLE_KEY else supabase
@@ -339,6 +338,33 @@ def generate_audio(text):
     except Exception as e:
         print(f"   ❌ ElevenLabs Connection Error: {e}")
     return None, None
+
+def replicate_chat_completion(messages, max_tokens=2048, temperature=0.7):
+    # Convert messages list to single prompt string
+    prompt = ""
+    for msg in messages:
+        role = msg["role"].capitalize()
+        content = msg["content"]
+        prompt += f"{role}: {content}\n\n"
+    prompt += "Assistant: "
+
+    print(f"   🤖 Calling DeepSeek V3 via Replicate...")
+    try:
+        output = replicate.run(
+            "deepseek-ai/deepseek-v3",
+            input={
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature
+            }
+        )
+        # Replicate usually returns an iterator or list of strings
+        if isinstance(output, list) or hasattr(output, '__iter__'):
+            return "".join(output)
+        return str(output)
+    except Exception as e:
+        print(f"   ❌ Replicate DeepSeek Error: {e}")
+        raise e
 
 def generate_image_replicate(prompt):
     print(f"   ⚡ Generating image (SDXL Lightning)...")
@@ -602,7 +628,7 @@ class PipelineManager:
     """
     Orchestrates the granular AI agents for the V2 workflow.
     """
-    def __init__(self, client):
+    def __init__(self, client=None):
         self.client = client
 
     def assign_visual_types(self, script_data: list) -> list:
@@ -614,9 +640,9 @@ class PipelineManager:
         
         # Prepare context for the LLM
         slides_context = []
-        for slide in script_data:
+        for idx, slide in enumerate(script_data):
             slides_context.append({
-                "id": slide.get("id"),
+                "id": idx + 1,  # Use 1-based index since slides don't have 'id' field
                 "text": slide.get("text", "")[:100] + "...", # Truncate for token efficiency
                 "visual_note": slide.get("visual_text", "")
             })
@@ -652,6 +678,7 @@ RULES:
 - Emotional/Scenario content works best as "image".
 - Key definitions work best as "hybrid" or "kinetic_text".
 - Use "kinetic_text" for strong, short statements (quotes, warnings, key facts).
+- NEVER assign "chart" to two consecutive slides - if content needs chart, use "hybrid" or "kinetic_text" for adjacent slides.
 - DIVERSIFY: Avoid using the same format for more than 2 slides in a row.
 
 INPUT SLIDES:
@@ -664,24 +691,31 @@ OUTPUT (JSON):
 ]
 """
         try:
-            completion = self.client.messages.create(
-                model=LLM_MODEL_NAME, # Fast model
-                max_tokens=2000,
-                messages=[{"role": "user", "content": prompt}]
+            res_text = replicate_chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=2000
             )
-            res_text = completion.content[0].text
+            print(f"   📋 Visual Director Raw Response: {res_text[:500]}...")
             directives = extract_json_from_response(res_text)
+            print(f"   📋 Visual Director Parsed Directives: {json.dumps(directives, indent=2)}")
             
             # Map directives back to script_data
             directive_map = {d["id"]: d for d in directives}
             
             enriched_script = []
-            for slide in script_data:
-                d = directive_map.get(slide.get("id"), {"type": "image"})
+            type_counts = {"image": 0, "hybrid": 0, "kinetic_text": 0, "chart": 0}
+            for idx, slide in enumerate(script_data):
+                slide_id = idx + 1  # Use 1-based index to match AI response
+                d = directive_map.get(slide_id, {"type": "image"})
                 slide["visual_type"] = d.get("type", "image")
                 slide["visual_reason"] = d.get("reason", "")
                 enriched_script.append(slide)
-                
+                # Track type distribution
+                vtype = slide["visual_type"]
+                type_counts[vtype] = type_counts.get(vtype, 0) + 1
+                print(f"   🎬 Slide {slide_id}: visual_type={vtype}, reason={slide['visual_reason'][:50] if slide['visual_reason'] else 'N/A'}")
+            
+            print(f"   📊 Visual Type Distribution: {type_counts}")
             return enriched_script
 
         except Exception as e:
@@ -730,12 +764,14 @@ CRITICAL:
 - Ensure the data structure supports checking off items in sync with narration.
 """
         try:
-            completion = self.client.messages.create(
-                model=LLM_MODEL_NAME,
-                max_tokens=1000,
-                messages=[{"role": "user", "content": prompt}]
+            res_text = replicate_chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1000
             )
-            return extract_json_from_response(completion.content[0].text)
+            print(f"     📊 Chart Generator Raw: {res_text[:300]}...")
+            chart_data = extract_json_from_response(res_text)
+            print(f"     📊 Chart Data Parsed: type={chart_data.get('type')}, title={chart_data.get('title')}, items={len(chart_data.get('items', []))}")
+            return chart_data
         except Exception as e:
              print(f"     ⚠️ Chart Gen Failed: {e}")
              return None
@@ -780,12 +816,10 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
 """
     
     try:
-        completion = client.messages.create(
-            model=LLM_MODEL_NAME,
-            max_tokens=20000,
-            messages=[{"role": "user", "content": validation_prompt}]
+        res_text = replicate_chat_completion(
+            messages=[{"role": "user", "content": validation_prompt}],
+            max_tokens=20000
         )
-        res_text = completion.content[0].text
         return extract_json_from_response(res_text)
     except Exception as e:
         print(f"   ⚠️ Validation Error: {e}")
@@ -793,6 +827,41 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
         return {"approved": True, "issues": ["Validation mechanism failed"], "suggestions": []}
 
 # --- WORKER 1: DRAFT COURSE GENERATION ---
+
+def inject_bookend_slides(script_plan: list, course_title: str) -> list:
+    """
+    Injects a welcome slide at the beginning and a thank you slide at the end of the script.
+    
+    Welcome slide: Shows course title, narrator says "Welcome to [title] training"
+    Thank you slide: Shows "Thank you for watching" for 2+ seconds
+    """
+    print("   📚 Injecting welcome and thank you slides...")
+    
+    # Welcome slide (first)
+    welcome_slide = {
+        "text": f"Welcome to the {course_title} training.",
+        "visual_text": course_title,
+        "prompt": "",  # No image generation - uses title card layout
+        "visual_type": "title_card",  # Special type for static title
+        "layout": "title",
+        "duration_hint": 4000  # ~4 seconds for welcome
+    }
+    
+    # Thank you slide (last)
+    thanks_slide = {
+        "text": "Thank you for watching.",
+        "visual_text": "Thank you for watching",
+        "prompt": "",
+        "visual_type": "title_card",
+        "layout": "title",
+        "duration_hint": 3000  # 3 seconds (min 2s requirement met)
+    }
+    
+    # Inject: [welcome] + [all content slides] + [thanks]
+    result = [welcome_slide] + script_plan + [thanks_slide]
+    print(f"   ✅ Injected bookends: {len(script_plan)} content slides → {len(result)} total slides")
+    return result
+
 def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str, accent_color: str = "#14b8a6"):
     print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
     
@@ -840,16 +909,24 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
                 image_url = None
                 chart_data = None
                 
-                # BRANCH A: Chart Generation
-                if visual_type == "chart":
-                    pipeline = PipelineManager(client)
+                # BRANCH A: Title Card (Welcome/Thank You) - No image, just styled text
+                if visual_type == "title_card":
+                    print(f"   🎬 Title Card slide - skipping image generation")
+                    # Use duration_hint if audio is shorter than minimum display time
+                    hint_ms = slide.get("duration_hint", 3000)
+                    if duration_ms < hint_ms:
+                        duration_ms = hint_ms
+                
+                # BRANCH B: Chart Generation
+                elif visual_type == "chart":
+                    pipeline = PipelineManager()
                     chart_data = pipeline.generate_chart_data(slide["text"], slide.get("visual_text", ""))
                     if not chart_data:
                         print(f"   ⚠️ Chart Gen failed, falling back to kinetic_text for slide {i+1}")
                         visual_type = "kinetic_text"
                 
-                # BRANCH B: Image Generation (Only for 'image' and 'hybrid')
-                if visual_type in ["image", "hybrid"]:
+                # BRANCH C: Image Generation (Only for 'image' and 'hybrid')
+                elif visual_type in ["image", "hybrid"]:
                     full_prompt = f"{style_prompt}. {slide['prompt']}"
                     image_data = generate_image_replicate(full_prompt)
                     if image_data is None:
@@ -862,9 +939,10 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
                 
                 final_slides.append({
                     "id": i + 1,
-                    "image": image_url, # Can be None for charts
+                    "image": image_url, # Can be None for charts/title cards
                     "audio": audio_url,
                     "timestamps": alignment,
+                    "text": slide.get("text", ""),  # Narration text - needed for kinetic text fallback
                     "visual_text": slide.get("visual_text", ""),
                     "duration": duration_ms,
                     "layout": slide.get("layout", "split"),
@@ -899,12 +977,26 @@ def get_asset_url(path_or_url, validity=600):
     try:
         # Generate signed URL 
         res = supabase_admin.storage.from_("course-assets").create_signed_url(path_or_url, validity)
+        print(f"   🔐 Sign URL response type: {type(res)}, keys: {res.keys() if isinstance(res, dict) else 'N/A'}")
+        
         # Handle dict response (standard in recent SDKs)
         if isinstance(res, dict) and "signedURL" in res:
-             return res["signedURL"]
-        return res 
+            signed_url = res["signedURL"]
+        elif isinstance(res, dict) and "signed_url" in res:
+            signed_url = res["signed_url"]  # Alternative key format
+        else:
+            signed_url = str(res)
+        
+        # Verify token is present
+        if "token=" in signed_url:
+            print(f"   ✅ Signed URL has token: {signed_url[:80]}...{signed_url[-30:]}")
+        else:
+            print(f"   ⚠️ WARNING: Signed URL missing token! URL: {signed_url}")
+            
+        return signed_url
     except Exception as e:
         print(f"⚠️ Failed to sign URL for {path_or_url}: {e}")
+        traceback.print_exc()
         return path_or_url
 
 # --- WORKER 2: VIDEO EXPORT (CLEAN SPLIT SCREEN) ---
@@ -945,6 +1037,22 @@ def trigger_remotion_render(course_id: str, user_id: str):
             "accent_color": accent_color
         }
         
+        # Diagnostic: Log payload details
+        total_duration_ms = sum(s.get('duration', 0) for s in slides)
+        print(f"   📊 Payload: {len(slides)} slides, total duration: {total_duration_ms}ms ({total_duration_ms/1000:.1f}s)")
+        
+        # Log visual type distribution
+        type_counts = {}
+        for s in slides:
+            vt = s.get('visual_type', 'undefined')
+            type_counts[vt] = type_counts.get(vt, 0) + 1
+        print(f"   🎨 Visual Type Distribution (Remotion): {type_counts}")
+        
+        if slides:
+            sample = slides[0]
+            print(f"   🖼️ Sample slide[0]: visual_type={sample.get('visual_type')}, has_text={bool(sample.get('text'))}, has_image={bool(sample.get('image'))}")
+            print(f"   🔊 Sample URLs: audio={sample.get('audio', 'N/A')[:80] if sample.get('audio') else 'None'}")
+        
         # 3. Define Paths & Constants
         # Serve URL from step 2 (Hardcoded for now as per deployment)
         SERVE_URL = "https://remotionlambda-euwest2-wxjopockvc.s3.eu-west-2.amazonaws.com/sites/video-renderer/index.html"
@@ -966,40 +1074,84 @@ def trigger_remotion_render(course_id: str, user_id: str):
         env = os.environ.copy()
         env["PATH"] = f"{env.get('PATH', '')}:/usr/local/bin:/opt/homebrew/bin"
         
+        # Use the larger Lambda function (4GB disk, 240s timeout) for video rendering
+        FUNCTION_NAME = "remotion-render-4-0-405-mem3008mb-disk4096mb-240sec"
+        
+        # Write props to a temp file (CLI --input-props has size limits)
+        props_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+        props_json = json.dumps(payload)
+        props_file.write(props_json)
+        props_file.close()
+        print(f"   📝 Props file: {props_file.name} ({len(props_json)} bytes)")
+        
         cmd = [
             "npx", "remotion", "lambda", "render",
             SERVE_URL,
             COMPOSITION_ID,
-            "--input-props", json.dumps(payload),
+            "--function-name", FUNCTION_NAME,
+            "--props", props_file.name,  # Use file-based props instead of --input-props
             "--output", output_path,
-            "--log", "info",
-            "--yes", # Auto confirm
-            "--frames-per-lambda", "200" # Increase frames per lambda to reduce total lambda count
+            "--log", "verbose",
+            "--yes",
+            "--frames-per-lambda", "600"  # Higher = fewer concurrent lambdas, avoids concurrency limits
         ]
+        
+        print(f"   🚀 Running command: {' '.join(cmd[:6])}...")
         
         # 5. Execute Subprocess
         # Run inside remotion-renderer dir to find local remotion package
-        process = subprocess.run(
-            cmd,
-            cwd=remotion_dir,
-            env=env,
-            check=True,
-            capture_output=True,
-            text=True
-        )
+        # Add explicit timeout for long renders (10 minutes)
+        try:
+            process = subprocess.run(
+                cmd,
+                cwd=remotion_dir,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=600  # 10 minute timeout for the CLI to complete
+            )
+            print(f"   ✅ Render CLI Output (first 1000 chars):\n{process.stdout[:1000]}")
+            print(f"   ✅ Render CLI Output (last 500 chars):\n{process.stdout[-500:]}")
+        except subprocess.TimeoutExpired as e:
+            print(f"   ⏱️ Subprocess timed out after 600 seconds")
+            print(f"   stdout: {e.stdout[:500] if e.stdout else 'None'}...")
+            print(f"   stderr: {e.stderr[:500] if e.stderr else 'None'}...")
+            raise Exception("Remotion render subprocess timed out")
+        except subprocess.CalledProcessError as e:
+            print(f"   ❌ CLI failed with code {e.returncode}")
+            print(f"   stdout: {e.stdout}")
+            print(f"   stderr: {e.stderr}")
+            raise
         
-        print(f"   ✅ Render CLI Output: {process.stdout[:200]}...")
+        if process.stderr:
+            print(f"   ⚠️ Render CLI Stderr:\n{process.stderr}")
 
-        # 6. Upload Result
-        if not os.path.exists(output_path):
-             raise Exception("Remotion finished but output file missing.")
+        # 6. Download Result from S3
+        # The CLI doesn't auto-download from Lambda renders, so we parse the S3 URL and download
+        s3_url_match = re.search(r'https://s3[^"\s]+\.mp4', process.stdout)
+        if not s3_url_match:
+            raise Exception(f"Could not find S3 URL in CLI output. Output was: {process.stdout[-500:]}")
+        
+        s3_url = s3_url_match.group(0)
+        print(f"   🔗 Found S3 URL: {s3_url}")
+        
+        # Download from S3
+        print(f"   ⬇️ Downloading video from S3...")
+        download_response = requests.get(s3_url, timeout=120)
+        if download_response.status_code != 200:
+            raise Exception(f"Failed to download from S3: HTTP {download_response.status_code}")
+        
+        file_content = download_response.content
+        file_size = len(file_content)
+        print(f"   📁 Downloaded file size: {file_size / 1024 / 1024:.2f} MB ({file_size / 1024:.1f} KB)")
+        
+        if file_size == 0:
+            raise Exception("Downloaded video is empty (0 bytes)")
              
-        print("   ☁️  Uploading Final Video...")
-        with open(output_path, 'rb') as f:
-            video_url = upload_asset(f.read(), f"course_v2_{course_id}.mp4", "video/mp4", user_id)
-            
-        # Clean up temp file
-        os.unlink(output_path)
+        print("   ☁️  Uploading Final Video to Supabase...")
+        video_url = upload_asset(file_content, f"course_v2_{course_id}.mp4", "video/mp4", user_id)
+        print(f"   📤 Upload result: {video_url}")
 
         # 7. Complete
         supabase_admin.table("courses").update({
@@ -1233,13 +1385,11 @@ async def generate_plan(request: PlanRequest):
 )
     
     try:
-        completion = client.messages.create(
-            model=LLM_MODEL_NAME,
-            max_tokens=20000,
-            messages=[{"role": "user", "content": prompt}]
+        res_text = replicate_chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=20000
         )
         # Parse JSON from response
-        res_text = completion.content[0].text
         data = extract_json_from_response(res_text)
         
         # Extract fields with safe defaults
@@ -1500,12 +1650,10 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
         
         for attempt in range(max_retries):
             # Generate Script
-            completion = client.messages.create(
-                model=LLM_MODEL_NAME,
-                max_tokens=20000,
-                messages=messages
+            res_text = replicate_chat_completion(
+                messages=messages,
+                max_tokens=20000
             )
-            res_text = completion.content[0].text
             data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
             
@@ -1557,7 +1705,7 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
 
         # --- PIPELINE STEP 2: VISUAL DIRECTOR ---
         # Enrich the script with visual types (Chart vs Image vs Hybrid)
-        pipeline = PipelineManager(client)
+        pipeline = PipelineManager()
         script_plan = pipeline.assign_visual_types(script_plan)
 
         # Determine Style Prompt and Accent Color
@@ -1573,6 +1721,10 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
         
         # Inject color into style prompt
         style_prompt = style_config["prompt"].format(primary_color=color_name)
+        
+        # --- PIPELINE STEP 3: INJECT BOOKEND SLIDES ---
+        # Add welcome and thank you slides (after visual types to avoid AI touching them)
+        script_plan = inject_bookend_slides(script_plan, request.title)
         
         # Run media generation directly (not as a separate background task since we're already in one)
         generate_course_assets(course_id, script_plan, style_prompt, request.user_id, accent_color)
