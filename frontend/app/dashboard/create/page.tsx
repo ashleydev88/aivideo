@@ -335,7 +335,23 @@ function DashboardCreatePageContent() {
     const [validationEnabled, setValidationEnabled] = useState(true);
 
     // Global context for background generation
-    const { startGeneration } = useCourseGeneration();
+    const { activeGeneration, startGeneration } = useCourseGeneration();
+
+    // Sync local status with global context and handle redirects
+    useEffect(() => {
+        if (activeGeneration?.courseId === courseId) {
+            if (activeGeneration.status === "completed") {
+                setIsLoading(false);
+                setIsGenerating(false);
+                router.push(`/dashboard/player?id=${courseId}`);
+            } else if (activeGeneration.status === "error" || activeGeneration.status === "failed") {
+                setError(activeGeneration.error || "Generation failed. Please try again.");
+                setStatusText("Generation Failed");
+            } else if (activeGeneration.status) {
+                setStatusText(activeGeneration.status);
+            }
+        }
+    }, [activeGeneration, courseId, router]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -495,76 +511,14 @@ function DashboardCreatePageContent() {
         setView("setup");
     };
 
-    // POLLER
-    const pollInterval = useRef<NodeJS.Timeout | null>(null);
 
-    const pollStatus = (id: string) => {
-        // Clear any existing poller first to avoid duplicates
-        if (pollInterval.current) clearInterval(pollInterval.current);
-
-        pollInterval.current = setInterval(async () => {
-            try {
-                const headers: any = {};
-                if (session?.access_token) {
-                    headers['Authorization'] = `Bearer ${session.access_token}`;
-                }
-
-                // Add timestamp to prevent caching
-                const res = await fetch(`http://127.0.0.1:8000/status/${id}?t=${Date.now()}`, {
-                    headers,
-                    cache: 'no-store'
-                });
-
-                if (res.status === 404) {
-                    setError("Whoops looks like we've had an issue. Please try again.");
-                    setStatusText("Generation Failed");
-                    if (pollInterval.current) clearInterval(pollInterval.current);
-                    return;
-                }
-
-                const data = await res.json();
-
-                // No longer track video_url locally - we redirect on completion
-
-                if (data.status === "failed" || data.status === "error") {
-                    setError("Generation failed. Please try again.");
-                    setStatusText("Generation Failed");
-                    if (pollInterval.current) clearInterval(pollInterval.current);
-                    return;
-                }
-
-                if (data.status && data.status !== "completed") {
-                    setStatusText(data.status);
-                }
-
-                if (data.status === "completed") {
-                    // Redirect to the canonical player page
-                    if (pollInterval.current) clearInterval(pollInterval.current);
-                    setIsLoading(false);
-                    setIsGenerating(false);
-                    router.push(`/dashboard/player?id=${id}`);
-                }
-            } catch (e) { console.error(e); }
-        }, 1000);
-    };
-
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (pollInterval.current) clearInterval(pollInterval.current);
-        };
-    }, []);
-
-    // Re-attach poller if we reload a historical item
-    useEffect(() => {
-        if (view === "designing" && courseId) pollStatus(courseId);
-    }, []); // Only on mount if checking restoration, simplified for now.
 
     const loadFromHistory = (id: string) => {
         setCourseId(id);
         setView("designing");
         setStatusText("Loading Course Assets...");
-        pollStatus(id);
+        // Global context will handle polling automatically when courseId is set
+        startGeneration(id);
     };
 
 

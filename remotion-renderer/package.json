@@ -29,6 +29,8 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@remotion/tailwind-v4": "^4.0.405",
+    "@tailwindcss/postcss": "^4.1.18",
     "@types/body-parser": "^1.19.6",
     "@types/express": "^5.0.6"
   }

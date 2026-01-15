@@ -48,10 +48,16 @@ export const KineticText: React.FC<{
     text: string;
     timestamps: Alignment;
     accent_color?: string;
-}> = ({ text, timestamps, accent_color }) => {
+    fullScreen?: boolean;
+}> = ({ text, timestamps, accent_color, fullScreen = true }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
     const currentTime = frame / fps;
+
+    // Safety check - if no text, render nothing
+    if (!text) {
+        return null;
+    }
 
     const words = useMemo(() => {
         if (timestamps) return processAlignment(timestamps);
@@ -63,21 +69,32 @@ export const KineticText: React.FC<{
         }));
     }, [timestamps, text]);
 
+    // If no words to render, return null
+    if (words.length === 0) {
+        return null;
+    }
+
+    const containerClass = fullScreen
+        ? "absolute inset-0 flex flex-wrap content-center justify-center p-16 gap-3"
+        : "w-full h-full flex flex-wrap content-center justify-center p-8 gap-2";
+
+    const textSize = fullScreen ? "text-7xl" : "text-4xl";
+
     return (
-        <div className="absolute inset-0 flex flex-wrap content-center justify-center p-24 gap-4">
+        <div className={containerClass}>
             {words.map((word, i) => {
-                const isActive = currentTime >= word.start && currentTime <= (word.end + 0.2); // Lingering active state
+                const isActive = currentTime >= word.start && currentTime <= (word.end + 0.2);
                 const isPast = currentTime > (word.end + 0.2);
 
                 return (
                     <span
                         key={i}
-                        className={`text-6xl font-bold transition-all duration-300 ${isActive ? 'scale-110 opacity-100' :
-                                isPast ? 'opacity-80' : 'opacity-30 blur-sm'
-                            }`}
+                        className={`${textSize} font-bold transition-all duration-200`}
                         style={{
-                            color: isActive ? (accent_color || '#14b8a6') : '#1e293b',
-                            transform: isActive ? 'translateY(-10px)' : 'none'
+                            color: isActive ? (accent_color || '#14b8a6') : (isPast ? '#334155' : '#94a3b8'),
+                            transform: isActive ? 'scale(1.1) translateY(-5px)' : 'scale(1)',
+                            opacity: isActive ? 1 : (isPast ? 0.9 : 0.4),
+                            textShadow: isActive ? '0 4px 20px rgba(0,0,0,0.1)' : 'none',
                         }}
                     >
                         {word.text}
