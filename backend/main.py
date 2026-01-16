@@ -313,7 +313,7 @@ OUTPUT: The condensed policy with only substantive content. No commentary."""
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"INPUT DOCUMENT ({len(policy_text)} characters):\n{policy_text}"}
             ],
-            max_completion_tokens=8000,
+            max_completion_tokens=20000,
             temperature=0.3  # Low temperature for accuracy
         )
         result = response.choices[0].message.content
