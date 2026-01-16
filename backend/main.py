@@ -1,6 +1,7 @@
 import os
 import time
 import uuid
+import asyncio
 import requests
 import traceback
 import tempfile
@@ -259,6 +260,70 @@ def extract_json_from_response(text_content):
     except json.JSONDecodeError:
         print(f"❌ JSON Parsing Failed. Raw content sample: {text_content[:200]}...")
         raise
+
+# --- PRE-PROCESSING AGENT (GPT-5-Nano) ---
+# Initialize OpenAI client for pre-processing
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+def extract_policy_essence(policy_text: str) -> str:
+    """
+    Pre-processes long policy documents by stripping boilerplate content.
+    Only runs for documents > 10,000 characters to avoid unnecessary API calls.
+    Uses GPT-5-Nano for fast, cost-effective processing.
+    
+    PRESERVES: All rules, procedures, requirements, deadlines, consequences.
+    REMOVES: Table of contents, headers, footers, revision history, generic definitions.
+    
+    Returns: Condensed policy text with substantive content only.
+    """
+    # Skip for short policies - they don't need pre-processing
+    if len(policy_text) < 10000:
+        print(f"   📄 Policy is {len(policy_text)} chars - skipping pre-processing")
+        return policy_text
+    
+    print(f"   🔧 Pre-processing long policy ({len(policy_text)} chars) with GPT-5-Nano...")
+    
+    prompt = """You are a Policy Document Specialist. Your task is to extract ONLY the substantive policy content.
+
+REMOVE (do not include):
+- Table of contents and indices
+- Document headers, footers, page numbers
+- Revision history and version notes
+- Definitions of common/obvious terms (e.g., "Employee means a person employed by...")
+- Generic legal disclaimers and boilerplate
+- Redundant restatements of the same rule
+
+PRESERVE (keep exact wording):
+- All specific rules and requirements
+- Procedures and step-by-step processes
+- Deadlines, timeframes, and numerical thresholds
+- Consequences and penalties
+- Roles and responsibilities
+- Examples and scenarios mentioned
+- Definitions of policy-specific terms
+
+CRITICAL: Do NOT summarize or paraphrase. Keep the exact original wording of all requirements.
+
+OUTPUT: The condensed policy with only substantive content. No commentary."""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-5-nano",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"INPUT DOCUMENT ({len(policy_text)} characters):\n{policy_text}"}
+            ],
+            max_completion_tokens=8000,
+            temperature=0.3  # Low temperature for accuracy
+        )
+        result = response.choices[0].message.content
+        condensed_length = len(result)
+        reduction = ((len(policy_text) - condensed_length) / len(policy_text)) * 100
+        print(f"   ✅ Pre-processed: {len(policy_text)} → {condensed_length} chars ({reduction:.1f}% reduction)")
+        return result
+    except Exception as e:
+        print(f"   ⚠️ Pre-processing failed: {e}. Using original text.")
+        return policy_text
 
 def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dict = None):
     """
@@ -744,24 +809,31 @@ Return a JSON object that perfectly represents this content visually.
 AVAILABLE CHART TYPES:
 - "process": Sequential steps (1 -> 2 -> 3).
 - "list": Unordered items or bullet points.
-- "comparison": Vs. or Side-by-Side comparison.
-- "statistic": A key number with a label.
-- "pyramid": Hierarchical data.
+- "grid": A 2x2 or 3x2 grid of related concepts.
+- "comparison": Side-by-side vs. comparison.
+- "statistic": A big key number with a label (best for 1-2 items).
+- "pyramid": Hierarchical structures (base -> peak).
+- "cycle": Circular or repeating processes.
 
 OUTPUT (JSON):
 {{
   "title": "Short, punchy title",
-  "type": "process|list|comparison|statistic|pyramid",
+  "type": "process|list|grid|comparison|statistic|pyramid|cycle",
   "items": [
-    {{ "label": "Step 1", "description": "Short description (max 5 words)" }},
-    {{ "label": "Step 2", "description": "..." }}
+    {{ 
+      "label": "Step/Item Name", 
+      "description": "Short description (max 8 words)",
+      "icon": "box|user|zap|shield|trending-up|activity|target|layers|refresh-cw", 
+      "color_intent": "primary|secondary|accent|danger|success|warning"
+    }}
   ]
 }}
 
 CRITICAL:
 - Keep text labels SHORT (1-5 words) for clean UI.
-- Max 5-6 items for readability.
-- Ensure the data structure supports checking off items in sync with narration.
+- Max 6 items for readability.
+- Choose icons from the list provided that best match the item.
+- Use color_intent to signal meaning (e.g., 'danger' for risks, 'success' for benefits).
 """
         try:
             res_text = replicate_chat_completion(
@@ -776,18 +848,184 @@ CRITICAL:
              print(f"     ⚠️ Chart Gen Failed: {e}")
              return None
 
+    def generate_kinetic_text(self, narration: str, word_timestamps: list, visual_type: str, slide_duration_ms: int) -> list:
+        """
+        Kinetic Text Agent: Generates timed on-screen text moments.
+        Returns a list of kinetic_events with timing anchored to trigger words.
+        
+        Args:
+            narration: The full narration text for the slide
+            word_timestamps: List of {"word": str, "start_ms": int, "end_ms": int}
+            visual_type: The slide's visual type (hybrid, kinetic_text, image, chart)
+            slide_duration_ms: Total slide duration in milliseconds
+        
+        Returns:
+            List of kinetic_event dicts with text, trigger_word, start_ms, style
+        """
+        print("     ✍️ Generating Kinetic Text...")
+        
+        # Determine content type guidance based on visual_type
+        if visual_type == "kinetic_text":
+            content_guidance = "This is a TEXT-ONLY slide. Generate 1-3 powerful statements that capture the core message. Use larger, impactful phrases."
+            max_events = 3
+        elif visual_type == "hybrid":
+            content_guidance = "This is a SPLIT slide (text + image). Generate 1-2 bullet points or a short header that complements the image. Keep text concise."
+            max_events = 2
+        elif visual_type == "chart":
+            content_guidance = "This is a CHART slide. Generate 0-1 supporting text only if the chart needs context. Usually no text needed."
+            max_events = 1
+        else:  # image or other
+            content_guidance = "This is an IMAGE slide. Generate 0-1 text overlays only if essential. Usually no text needed."
+            max_events = 1
+        
+        # Build word list for context
+        word_list = [w["word"] for w in word_timestamps]
+        
+        prompt = f"""You are a Kinetic Typography Director for corporate e-learning videos.
+
+TASK: Generate on-screen text moments that highlight the MOST MEMORABLE takeaways from this slide's narration.
+
+SLIDE CONTEXT:
+{content_guidance}
+
+NARRATION:
+"{narration}"
+
+AVAILABLE WORDS (use these exact words as trigger_word):
+{', '.join(word_list[:50])}
+
+RULES:
+1. Extract KEY TERMS only, never full sentences from the narration
+2. Each text must anchor to a specific TRIGGER WORD (exact word from narration above)
+3. Think: "What would someone screenshot to remember?"
+4. Text should be SHORT (max 5-7 words) and PUNCHY
+5. Maximum {max_events} events for this slide type
+6. Return empty array if no text is needed
+
+TEXT STYLES:
+- "header": Large title text (e.g., "Lock Your Screen")
+- "bullet": Bullet point item (e.g., "• Report within 24 hours")
+- "emphasis": Bold statement (e.g., "EVERY. SINGLE. TIME.")
+- "stat": Large number with label (e.g., "24hr Reporting Window")
+
+OUTPUT FORMAT (JSON):
+{{
+  "kinetic_events": [
+    {{
+      "text": "Short impactful text",
+      "trigger_word": "exact_word_from_narration",
+      "style": "header|bullet|emphasis|stat"
+    }}
+  ]
+}}
+
+CRITICAL: 
+- trigger_word MUST be an EXACT word from the narration
+- Return empty array {{"kinetic_events": []}} if this slide doesn't need text
+"""
+        try:
+            res_text = replicate_chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1000
+            )
+            print(f"     ✍️ Kinetic Text Raw: {res_text[:300]}...")
+            result = extract_json_from_response(res_text)
+            events = result.get("kinetic_events", [])
+            
+            # Post-process: Add timing from word_timestamps
+            word_map = {w["word"].lower(): w for w in word_timestamps}
+            # Also try with punctuation stripped
+            word_map_clean = {w["word"].lower().strip(".,!?;:\"'()[]"): w for w in word_timestamps}
+            
+            processed_events = []
+            for event in events:
+                trigger = event.get("trigger_word", "").lower()
+                # Try exact match first, then cleaned match
+                word_data = word_map.get(trigger) or word_map_clean.get(trigger.strip(".,!?;:\"'()[]"))
+                
+                if word_data:
+                    event["start_ms"] = word_data["start_ms"]
+                    processed_events.append(event)
+                    print(f"     ✍️ Event: '{event['text']}' @ {event['start_ms']}ms (trigger: {trigger})")
+                else:
+                    # Fallback: appear at 500ms
+                    event["start_ms"] = 500
+                    processed_events.append(event)
+                    print(f"     ⚠️ Trigger word '{trigger}' not found, defaulting to 500ms")
+            
+            return processed_events
+            
+        except Exception as e:
+            print(f"     ⚠️ Kinetic Text Gen Failed: {e}")
+            return []
+
+
+def parse_alignment_to_words(alignment: dict) -> list:
+    """
+    Converts ElevenLabs alignment data (character-level) to word-level timestamps.
+    
+    Args:
+        alignment: Dict with 'characters', 'character_start_times_seconds', 'character_end_times_seconds'
+    
+    Returns:
+        List of {"word": str, "start_ms": int, "end_ms": int}
+    """
+    if not alignment or not alignment.get("characters"):
+        return []
+    
+    characters = alignment.get("characters", [])
+    start_times = alignment.get("character_start_times_seconds", [])
+    end_times = alignment.get("character_end_times_seconds", [])
+    
+    words = []
+    current_word = ""
+    word_start = -1
+    
+    for i, char in enumerate(characters):
+        t_start = start_times[i] if i < len(start_times) else 0
+        t_end = end_times[i] if i < len(end_times) else 0
+        
+        if word_start == -1:
+            word_start = t_start
+        
+        if char == " ":
+            if current_word:
+                words.append({
+                    "word": current_word,
+                    "start_ms": int(word_start * 1000),
+                    "end_ms": int(t_end * 1000)
+                })
+                current_word = ""
+                word_start = -1
+        else:
+            current_word += char
+    
+    # Capture last word
+    if current_word and len(end_times) > 0:
+        words.append({
+            "word": current_word,
+            "start_ms": int(word_start * 1000),
+            "end_ms": int(end_times[-1] * 1000)
+        })
+    
+    return words
+
 
 def validate_script(script_output, context_package):
     """
     Validates script quality before proceeding to media generation.
-    Returns: dict with 'approved' (bool), 'issues' (list), 'suggestions' (list)
+    Includes fact-checking against the original policy to catch hallucinations.
+    Returns: dict with 'approved' (bool), 'issues' (list), 'ungrounded_claims' (list), 'suggestions' (list)
     """
-    print("   🕵️ Validating Script Quality...")
+    print("   🕵️ Validating Script Quality (with fact-checking)...")
+    
+    # Use original policy for fact-checking (truncate to stay within token limits)
+    policy_excerpt = context_package.get('original_policy_text', context_package.get('policy_text', ''))[:8000]
     
     validation_prompt = f"""
-You are a quality assurance reviewer for e-learning content.
+You are a quality assurance reviewer for e-learning content with expertise in policy compliance.
 
-Review this video script and check:
+Review this video script and perform the following checks:
 
 1. COMPLETENESS: Does it cover the key points from the topics? (List any gaps)
 2. COHERENCE: Does each slide transition logically? (Flag jarring jumps)
@@ -795,10 +1033,19 @@ Review this video script and check:
 4. IMAGE DIVERSITY: Are image prompts varied and specific? (Flag repetitive prompts)
 5. DURATION: Does the math check out? (Sum of all slide durations should be within -5% to +15% of total target duration {context_package['duration']}min). note: Individual slides can range 10s-60s.
 
+6. FACT-CHECK (CRITICAL): For each factual claim in the script, verify it against the source policy:
+   - Extract specific claims (numbers, deadlines, procedures, requirements, definitions)
+   - Check if each claim is grounded in the original policy text below
+   - Flag any claim that appears hallucinated, exaggerated, or incorrectly stated
+   - Be especially vigilant about: numbers, timeframes, percentages, specific procedures
+
+ORIGINAL POLICY (source of truth for fact-checking):
+{policy_excerpt}
+
 TOPICS TO COVER:
 {json.dumps(context_package['topics'], indent=2)}
 
-SCRIPT:
+SCRIPT TO VALIDATE:
 {json.dumps(script_output, indent=2)}
 
 OUTPUT (JSON):
@@ -808,11 +1055,18 @@ OUTPUT (JSON):
   "coherence_score": 1-10,
   "accuracy_score": 1-10,
   "image_diversity_score": 1-10,
+  "fact_check_score": 1-10,
   "issues": ["issue 1", "issue 2"],
+  "ungrounded_claims": [
+    {{"slide": 1, "claim": "quoted claim from script", "issue": "what's wrong or not found in policy"}}
+  ],
   "suggestions": ["suggestion 1"]
 }}
 
-Approve (true) if all scores are 7+. Otherwise set approved to false.
+APPROVAL CRITERIA:
+- Approve (true) if all scores are 7+ AND fact_check_score is 8+
+- If fact_check_score < 8, you MUST populate ungrounded_claims with specific examples
+- Otherwise set approved to false
 """
     
     try:
@@ -820,11 +1074,22 @@ Approve (true) if all scores are 7+. Otherwise set approved to false.
             messages=[{"role": "user", "content": validation_prompt}],
             max_tokens=20000
         )
-        return extract_json_from_response(res_text)
+        result = extract_json_from_response(res_text)
+        
+        # Log fact-check results
+        fact_score = result.get('fact_check_score', 'N/A')
+        ungrounded = result.get('ungrounded_claims', [])
+        print(f"   📊 Fact-check score: {fact_score}/10, Ungrounded claims: {len(ungrounded)}")
+        if ungrounded:
+            for claim in ungrounded[:3]:  # Log first 3
+                print(f"      ⚠️ Slide {claim.get('slide')}: {claim.get('issue', 'Unknown issue')[:50]}...")
+        
+        return result
     except Exception as e:
         print(f"   ⚠️ Validation Error: {e}")
         # Default to approved if validation fails to run, to avoid blocking
-        return {"approved": True, "issues": ["Validation mechanism failed"], "suggestions": []}
+        return {"approved": True, "issues": ["Validation mechanism failed"], "ungrounded_claims": [], "suggestions": []}
+
 
 # --- WORKER 1: DRAFT COURSE GENERATION ---
 
@@ -862,7 +1127,7 @@ def inject_bookend_slides(script_plan: list, course_title: str) -> list:
     print(f"   ✅ Injected bookends: {len(script_plan)} content slides → {len(result)} total slides")
     return result
 
-def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str, accent_color: str = "#14b8a6"):
+async def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str, accent_color: str = "#14b8a6"):
     print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
     
     # Update status and progress phase to media generation
@@ -872,84 +1137,122 @@ def generate_course_assets(course_id: str, script_plan: list, style_prompt: str,
         "progress_current_step": 0
     }).eq("id", course_id).execute()
     
-    try:
-        final_slides = []
-        
-        with tempfile.TemporaryDirectory() as temp_dir:
-            for i, slide in enumerate(script_plan):
-                # Update progress for each slide
-                supabase_admin.table("courses").update({
-                    "status": f"Drafting Slide {i+1} of {len(script_plan)}...",
-                    "progress_current_step": i + 1
-                }).eq("id", course_id).execute()
-                
-                # 1. Audio - fail immediately if generation fails
-                audio_data, alignment = generate_audio(slide["text"])
-                if audio_data is None:
-                    raise Exception(f"Audio generation failed for slide {i+1}. API issue detected.")
-                
-                # Calculate Duration
-                duration_ms = slide.get("duration", 15000)
-                try:
-                    temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
-                    with open(temp_audio_path, "wb") as f:
-                        f.write(audio_data)
-                    
-                    clip = AudioFileClip(temp_audio_path)
-                    duration_ms = int((clip.duration * 1000) + 1500) # Audio + 1.5s Buffer
-                    clip.close()
-                except Exception as e:
-                    print(f"   ⚠️ Duration Calc Error: {e}")
+    # Semaphore to limit concurrent API requests (ElevenLabs/Replicate)
+    api_semaphore = asyncio.Semaphore(5)
 
-                audio_filename = f"narration_{i}_{int(time.time())}.mp3" # Timestamp to avoid collisions
-                audio_url = upload_asset(audio_data, audio_filename, "audio/mpeg", user_id)
-                
-                # 2. Visual Content Generation (Specialized)
+    async def process_slide_parallel(i, slide, temp_dir):
+        async with api_semaphore:
+            print(f"   🎬 Processing slide {i+1}...")
+            # Update progress for each slide
+            # Note: Since this is parallel, progress updates might be slightly out of order in the UI, 
+            # but that's acceptable for the performance gain.
+            supabase_admin.table("courses").update({
+                "status": f"Drafting Slide {i+1} of {len(script_plan)}...",
+                "progress_current_step": i + 1
+            }).eq("id", course_id).execute()
+
+            # 1. Parallel Audio and Visual Generation
+            # We use asyncio.to_thread for synchronous blocking calls
+            
+            async def get_audio():
+                audio_data, alignment = await asyncio.to_thread(generate_audio, slide["text"])
+                if audio_data is None:
+                    raise Exception(f"Audio generation failed for slide {i+1}")
+                return audio_data, alignment
+
+            async def get_visual():
                 visual_type = slide.get("visual_type", "image")
                 image_url = None
                 chart_data = None
                 
-                # BRANCH A: Title Card (Welcome/Thank You) - No image, just styled text
                 if visual_type == "title_card":
-                    print(f"   🎬 Title Card slide - skipping image generation")
-                    # Use duration_hint if audio is shorter than minimum display time
-                    hint_ms = slide.get("duration_hint", 3000)
-                    if duration_ms < hint_ms:
-                        duration_ms = hint_ms
-                
-                # BRANCH B: Chart Generation
+                    pass # Handled in post-processing
                 elif visual_type == "chart":
                     pipeline = PipelineManager()
-                    chart_data = pipeline.generate_chart_data(slide["text"], slide.get("visual_text", ""))
+                    chart_data = await asyncio.to_thread(pipeline.generate_chart_data, slide["text"], slide.get("visual_text", ""))
                     if not chart_data:
-                        print(f"   ⚠️ Chart Gen failed, falling back to kinetic_text for slide {i+1}")
                         visual_type = "kinetic_text"
-                
-                # BRANCH C: Image Generation (Only for 'image' and 'hybrid')
                 elif visual_type in ["image", "hybrid"]:
                     full_prompt = f"{style_prompt}. {slide['prompt']}"
-                    image_data = generate_image_replicate(full_prompt)
+                    image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
                     if image_data is None:
-                        # Soft fail - fallback to kinetic text if image gen fails
-                        print(f"   ⚠️ Image Gen failed, falling back to kinetic_text")
                         visual_type = "kinetic_text"
                     else:
                         image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                        image_url = upload_asset(image_data, image_filename, "image/jpeg", user_id)
+                        image_url = await asyncio.to_thread(upload_asset, image_data, image_filename, "image/jpeg", user_id)
                 
-                final_slides.append({
-                    "id": i + 1,
-                    "image": image_url, # Can be None for charts/title cards
-                    "audio": audio_url,
-                    "timestamps": alignment,
-                    "text": slide.get("text", ""),  # Narration text - needed for kinetic text fallback
-                    "visual_text": slide.get("visual_text", ""),
-                    "duration": duration_ms,
-                    "layout": slide.get("layout", "split"),
-                    "accent_color": accent_color,
-                    "visual_type": visual_type,
-                    "chart_data": chart_data
-                })
+                return visual_type, image_url, chart_data
+
+            # Fire both simultaneously
+            (audio_data, alignment), (visual_type, image_url, chart_data) = await asyncio.gather(
+                get_audio(),
+                get_visual()
+            )
+
+            # 2. Post-processing (Duration calculation, uploads, kinetic text)
+            # Duration Calculation
+            duration_ms = slide.get("duration", 15000)
+            try:
+                temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
+                with open(temp_audio_path, "wb") as f:
+                    f.write(audio_data)
+                
+                # AudioFileClip is blocking, use to_thread if needed, but here it's fast enough or we can thread it
+                def get_duration(path):
+                    clip = AudioFileClip(path)
+                    d = int((clip.duration * 1000) + 1500)
+                    clip.close()
+                    return d
+                
+                duration_ms = await asyncio.to_thread(get_duration, temp_audio_path)
+            except Exception as e:
+                print(f"   ⚠️ Duration Calc Error slide {i+1}: {e}")
+
+            if visual_type == "title_card":
+                hint_ms = slide.get("duration_hint", 3000)
+                if duration_ms < hint_ms:
+                    duration_ms = hint_ms
+
+            # Upload Audio
+            audio_filename = f"narration_{i}_{int(time.time())}.mp3"
+            audio_url = await asyncio.to_thread(upload_asset, audio_data, audio_filename, "audio/mpeg", user_id)
+
+            # Kinetic Text
+            word_timestamps = parse_alignment_to_words(alignment)
+            kinetic_events = []
+            if visual_type != "title_card":
+                pipeline = PipelineManager()
+                kinetic_events = await asyncio.to_thread(
+                    pipeline.generate_kinetic_text,
+                    narration=slide.get("text", ""),
+                    word_timestamps=word_timestamps,
+                    visual_type=visual_type,
+                    slide_duration_ms=duration_ms
+                )
+
+            return {
+                "id": i + 1,
+                "image": image_url,
+                "audio": audio_url,
+                "timestamps": alignment,
+                "text": slide.get("text", ""),
+                "visual_text": slide.get("visual_text", ""),
+                "duration": duration_ms,
+                "layout": slide.get("layout", "split"),
+                "accent_color": accent_color,
+                "visual_type": visual_type,
+                "chart_data": chart_data,
+                "kinetic_events": kinetic_events
+            }
+
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Launch all slide processing tasks
+            tasks = [process_slide_parallel(i, slide, temp_dir) for i, slide in enumerate(script_plan)]
+            final_slides = await asyncio.gather(*tasks)
+            
+            # Sort slides by ID to ensure original order
+            final_slides.sort(key=lambda x: x["id"])
 
         supabase_admin.table("courses").update({
             "slide_data": final_slides, 
@@ -1430,8 +1733,12 @@ async def generate_script(request: ScriptRequest, background_tasks: BackgroundTa
     
     strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
     
+    # Pre-process long policies to remove boilerplate (uses GPT-5-Nano)
+    processed_policy = extract_policy_essence(request.policy_text)
+    
     context_package = {
-        "policy_text": request.policy_text,
+        "policy_text": processed_policy,  # Condensed for script generation
+        "original_policy_text": request.policy_text,  # Full text for fact-checking validation
         "title": request.title,
         "learning_objective": request.learning_objective,
         "topics": topics_list,
@@ -1631,7 +1938,7 @@ Pacing Strategy:
     return {"status": "started", "course_id": course_id, "validation_enabled": ENABLE_SCRIPT_VALIDATION}
 
 
-def generate_script_and_assets(course_id: str, base_prompt: str, context_package: dict, request: ScriptRequest, metadata: dict):
+async def generate_script_and_assets(course_id: str, base_prompt: str, context_package: dict, request: ScriptRequest, metadata: dict):
     """
     Background task that handles script generation, validation, and triggers media generation.
     This runs asynchronously so the frontend can poll for status updates.
@@ -1687,12 +1994,20 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
                 supabase_admin.table("courses").update({"status": "generating_script"}).eq("id", course_id).execute()
                 # Add context for retry
                 messages.append({"role": "assistant", "content": res_text})
+                # Include ungrounded claims in feedback for targeted revision
+                ungrounded = validation_result.get('ungrounded_claims', [])
+                ungrounded_feedback = ""
+                if ungrounded:
+                    ungrounded_feedback = f"\nUNGROUNDED/HALLUCINATED CLAIMS (MUST FIX): {json.dumps(ungrounded)}\n"
+                
                 feedback = (
                     f"CRITICAL QUALITY FEEDBACK - REVISION REQUIRED:\n"
                     f"The script above failed validation checks. Please rewrite sections or the whole script to address these issues:\n"
                     f"ISSUES: {json.dumps(validation_result.get('issues', []))}\n"
+                    f"{ungrounded_feedback}"
                     f"SUGGESTIONS: {json.dumps(validation_result.get('suggestions', []))}\n"
-                    f"Constraint Reminder: Must be exactly {context_package['target_slides']} slides and cover all specific policy details."
+                    f"Constraint Reminder: Must be exactly {context_package['target_slides']} slides and cover all specific policy details.\n"
+                    f"CRITICAL: All claims MUST be verifiable from the original policy. Do not invent statistics, deadlines, or procedures."
                 )
                 messages.append({"role": "user", "content": feedback})
             else:
@@ -1727,7 +2042,7 @@ def generate_script_and_assets(course_id: str, base_prompt: str, context_package
         script_plan = inject_bookend_slides(script_plan, request.title)
         
         # Run media generation directly (not as a separate background task since we're already in one)
-        generate_course_assets(course_id, script_plan, style_prompt, request.user_id, accent_color)
+        await generate_course_assets(course_id, script_plan, style_prompt, request.user_id, accent_color)
         
     except Exception as e:
         print(f"❌ Script Generation Error: {e}")

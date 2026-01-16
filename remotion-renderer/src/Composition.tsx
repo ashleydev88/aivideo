@@ -73,6 +73,7 @@ export const MainComposition: React.FC<{
                                     timestamps={slide.timestamps}
                                     accent_color={accent_color}
                                     fullScreen={true}
+                                    kinetic_events={slide.kinetic_events}
                                 />
                             </AbsoluteFill>
                         )}
@@ -88,6 +89,7 @@ export const MainComposition: React.FC<{
                                             timestamps={slide.timestamps}
                                             accent_color={accent_color}
                                             fullScreen={false}
+                                            kinetic_events={slide.kinetic_events}
                                         />
                                     )}
                                 </div>
