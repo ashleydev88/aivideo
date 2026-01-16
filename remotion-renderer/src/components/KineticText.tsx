@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useCurrentFrame, useVideoConfig } from 'remotion';
+import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
 
 interface Alignment {
     characters: string[];
@@ -11,6 +11,13 @@ interface Word {
     text: string;
     start: number;
     end: number;
+}
+
+interface KineticEvent {
+    text: string;
+    trigger_word: string;
+    start_ms: number;
+    style: 'header' | 'bullet' | 'emphasis' | 'stat';
 }
 
 const processAlignment = (alignment: Alignment): Word[] => {
@@ -44,16 +51,104 @@ const processAlignment = (alignment: Alignment): Word[] => {
     return words;
 };
 
+// Style mapping for kinetic events
+const getEventStyle = (style: KineticEvent['style'], accent_color: string) => {
+    switch (style) {
+        case 'header':
+            return {
+                fontSize: '4rem',
+                fontWeight: 'bold',
+                color: '#1e293b',
+            };
+        case 'bullet':
+            return {
+                fontSize: '2.5rem',
+                fontWeight: 'normal',
+                color: '#334155',
+            };
+        case 'emphasis':
+            return {
+                fontSize: '3rem',
+                fontWeight: 'bold',
+                color: accent_color,
+                textTransform: 'uppercase' as const,
+            };
+        case 'stat':
+            return {
+                fontSize: '5rem',
+                fontWeight: 'bold',
+                color: accent_color,
+            };
+        default:
+            return {
+                fontSize: '3rem',
+                fontWeight: 'bold',
+                color: '#1e293b',
+            };
+    }
+};
+
 export const KineticText: React.FC<{
     text: string;
     timestamps: Alignment;
     accent_color?: string;
     fullScreen?: boolean;
-}> = ({ text, timestamps, accent_color, fullScreen = true }) => {
+    kinetic_events?: KineticEvent[];
+}> = ({ text, timestamps, accent_color = '#14b8a6', fullScreen = true, kinetic_events }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
     const currentTime = frame / fps;
+    const currentTimeMs = frame / fps * 1000;
 
+    // If we have kinetic_events, use the new rendering mode
+    if (kinetic_events && kinetic_events.length > 0) {
+        const containerClass = fullScreen
+            ? "absolute inset-0 flex flex-col items-center justify-center p-16 gap-6"
+            : "w-full h-full flex flex-col items-center justify-center p-8 gap-4";
+
+        return (
+            <div className={containerClass}>
+                {kinetic_events.map((event, i) => {
+                    const eventStartFrame = (event.start_ms / 1000) * fps;
+                    const isVisible = frame >= eventStartFrame;
+
+                    // Pop animation using spring
+                    const popProgress = spring({
+                        frame: frame - eventStartFrame,
+                        fps,
+                        config: {
+                            damping: 12,
+                            stiffness: 200,
+                            mass: 0.5,
+                        },
+                    });
+
+                    const scale = isVisible ? interpolate(popProgress, [0, 1], [0.5, 1]) : 0;
+                    const opacity = isVisible ? interpolate(popProgress, [0, 1], [0, 1]) : 0;
+
+                    const styleConfig = getEventStyle(event.style, accent_color);
+
+                    return (
+                        <div
+                            key={i}
+                            style={{
+                                ...styleConfig,
+                                transform: `scale(${scale})`,
+                                opacity,
+                                textAlign: 'center',
+                                maxWidth: '80%',
+                                lineHeight: 1.3,
+                            }}
+                        >
+                            {event.style === 'bullet' ? `• ${event.text}` : event.text}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    }
+
+    // LEGACY MODE: Word-by-word highlighting (fallback)
     // Safety check - if no text, render nothing
     if (!text) {
         return null;

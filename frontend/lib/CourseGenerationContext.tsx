@@ -117,7 +117,7 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
             pollStatus(activeGeneration.courseId);
             pollInterval.current = setInterval(() => {
                 pollStatus(activeGeneration.courseId);
-            }, 3000);
+            }, 5000);
         }
 
         return () => {
