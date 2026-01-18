@@ -9,16 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCourseGeneration } from '@/lib/CourseGenerationContext';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Loader2, Rocket } from "lucide-react";
-import { GenerationProgressCard } from '@/components/GenerationProgressCard';
+import { Loader2 } from "lucide-react";
 
 // --- INTERFACES ---
 interface Slide {
@@ -491,18 +482,33 @@ function DashboardCreatePageContent() {
                 setValidationEnabled(data.validation_enabled ?? true);
 
                 // Start tracking in global context
+                // Start tracking in global context
                 startGeneration(data.course_id);
 
-                // Show confirmation popup immediately logic
+                // Redirect to dashboard immediately
                 setIsGenerating(false);
                 setIsLoading(false);
-                setShowConfirmation(true);
+                router.push('/dashboard');
             } else if (data.status === "error") {
                 setError(data.message || "Failed to start course generation.");
             }
         } catch (e) {
-            console.error(e);
+            console.error("Start Designing Error:", e);
             setError("Failed to connect to server. Please try again.");
+        } finally {
+            // Ensure we don't get stuck in loading state if something failed inside the try
+            // If success, we already set these to false, but setting them again is harmless (React batching)
+            // However, we MUST ensure showConfirmation stays TRUE if we succeeded.
+            // The check below ensures we don't accidentally hide the modal if we succeeded? 
+            // Actually, we set them to false in the success block.
+            // But if we error, we need them false.
+            setIsLoading(false);
+            // We keep isGenerating true if we are successful? No, we set it to false to stop the button spinner.
+            // But we check `isGenerating` in other places? 
+            // In the button: `isLoading || isGenerating`
+            // So setting both false is correct for "done with RPC call".
+            // If the user didn't see the modal, it means we didn't hit the success block.
+            setIsGenerating(false);
         }
     };
 
@@ -536,41 +542,6 @@ function DashboardCreatePageContent() {
         <div className="relative w-full h-full min-h-[calc(100vh-4rem)]">
             {/* Processing Modal (Setup -> Planning transition) */}
             <ProcessingModal isOpen={isProcessing} />
-
-            {/* Confirmation Dialog - shown after generation starts */}
-            <Dialog open={showConfirmation}>
-                <DialogContent className="sm:max-w-md p-0 overflow-hidden">
-                    <div className="bg-gradient-to-r from-teal-600 to-cyan-600 p-6 text-center">
-                        <div className="flex justify-center mb-4">
-                            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
-                                <Rocket className="w-8 h-8 text-white" />
-                            </div>
-                        </div>
-                        <DialogHeader className="space-y-1">
-                            <DialogTitle className="text-2xl font-bold text-white">
-                                We're On It! 🎬
-                            </DialogTitle>
-                            <DialogDescription className="text-teal-100 text-base">
-                                Your video is being crafted in the cloud.
-                            </DialogDescription>
-                        </DialogHeader>
-                    </div>
-                    <div className="p-6 space-y-4">
-                        <p className="text-slate-600 text-center">
-                            It's safe to close this tab. We'll track progress in the bottom right corner.
-                        </p>
-                        <Button
-                            className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-                            onClick={() => {
-                                setShowConfirmation(false);
-                                router.push('/dashboard');
-                            }}
-                        >
-                            Go to Dashboard
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
 
             {/* Background Gradients */}
             <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80 pointer-events-none" aria-hidden="true">
@@ -609,9 +580,6 @@ function DashboardCreatePageContent() {
                     </div>
                 )}
             </div>
-
-            {/* Unified Progress Card (Persistent across views) */}
-            <GenerationProgressCard />
         </div>
     );
 }

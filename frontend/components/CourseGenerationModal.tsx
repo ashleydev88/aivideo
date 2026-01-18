@@ -46,7 +46,7 @@ const ALL_STEPS: Step[] = [
     },
     {
         id: "finalizing",
-        label: "Preparing Course",
+        label: "Compiling Video",
         description: "Assembling your final training video",
     },
 ];
@@ -97,7 +97,7 @@ function getStepStatuses(
 
     // Finalizing / Video compilation
     if (lower.includes("final") || lower.includes("preparing") || lower.includes("assembling") ||
-        lower.includes("compiling") || lower.includes("rendering slide") || lower.includes("encoding")) {
+        lower.includes("compiling") || lower.includes("rendering") || lower.includes("encoding") || lower.includes("compilation")) {
         statuses.script = "completed";
         statuses.validation = "completed";
         statuses.media = "completed";

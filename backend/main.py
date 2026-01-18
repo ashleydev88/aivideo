@@ -14,7 +14,7 @@ from fastapi import FastAPI, BackgroundTasks, File, UploadFile, Form, HTTPExcept
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client
-from openai import OpenAI
+
 import replicate
 from dotenv import load_dotenv
 import utils.parser as parser
@@ -34,7 +34,7 @@ import random
 load_dotenv()
 
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 ELEVEN_LABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
@@ -176,7 +176,7 @@ DURATION_STRATEGIES = {
 }
 
 app = FastAPI()
-# client = OpenAI(api_key=OPENAI_API_KEY)
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Service role client for admin operations (bypasses RLS)
 supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if SUPABASE_SERVICE_ROLE_KEY else supabase
@@ -265,15 +265,13 @@ def extract_json_from_response(text_content):
         print(f"❌ JSON Parsing Failed. Raw content sample: {text_content[:200]}...")
         raise
 
-# --- PRE-PROCESSING AGENT (GPT-5-Nano) ---
-# Initialize OpenAI client for pre-processing
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 def extract_policy_essence(policy_text: str) -> str:
     """
     Pre-processes long policy documents by stripping boilerplate content.
     Only runs for documents > 10,000 characters to avoid unnecessary API calls.
-    Uses GPT-5-Nano for fast, cost-effective processing.
+    Uses DeepSeek V3 (via Replicate) for fast, cost-effective processing.
     
     PRESERVES: All rules, procedures, requirements, deadlines, consequences.
     REMOVES: Table of contents, headers, footers, revision history, generic definitions.
@@ -285,7 +283,7 @@ def extract_policy_essence(policy_text: str) -> str:
         print(f"   📄 Policy is {len(policy_text)} chars - skipping pre-processing")
         return policy_text
     
-    print(f"   🔧 Pre-processing long policy ({len(policy_text)} chars) with GPT-5-Nano...")
+    print(f"   🔧 Pre-processing long policy ({len(policy_text)} chars) with DeepSeek V3 (Replicate)...")
     
     prompt = """You are a Policy Document Specialist. Your task is to extract ONLY the substantive policy content.
 
@@ -311,15 +309,17 @@ CRITICAL: Do NOT summarize or paraphrase. Keep the exact original wording of all
 OUTPUT: The condensed policy with only substantive content. No commentary."""
 
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-5-nano",
-            messages=[
+        messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"INPUT DOCUMENT ({len(policy_text)} characters):\n{policy_text}"}
-            ],
-            max_completion_tokens=20000,
+            ]
+            
+        result = replicate_chat_completion(
+            messages=messages,
+            max_tokens=16000,
+            temperature=0.3
         )
-        result = response.choices[0].message.content
+        
         condensed_length = len(result)
         reduction = ((len(policy_text) - condensed_length) / len(policy_text)) * 100
         print(f"   ✅ Pre-processed: {len(policy_text)} → {condensed_length} chars ({reduction:.1f}% reduction)")
@@ -1287,7 +1287,8 @@ async def generate_course_assets(course_id: str, script_plan: list, style_prompt
 
         supabase_admin.table("courses").update({
             "slide_data": final_slides, 
-            "status": "Assets ready, starting video compilation..."
+            "status": "Assets ready, starting video compilation...",
+            "progress_phase": "compiling"
         }).eq("id", course_id).execute()
         print("✅ Asset Generation Completed, starting video compilation...")
         
@@ -1640,7 +1641,7 @@ async def generate_plan(request: PlanRequest):
     # Select strategy based on duration (default to 5 if not found)
     strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
     
-    # Pre-process long policies to remove boilerplate (uses GPT-5-Nano)
+    # Pre-process long policies to remove boilerplate (uses DeepSeek V3)
     # This runs transparently - user doesn't need to know
     processed_policy = extract_policy_essence(request.policy_text)
 
