@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Rocket } from "lucide-react";
+import { GenerationProgressCard } from '@/components/GenerationProgressCard';
 
 // --- INTERFACES ---
 interface Slide {
@@ -492,7 +493,7 @@ function DashboardCreatePageContent() {
                 // Start tracking in global context
                 startGeneration(data.course_id);
 
-                // Show confirmation popup instead of blocking modal
+                // Show confirmation popup immediately logic
                 setIsGenerating(false);
                 setIsLoading(false);
                 setShowConfirmation(true);
@@ -550,14 +551,13 @@ function DashboardCreatePageContent() {
                                 We're On It! 🎬
                             </DialogTitle>
                             <DialogDescription className="text-teal-100 text-base">
-                                Your video is being crafted in the background
+                                Your video is being crafted in the cloud.
                             </DialogDescription>
                         </DialogHeader>
                     </div>
                     <div className="p-6 space-y-4">
                         <p className="text-slate-600 text-center">
-                            You can check progress anytime from your <span className="font-semibold text-teal-700">Dashboard</span>.
-                            We'll show a progress bar on your course while it's being created.
+                            It's safe to close this tab. We'll track progress in the bottom right corner.
                         </p>
                         <Button
                             className="w-full bg-teal-600 hover:bg-teal-700 text-white"
@@ -609,6 +609,9 @@ function DashboardCreatePageContent() {
                     </div>
                 )}
             </div>
+
+            {/* Unified Progress Card (Persistent across views) */}
+            <GenerationProgressCard />
         </div>
     );
 }

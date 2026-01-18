@@ -65,78 +65,80 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
         }
     }, [activeGeneration]);
 
-    // Polling logic
-    const pollStatus = useCallback(async (courseId: string) => {
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            const res = await fetch(`http://127.0.0.1:8000/status/${courseId}?t=${Date.now()}`, {
-                headers: { Authorization: `Bearer ${session.access_token}` },
-                cache: "no-store"
-            });
-
-            if (res.status === 404) {
-                setActiveGeneration(prev => prev ? { ...prev, error: "Course not found", status: "error" } : null);
-                // Clear localStorage to prevent stale data on page reload
-                localStorage.removeItem(STORAGE_KEY);
-                // Create a hard stop to prevent infinite 404 loops
-                if (pollInterval.current) {
-                    clearInterval(pollInterval.current);
-                    pollInterval.current = null;
-                }
-                return;
-            }
-
-            const data = await res.json();
-
-            setActiveGeneration(prev => ({
-                courseId,
-                status: data.status || "processing",
-                phase: data.progress_phase || null,
-                currentStep: data.progress_current_step || 0,
-                totalSteps: data.progress_total_steps || 0,
-                error: data.status === "failed" || data.status === "error" ? "Generation failed" : null,
-                videoUrl: data.video_url || null
-            }));
-
-            // Clear if completed or failed
-            if (data.status === "completed" || data.status === "failed" || data.status === "error") {
-                if (pollInterval.current) {
-                    clearInterval(pollInterval.current);
-                    pollInterval.current = null;
-                }
-            }
-        } catch (e) {
-            console.error("Polling error:", e);
-        }
-    }, [supabase]);
-
-    // Start/stop polling based on activeGeneration
+    // Realtime Subscription Logic
     useEffect(() => {
-        // Only start polling if we have a course, no error, and not completed
-        const shouldPoll = activeGeneration?.courseId &&
-            !activeGeneration.error &&
-            activeGeneration.status !== "completed" &&
-            activeGeneration.status !== "error" &&
-            activeGeneration.status !== "failed";
+        const courseId = activeGeneration?.courseId;
+        const status = activeGeneration?.status;
 
-        if (shouldPoll) {
-            // Start polling
-            pollStatus(activeGeneration.courseId);
-            pollInterval.current = setInterval(() => {
-                pollStatus(activeGeneration.courseId);
-            }, 5000);
+        // Only subscribe if we have a course that is processing
+        const shouldSubscribe = courseId &&
+            status !== "completed" &&
+            status !== "error" &&
+            status !== "failed" &&
+            !activeGeneration?.error; // Don't subscribe if we hit a hard error
+
+        if (!shouldSubscribe) {
+            // Cleanup if we're done or errored
+            return;
         }
 
-        return () => {
-            if (pollInterval.current) {
-                clearInterval(pollInterval.current);
-                pollInterval.current = null;
+        console.log(`🔌 Subscribing to updates for course: ${courseId}`);
+
+        const channel = supabase
+            .channel(`course-${courseId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'courses',
+                    filter: `id=eq.${courseId}`
+                },
+                (payload) => {
+                    const newData = payload.new;
+                    console.log("⚡ Realtime Update:", newData.status, newData.progress_phase);
+
+                    setActiveGeneration(prev => {
+                        if (!prev || prev.courseId !== courseId) return prev;
+
+                        return {
+                            ...prev,
+                            status: newData.status || prev.status,
+                            phase: newData.progress_phase || prev.phase,
+                            currentStep: newData.progress_current_step || prev.currentStep,
+                            totalSteps: newData.progress_total_steps || prev.totalSteps,
+                            videoUrl: newData.video_url || prev.videoUrl,
+                            error: (newData.status === "failed" || newData.status === "error")
+                                ? "Generation failed"
+                                : null
+                        };
+                    });
+                }
+            )
+            .subscribe();
+
+        // Initial fetch to ensure we're in sync (in case we missed an event while mounting)
+        const fetchInitialState = async () => {
+            const { data, error } = await supabase.from('courses').select('*').eq('id', courseId).single();
+            if (data && !error) {
+                setActiveGeneration(prev => ({
+                    ...prev!,
+                    status: data.status,
+                    phase: data.progress_phase,
+                    currentStep: data.progress_current_step,
+                    totalSteps: data.progress_total_steps,
+                    videoUrl: data.video_url,
+                    error: (data.status === "failed" || data.status === "error") ? "Generation failed" : null
+                }));
             }
         };
-        // Include error and status in deps so effect re-runs when they change
-    }, [activeGeneration?.courseId, activeGeneration?.error, activeGeneration?.status, pollStatus]);
+        fetchInitialState();
+
+        return () => {
+            console.log(`🔌 Unsubscribing from course: ${courseId}`);
+            supabase.removeChannel(channel);
+        };
+    }, [activeGeneration?.courseId, activeGeneration?.status, activeGeneration?.error, supabase]);
 
     const startGeneration = useCallback((courseId: string) => {
         setActiveGeneration({
@@ -151,10 +153,6 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
     }, []);
 
     const clearGeneration = useCallback(() => {
-        if (pollInterval.current) {
-            clearInterval(pollInterval.current);
-            pollInterval.current = null;
-        }
         setActiveGeneration(null);
         localStorage.removeItem(STORAGE_KEY);
     }, []);
