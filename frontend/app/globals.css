@@ -23,6 +23,11 @@
   --color-accent: #F1F5F9;
   --color-accent-foreground: #0F766E;
 
+  /* Warning/Attention - Orange */
+  --color-warning: #f97316;
+  --color-warning-foreground: #ffffff;
+  --color-warning-hover: #ea580c;
+
   /* Destructive - Muted Rose (Not bright red) */
   --color-destructive: #BE123C;
   --color-destructive-foreground: #FFF1F2;
@@ -78,6 +83,8 @@
   --muted-foreground: #64748B;
   --accent: #F1F5F9;
   --accent-foreground: #0F766E;
+  --warning: #f97316;
+  --warning-foreground: #ffffff;
   --card: #FFFFFF;
   --card-foreground: #0F172A;
   --popover: #FFFFFF;
@@ -274,4 +281,14 @@ body {
 
 .animate-spin-slow {
   animation: spin-slow 8s linear infinite;
+}
+
+/* Fallback for Warning Buttons */
+.btn-warning {
+  background-color: #f97316 !important;
+  color: #ffffff !important;
+}
+
+.btn-warning:hover {
+  background-color: #ea580c !important;
 }
