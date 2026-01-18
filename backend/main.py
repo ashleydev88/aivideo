@@ -1178,7 +1178,8 @@ async def generate_course_assets(course_id: str, script_plan: list, style_prompt
             # but that's acceptable for the performance gain.
             supabase_admin.table("courses").update({
                 "status": f"Drafting Slide {i+1} of {len(script_plan)}...",
-                "progress_current_step": i + 1
+                "progress_current_step": i + 1,
+                "progress_total_steps": len(script_plan) # Ensure total matches actual slides (including bookends)
             }).eq("id", course_id).execute()
 
             # 1. Parallel Audio and Visual Generation
@@ -1290,8 +1291,8 @@ async def generate_course_assets(course_id: str, script_plan: list, style_prompt
         }).eq("id", course_id).execute()
         print("✅ Asset Generation Completed, starting video compilation...")
         
-        # Auto-trigger video compilation
-        trigger_remotion_render(course_id, user_id)
+        # Auto-trigger video compilation with AWAIT
+        await trigger_remotion_render(course_id, user_id)
 
     except Exception as e:
         handle_failure(course_id, user_id, e, {"stage": "generate_course_assets", "style": style_prompt})
@@ -1335,15 +1336,24 @@ def get_asset_url(path_or_url, validity=600):
 # --- WORKER 2: VIDEO EXPORT (CLEAN SPLIT SCREEN) ---
 
 
-def trigger_remotion_render(course_id: str, user_id: str):
+async def trigger_remotion_render(course_id: str, user_id: str):
     """
-    Triggers the AWS Lambda Remotion render via CLI subprocess.
+    Triggers the AWS Lambda Remotion render via CLI subprocess (Async).
+    Uses asyncio.create_subprocess_exec to stream output without blocking the event loop.
     """
     print(f"🎬 Starting Remotion Lambda Render: {course_id}")
-    supabase_admin.table("courses").update({
-        "status": "Rendering with AWS Lambda...",
-        "progress_phase": "compiling"
-    }).eq("id", course_id).execute()
+    
+    # Update DB - doing this synchronously is fine as it's quick, or strictly should be cached/threaded
+    # but supabase_admin currently is likely the sync client. We'll run it directly.
+    try:
+        supabase_admin.table("courses").update({
+            "status": "Rendering with AWS Lambda...",
+            "progress_phase": "compiling",
+            "progress_current_step": 0,
+            "progress_total_steps": 100
+        }).eq("id", course_id).execute()
+    except Exception as e:
+        print(f"   ⚠️ DB Update Error: {e}")
 
     try:
         # 1. Fetch Data
@@ -1374,130 +1384,132 @@ def trigger_remotion_render(course_id: str, user_id: str):
         total_duration_ms = sum(s.get('duration', 0) for s in slides)
         print(f"   📊 Payload: {len(slides)} slides, total duration: {total_duration_ms}ms ({total_duration_ms/1000:.1f}s)")
         
-        # Log visual type distribution
-        type_counts = {}
-        for s in slides:
-            vt = s.get('visual_type', 'undefined')
-            type_counts[vt] = type_counts.get(vt, 0) + 1
-        print(f"   🎨 Visual Type Distribution (Remotion): {type_counts}")
-        
-        if slides:
-            sample = slides[0]
-            print(f"   🖼️ Sample slide[0]: visual_type={sample.get('visual_type')}, has_text={bool(sample.get('text'))}, has_image={bool(sample.get('image'))}")
-            print(f"   🔊 Sample URLs: audio={sample.get('audio', 'N/A')[:80] if sample.get('audio') else 'None'}")
-        
         # 3. Define Paths & Constants
-        # Serve URL from step 2 (Hardcoded for now as per deployment)
         SERVE_URL = "https://remotionlambda-euwest2-wxjopockvc.s3.eu-west-2.amazonaws.com/sites/video-renderer/index.html"
         COMPOSITION_ID = "Main"
-        
-        # Resolve path to remotion-renderer directory
         current_dir = os.path.dirname(os.path.abspath(__file__))
         remotion_dir = os.path.join(os.path.dirname(current_dir), "remotion-renderer")
         
         # 4. Construct Command
-        # npx remotion lambda render <url> <comp> --input-props='...' --output=out.mp4 --log=verbose
-        # We render to a temp file locally to upload it
-        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_video:
-            output_path = temp_video.name
-            
-        print(f"   📡 Calling Remotion Lambda... (output: {output_path})")
+        output_path = tempfile.mktemp(suffix=".mp4")
         
         # Ensure PATH includes node pointers (Mac specific fix)
         env = os.environ.copy()
         env["PATH"] = f"{env.get('PATH', '')}:/usr/local/bin:/opt/homebrew/bin"
-        
-        # Use the larger Lambda function (4GB disk, 240s timeout) for video rendering
         FUNCTION_NAME = "remotion-render-4-0-405-mem3008mb-disk4096mb-240sec"
         
-        # Write props to a temp file (CLI --input-props has size limits)
+        # Write props to temp file (synchronous I/O is acceptable here for small file)
         props_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
         props_json = json.dumps(payload)
         props_file.write(props_json)
         props_file.close()
-        print(f"   📝 Props file: {props_file.name} ({len(props_json)} bytes)")
         
-        cmd = [
+        cmd_args = [
             "npx", "remotion", "lambda", "render",
             SERVE_URL,
             COMPOSITION_ID,
             "--function-name", FUNCTION_NAME,
-            "--props", props_file.name,  # Use file-based props instead of --input-props
+            "--props", props_file.name,
             "--output", output_path,
             "--log", "verbose",
             "--yes",
-            "--frames-per-lambda", "600"  # Higher = fewer concurrent lambdas, avoids concurrency limits
+            "--frames-per-lambda", "600"
         ]
         
-        print(f"   🚀 Running command: {' '.join(cmd[:6])}...")
+        print(f"   🚀 Running command: {' '.join(cmd_args[:6])}...")
         
-        # 5. Execute Subprocess
-        # Run inside remotion-renderer dir to find local remotion package
-        # Add explicit timeout for long renders (10 minutes)
-        try:
-            process = subprocess.run(
-                cmd,
-                cwd=remotion_dir,
-                env=env,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=600  # 10 minute timeout for the CLI to complete
-            )
-            print(f"   ✅ Render CLI Output (first 1000 chars):\n{process.stdout[:1000]}")
-            print(f"   ✅ Render CLI Output (last 500 chars):\n{process.stdout[-500:]}")
-        except subprocess.TimeoutExpired as e:
-            print(f"   ⏱️ Subprocess timed out after 600 seconds")
-            print(f"   stdout: {e.stdout[:500] if e.stdout else 'None'}...")
-            print(f"   stderr: {e.stderr[:500] if e.stderr else 'None'}...")
-            raise Exception("Remotion render subprocess timed out")
-        except subprocess.CalledProcessError as e:
-            print(f"   ❌ CLI failed with code {e.returncode}")
-            print(f"   stdout: {e.stdout}")
-            print(f"   stderr: {e.stderr}")
-            raise
-        
-        if process.stderr:
-            print(f"   ⚠️ Render CLI Stderr:\n{process.stderr}")
+        # 5. Execute Subprocess ASYNC
+        process = await asyncio.create_subprocess_exec(
+            *cmd_args,
+            cwd=remotion_dir,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
 
-        # 6. Download Result from S3
-        # The CLI doesn't auto-download from Lambda renders, so we parse the S3 URL and download
-        s3_url_match = re.search(r'https://s3[^"\s]+\.mp4', process.stdout)
-        if not s3_url_match:
-            raise Exception(f"Could not find S3 URL in CLI output. Output was: {process.stdout[-500:]}")
+        # 6. Monitor Output for Progress
+        last_progress_update = 0
+        s3_url = None
         
-        s3_url = s3_url_match.group(0)
-        print(f"   🔗 Found S3 URL: {s3_url}")
+        progress_pattern = re.compile(r"Rendering.*?(\d+)\s*/\s*(\d+)")
+        s3_pattern = re.compile(r'https://s3[^"\s]+\.mp4')
+
+        while True:
+            line_bytes = await process.stdout.readline()
+            if not line_bytes:
+                break
+            
+            line = line_bytes.decode('utf-8').strip()
+            if not line: continue
+
+            # Check for S3 URL (look for "found" or just the URL? Be strict to avoid input URLs)
+            # Remotion CLI typically outputs: "Cloud rendering complete: <url>"
+            # But the regex matches any URL. We'll assume the LAST S3 URL seen is the output, 
+            # OR we try to match the specific "Cloud rendering complete" or "Output:" context if possible.
+            # For now, let's just log ALL matches and perform a stricter check or use the last one.
+            s3_match = s3_pattern.search(line)
+            if s3_match:
+                # Only trust it if it doesn't look like an input asset (usually short signed urls are weird, 
+                # but Remotion inputs are pre-signed).
+                # The output URL is usually clean.
+                potential_url = s3_match.group(0)
+                print(f"   🔗 Found S3 URL in logs: {potential_url}")
+                s3_url = potential_url # Update candidate (last one wins)
+
+            # Check for Progress
+            if "Rendering" in line:
+                match = progress_pattern.search(line)
+                if match:
+                    current = int(match.group(1))
+                    total = int(match.group(2))
+                    if total > 0:
+                        percent = int((current / total) * 100)
+                        
+                        if percent >= last_progress_update + 5:
+                            last_progress_update = percent
+                            print(f"   ⏳ Render Progress: {percent}% ({current}/{total})")
+                            try:
+                                supabase_admin.table("courses").update({
+                                    "progress_current_step": percent
+                                }).eq("id", course_id).execute()
+                            except Exception as e:
+                                print(f"   ⚠️ Failed to update progress: {e}")
+
+        # Wait for completion
+        return_code = await process.wait()
         
-        # Download from S3
+        if return_code != 0:
+            raise Exception(f"Remotion CLI failed with code {return_code}")
+
+        # 7. Download Result from S3
+        if not s3_url:
+             raise Exception("Could not find S3 URL in CLI output")
+        
         print(f"   ⬇️ Downloading video from S3...")
-        download_response = requests.get(s3_url, timeout=120)
-        if download_response.status_code != 200:
-            raise Exception(f"Failed to download from S3: HTTP {download_response.status_code}")
-        
-        file_content = download_response.content
-        file_size = len(file_content)
-        print(f"   📁 Downloaded file size: {file_size / 1024 / 1024:.2f} MB ({file_size / 1024:.1f} KB)")
-        
-        if file_size == 0:
-            raise Exception("Downloaded video is empty (0 bytes)")
-             
+        # Use httpx for async download if possible, else requests in thread
+        import httpx
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(s3_url, timeout=120)
+            if resp.status_code != 200:
+                raise Exception(f"Failed to download from S3: HTTP {resp.status_code}")
+            file_content = resp.content
+            
         print("   ☁️  Uploading Final Video to Supabase...")
-        video_url = upload_asset(file_content, f"course_v2_{course_id}.mp4", "video/mp4", user_id)
-        print(f"   📤 Upload result: {video_url}")
-
-        # 7. Complete
+        # upload_asset is synchronous? If so, run it in thread.
+        # Assuming upload_asset is sync for now based on previous code.
+        video_url = await asyncio.to_thread(upload_asset, file_content, f"course_v2_{course_id}.mp4", "video/mp4", user_id)
+        
+        # 8. Complete
         supabase_admin.table("courses").update({
             "video_url": video_url,
-            "status": "completed"
+            "status": "completed",
+            "progress_current_step": 100
         }).eq("id", course_id).execute()
         print(f"✅ Remotion Video Ready: {video_url}")
 
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Remotion CLI Error: {e.stderr}")
-        handle_failure(course_id, user_id, Exception(f"Render Failed: {e.stderr}"), {"stage": "remotion_render"})
     except Exception as e:
         print(f"❌ Remotion Trigger Error: {e}")
+        # handle_failure is sync? run in thread? it's likely fine to run sync if it just updates DB.
         handle_failure(course_id, user_id, e, {"stage": "remotion_render"})
 
 # --- ROUTES ---
