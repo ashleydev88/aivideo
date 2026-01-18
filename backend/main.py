@@ -45,6 +45,10 @@ REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 LLM_MODEL_NAME = "deepseek-ai/deepseek-v3"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 
+# --- CONCURRENCY LIMITS ---
+# Limits concurrent Supabase uploads to prevent socket exhaustion (Errno 35)
+SUPABASE_UPLOAD_SEMAPHORE = asyncio.Semaphore(5)
+
 # --- CONFIGURATION FLAGS ---
 ENABLE_SCRIPT_VALIDATION = True  # Set to False to skip validation 
 
@@ -388,6 +392,15 @@ def upload_asset(file_content, filename, content_type, user_id: str, max_retries
                 return None
     
     return None
+
+async def upload_asset_throttled(file_content, filename, content_type, user_id: str, max_retries: int = 3):
+    """Async wrapper for upload_asset with semaphore-based throttling.
+    
+    Limits concurrent Supabase uploads to prevent socket exhaustion (Errno 35).
+    Uses SUPABASE_UPLOAD_SEMAPHORE to control concurrency.
+    """
+    async with SUPABASE_UPLOAD_SEMAPHORE:
+        return await asyncio.to_thread(upload_asset, file_content, filename, content_type, user_id, max_retries)
 
 def generate_audio(text):
     print(f"   🎙️ Generating audio...")
@@ -1196,7 +1209,7 @@ async def generate_course_assets(course_id: str, script_plan: list, style_prompt
                         visual_type = "kinetic_text"
                     else:
                         image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                        image_url = await asyncio.to_thread(upload_asset, image_data, image_filename, "image/jpeg", user_id)
+                        image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id)
                 
                 return visual_type, image_url, chart_data
 
@@ -1232,7 +1245,7 @@ async def generate_course_assets(course_id: str, script_plan: list, style_prompt
 
             # Upload Audio
             audio_filename = f"narration_{i}_{int(time.time())}.mp3"
-            audio_url = await asyncio.to_thread(upload_asset, audio_data, audio_filename, "audio/mpeg", user_id)
+            audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id)
 
             # Kinetic Text
             word_timestamps = parse_alignment_to_words(alignment)
