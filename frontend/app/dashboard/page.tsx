@@ -311,35 +311,34 @@ export default function DashboardPage() {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        asChild
+                                                        onClick={() => router.push(`/dashboard/player?id=${project.id}`)}
                                                         className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                                        title="Watch Video"
                                                     >
-                                                        <a href={project.video_url} target="_blank" rel="noopener noreferrer" title="Watch Video">
-                                                            <PlayCircle className="h-6 w-6" />
-                                                        </a>
+                                                        <PlayCircle className="h-6 w-6" />
                                                     </Button>
                                                 )}
 
                                                 {/* REVIEW TOPICS */}
                                                 {project.status === 'reviewing_topics' && (
-                                                    <Button
-                                                        variant="warning"
-                                                        size="sm"
+                                                    <button
+                                                        style={{ backgroundColor: '#f97316', color: 'white' }}
+                                                        className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
                                                         onClick={() => router.push(`/dashboard/plan/${project.id}`)}
                                                     >
                                                         Review Plan
-                                                    </Button>
+                                                    </button>
                                                 )}
 
                                                 {/* REVIEW STRUCTURE */}
                                                 {project.status === 'reviewing_structure' && (
-                                                    <Button
-                                                        variant="warning"
-                                                        size="sm"
+                                                    <button
+                                                        style={{ backgroundColor: '#f97316', color: 'white' }}
+                                                        className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
                                                         onClick={() => router.push(`/dashboard/structure/${project.id}`)}
                                                     >
                                                         Edit Structure
-                                                    </Button>
+                                                    </button>
                                                 )}
 
                                                 {/* PROCESSING STATES */}
