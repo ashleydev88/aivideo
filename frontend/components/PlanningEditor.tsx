@@ -138,7 +138,7 @@ export default function PlanningEditor({ topics, duration, initialTitle, initial
                     className="flex items-center gap-3 bg-teal-700 hover:bg-teal-800 text-white px-8 py-4 rounded-full font-bold text-lg shadow-md hover:shadow-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isLoading ? (
-                        <>Parsing Script <Wand2 className="animate-spin" /></>
+                        <>Starting... <Wand2 className="animate-spin" /></>
                     ) : (
                         <>Start Designing <ArrowRight /></>
                     )}

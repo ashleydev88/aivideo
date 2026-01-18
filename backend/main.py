@@ -314,7 +314,6 @@ OUTPUT: The condensed policy with only substantive content. No commentary."""
                 {"role": "user", "content": f"INPUT DOCUMENT ({len(policy_text)} characters):\n{policy_text}"}
             ],
             max_completion_tokens=20000,
-            temperature=0.3  # Low temperature for accuracy
         )
         result = response.choices[0].message.content
         condensed_length = len(result)
@@ -352,25 +351,43 @@ def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dic
     except Exception as e:
          print(f"   ❌ CRITICAL: Failed to delete course {course_id}: {e}")
 
-def upload_asset(file_content, filename, content_type, user_id: str):
+def upload_asset(file_content, filename, content_type, user_id: str, max_retries: int = 3):
     """Upload asset to Supabase storage with user_id folder prefix for RLS.
     
     Returns the storage path (not a signed URL) for on-demand URL generation.
     Format: {user_id}/{filename}
+    
+    Includes retry logic for transient network errors (e.g., EAGAIN/Errno 35).
     """
     if not file_content: return None 
     bucket = "course-assets"
     # Use user_id as folder prefix for RLS policy compatibility
     path = f"{user_id}/{filename}"
-    try:
-        # Use admin client to bypass RLS for backend uploads
-        supabase_admin.storage.from_(bucket).upload(path=path, file=file_content, file_options={"content-type": content_type})
-        # Return the storage path instead of signed URL
-        # Fresh signed URLs will be generated on-demand via /get-signed-url endpoint
-        return path
-    except Exception as e:
-        print(f"❌ Supabase Upload Error: {e}")
-        return None
+    
+    for attempt in range(max_retries):
+        try:
+            # Use admin client to bypass RLS for backend uploads
+            supabase_admin.storage.from_(bucket).upload(path=path, file=file_content, file_options={"content-type": content_type})
+            # Return the storage path instead of signed URL
+            # Fresh signed URLs will be generated on-demand via /get-signed-url endpoint
+            return path
+        except Exception as e:
+            error_str = str(e)
+            # Check for transient errors that are worth retrying
+            is_transient = "Resource temporarily unavailable" in error_str or \
+                          "Errno 35" in error_str or \
+                          "EAGAIN" in error_str or \
+                          "Connection" in error_str
+            
+            if is_transient and attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 0.5  # 0.5s, 1s, 1.5s backoff
+                print(f"   ⚠️ Supabase Upload Error (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                print(f"❌ Supabase Upload Error: {e}")
+                return None
+    
+    return None
 
 def generate_audio(text):
     print(f"   🎙️ Generating audio...")
@@ -1105,7 +1122,7 @@ def inject_bookend_slides(script_plan: list, course_title: str) -> list:
     # Welcome slide (first)
     welcome_slide = {
         "text": f"Welcome to the {course_title} training.",
-        "visual_text": course_title,
+        "visual_text": f"Welcome to {course_title}",  # Full message for on-screen display
         "prompt": "",  # No image generation - uses title card layout
         "visual_type": "title_card",  # Special type for static title
         "layout": "title",
@@ -1597,6 +1614,10 @@ async def generate_plan(request: PlanRequest):
     
     # Select strategy based on duration (default to 5 if not found)
     strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
+    
+    # Pre-process long policies to remove boilerplate (uses GPT-5-Nano)
+    # This runs transparently - user doesn't need to know
+    processed_policy = extract_policy_essence(request.policy_text)
 
     # Determine Jurisdiction/Language Context
     jurisdiction_prompt = ""
@@ -1618,7 +1639,7 @@ async def generate_plan(request: PlanRequest):
     prompt = (
     f"You are an expert instructional designer specializing in engaging, scenario-based video learning courses.\n\n"
     f"CONTEXT:\n"
-    f"Policy Document: {request.policy_text}\n"
+    f"Policy Document: {processed_policy}\n"
     f"Video Duration: {request.duration} minutes\n"
     f"Target Country/Region: {request.country}\n"
     f"Format: Video Script Outline\n\n"
@@ -1703,7 +1724,8 @@ async def generate_plan(request: PlanRequest):
         return {
             "title": title,
             "learning_objective": learning_objective,
-            "topics": topics
+            "topics": topics,
+            "processed_policy": processed_policy  # Return pre-processed text for script generation
         }
 
     except Exception as e:
@@ -1733,12 +1755,12 @@ async def generate_script(request: ScriptRequest, background_tasks: BackgroundTa
     
     strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
     
-    # Pre-process long policies to remove boilerplate (uses GPT-5-Nano)
-    processed_policy = extract_policy_essence(request.policy_text)
+    # NOTE: Pre-processing is done in generate-plan endpoint
+    # The policy_text from frontend is already condensed
     
     context_package = {
-        "policy_text": processed_policy,  # Condensed for script generation
-        "original_policy_text": request.policy_text,  # Full text for fact-checking validation
+        "policy_text": request.policy_text,  # Already pre-processed from generate-plan
+        "original_policy_text": request.policy_text,  # Same as policy_text now (already condensed)
         "title": request.title,
         "learning_objective": request.learning_objective,
         "topics": topics_list,
@@ -1914,7 +1936,7 @@ Pacing Strategy:
     
     try:
         response = supabase_admin.table("courses").insert({
-            "status": "generating_script", 
+            "status": "generating_script",  # Pre-processing already done in generate-plan
             "name": request.title,
             "metadata": metadata,
             "user_id": request.user_id,
@@ -1950,6 +1972,9 @@ async def generate_script_and_assets(course_id: str, base_prompt: str, context_p
             "progress_current_step": 0,
             "progress_total_steps": 0
         }).eq("id", course_id).execute()
+        
+        # NOTE: Pre-processing is now done in generate-plan endpoint
+        # The policy_text in context_package is already condensed
         
         messages = [{"role": "user", "content": base_prompt}]
         script_plan = []

@@ -78,6 +78,8 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
 
             if (res.status === 404) {
                 setActiveGeneration(prev => prev ? { ...prev, error: "Course not found", status: "error" } : null);
+                // Clear localStorage to prevent stale data on page reload
+                localStorage.removeItem(STORAGE_KEY);
                 // Create a hard stop to prevent infinite 404 loops
                 if (pollInterval.current) {
                     clearInterval(pollInterval.current);
@@ -112,7 +114,14 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
 
     // Start/stop polling based on activeGeneration
     useEffect(() => {
-        if (activeGeneration?.courseId && !activeGeneration.error && activeGeneration.status !== "completed") {
+        // Only start polling if we have a course, no error, and not completed
+        const shouldPoll = activeGeneration?.courseId &&
+            !activeGeneration.error &&
+            activeGeneration.status !== "completed" &&
+            activeGeneration.status !== "error" &&
+            activeGeneration.status !== "failed";
+
+        if (shouldPoll) {
             // Start polling
             pollStatus(activeGeneration.courseId);
             pollInterval.current = setInterval(() => {
@@ -126,7 +135,8 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
                 pollInterval.current = null;
             }
         };
-    }, [activeGeneration?.courseId, pollStatus]);
+        // Include error and status in deps so effect re-runs when they change
+    }, [activeGeneration?.courseId, activeGeneration?.error, activeGeneration?.status, pollStatus]);
 
     const startGeneration = useCallback((courseId: string) => {
         setActiveGeneration({
