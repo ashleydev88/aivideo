@@ -22,11 +22,17 @@ export const TitleCard: React.FC<{
         extrapolateRight: 'clamp',
     });
 
+    // Debug: Log what we're rendering
+    console.log('[TitleCard] Rendering with title:', title, 'accent:', accent_color);
+
+    // Safety check for empty title
+    const displayTitle = title || 'Welcome';
+
     return (
         <div
             className="absolute inset-0 flex flex-col items-center justify-center"
             style={{
-                background: `linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)`,
+                backgroundColor: '#ffffff',
             }}
         >
             {/* Decorative accent line */}
@@ -40,21 +46,29 @@ export const TitleCard: React.FC<{
 
             {/* Main Title */}
             <h1
-                className="text-7xl font-bold text-white text-center px-16 leading-tight"
                 style={{
+                    fontSize: '56px',
+                    fontWeight: 700,
+                    color: '#1e293b',
+                    textAlign: 'center',
+                    padding: '0 64px',
+                    lineHeight: 1.2,
                     opacity: opacity,
                     transform: `translateY(${titleY}px)`,
-                    textShadow: '0 4px 20px rgba(0,0,0,0.3)',
                 }}
             >
-                {title}
+                {displayTitle}
             </h1>
 
             {/* Subtitle (if provided) */}
             {subtitle && (
                 <p
-                    className="text-3xl text-slate-300 mt-6 text-center px-16"
                     style={{
+                        fontSize: '24px',
+                        color: '#64748b',
+                        marginTop: '24px',
+                        textAlign: 'center',
+                        padding: '0 64px',
                         opacity: subtitleOpacity,
                     }}
                 >

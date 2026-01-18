@@ -443,6 +443,8 @@ function DashboardCreatePageContent() {
             setTopics(data.topics || []);
             setTitle(data.title || "New Course"); // Capture Title
             setLearningObjective(data.learning_objective || ""); // Capture LO
+            // Use pre-processed policy if available, otherwise use original
+            setPolicyText(data.processed_policy || text);
             setIsProcessing(false);
             setView("planning");
         } catch (e) { console.error(e); setIsProcessing(false); }
