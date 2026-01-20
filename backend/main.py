@@ -848,7 +848,7 @@ AVAILABLE CHART TYPES:
 
 OUTPUT (JSON):
 {{
-  "title": "Short, punchy title",
+  "title": "Short title (Max 4 words)",
   "type": "process|list|grid|comparison|statistic|pyramid|cycle",
   "items": [
     {{ 
@@ -861,10 +861,12 @@ OUTPUT (JSON):
 }}
 
 CRITICAL:
+- Title MUST be extremely short (1-4 words max). Example: "Key Principles", "Growth Strategy".
 - Keep text labels SHORT (1-5 words) for clean UI.
 - Max 6 items for readability.
 - Choose icons from the list provided that best match the item.
 - Use color_intent to signal meaning (e.g., 'danger' for risks, 'success' for benefits).
+- Do NOT generate unnecessary words. Conciseness saves tokens.
 """
         try:
             res_text = replicate_chat_completion(
@@ -1168,101 +1170,123 @@ def inject_bookend_slides(script_plan: list, course_title: str) -> list:
     print(f"   ✅ Injected bookends: {len(script_plan)} content slides → {len(result)} total slides")
     return result
 
-async def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str, accent_color: str = "#14b8a6"):
-    print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
+async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt: str, user_id: str):
+    """
+    Phase 1 Generation: Generates Images and Charts ONLY.
+    Runs before user review so they can see the visuals in the slide editor.
+    """
+    print(f"🎨 Generating Draft Visuals for {course_id}...")
+    supabase_admin.table("courses").update({"status": "drafting_visuals"}).eq("id", course_id).execute()
     
-    # Update status and progress phase to media generation
+    api_semaphore = asyncio.Semaphore(5)
+
+    async def process_visual_parallel(i, slide):
+        async with api_semaphore:
+            print(f"   🖼️ Draft Visual Slide {i+1}...")
+            
+            # Persist existing assets if re-running
+            if slide.get("image") and slide["image"].startswith("http"):
+                 pass 
+            
+            visual_type = slide.get("visual_type", "image")
+            image_url = slide.get("image")
+            chart_data = slide.get("chart_data")
+            
+            # Generate Chart Data
+            if visual_type == "chart" and not chart_data:
+                pipeline = PipelineManager()
+                chart_data = await asyncio.to_thread(pipeline.generate_chart_data, slide["text"], slide.get("visual_text", ""))
+                if not chart_data:
+                     visual_type = "kinetic_text" # Fallback
+            
+            # Generate Image (Replicate)
+            if visual_type in ["image", "hybrid"] and not image_url:
+                full_prompt = f"{style_prompt}. {slide['prompt']}"
+                image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
+                
+                if image_data:
+                    image_filename = f"visual_{i}_{int(time.time())}.jpg"
+                    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id)
+                else:
+                    visual_type = "kinetic_text" # Fallback
+            
+            # Update Slide
+            slide["image"] = image_url
+            slide["chart_data"] = chart_data
+            if chart_data and chart_data.get("title"):
+                 slide["visual_text"] = chart_data["title"] # Force visual_text to match chart title
+            slide["visual_type"] = visual_type
+            return slide
+
+    try:
+        tasks = [process_visual_parallel(i, slide) for i, slide in enumerate(script_plan)]
+        updated_slides = await asyncio.gather(*tasks)
+        return updated_slides
+    except Exception as e:
+        print(f"❌ Visual Draft Error: {e}")
+        # Return what we have, don't fail hard
+        return script_plan
+
+
+async def finalize_course_assets(course_id: str, script_plan: list, user_id: str, accent_color: str):
+    """
+    Phase 2 Generation: Audio, Kinetic Text, and Video Compilation.
+    Runs AFTER user review.
+    """
+    print(f"🚀 Finalizing Assets (Audio/Kinetic) for {course_id}...")
+    
     supabase_admin.table("courses").update({
-        "status": "generating_media",
+        "status": "generating_audio",
         "progress_phase": "media",
         "progress_current_step": 0
     }).eq("id", course_id).execute()
     
-    # Semaphore to limit concurrent API requests (ElevenLabs/Replicate)
     api_semaphore = asyncio.Semaphore(5)
 
-    async def process_slide_parallel(i, slide, temp_dir):
+    async def process_audio_parallel(i, slide, temp_dir):
         async with api_semaphore:
-            print(f"   🎬 Processing slide {i+1}...")
-            # Update progress for each slide
-            # Note: Since this is parallel, progress updates might be slightly out of order in the UI, 
-            # but that's acceptable for the performance gain.
-            supabase_admin.table("courses").update({
-                "status": f"Drafting Slide {i+1} of {len(script_plan)}...",
-                "progress_current_step": i + 1,
-                "progress_total_steps": len(script_plan) # Ensure total matches actual slides (including bookends)
-            }).eq("id", course_id).execute()
-
-            # 1. Parallel Audio and Visual Generation
-            # We use asyncio.to_thread for synchronous blocking calls
+            print(f"   🎤 Finalizing Slide {i+1}...")
             
-            async def get_audio():
-                audio_data, alignment = await asyncio.to_thread(generate_audio, slide["text"])
-                if audio_data is None:
-                    raise Exception(f"Audio generation failed for slide {i+1}")
-                return audio_data, alignment
-
-            async def get_visual():
-                visual_type = slide.get("visual_type", "image")
-                image_url = None
-                chart_data = None
-                
-                if visual_type == "title_card":
-                    pass # Handled in post-processing
-                elif visual_type == "chart":
-                    pipeline = PipelineManager()
-                    chart_data = await asyncio.to_thread(pipeline.generate_chart_data, slide["text"], slide.get("visual_text", ""))
-                    if not chart_data:
-                        visual_type = "kinetic_text"
-                elif visual_type in ["image", "hybrid"]:
-                    full_prompt = f"{style_prompt}. {slide['prompt']}"
-                    image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
-                    if image_data is None:
-                        visual_type = "kinetic_text"
-                    else:
-                        image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                        image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id)
-                
-                return visual_type, image_url, chart_data
-
-            # Fire both simultaneously
-            (audio_data, alignment), (visual_type, image_url, chart_data) = await asyncio.gather(
-                get_audio(),
-                get_visual()
-            )
-
-            # 2. Post-processing (Duration calculation, uploads, kinetic text)
-            # Duration Calculation
-            duration_ms = slide.get("duration", 15000)
-            try:
+            # 1. Generate Audio
+            audio_url = slide.get("audio")
+            duration_ms = slide.get("duration", 10000)
+            alignment = slide.get("timestamps")
+            
+            # Always regenerate audio on finalize to ensure it matches updated script
+            # Unless we want to be smart and check if text changed? 
+            # For robustness, let's regenerate. Cost is low for TTS.
+            
+            audio_data, new_alignment = await asyncio.to_thread(generate_audio, slide["text"])
+            
+            if audio_data:
+                # Save temp for duration calc
                 temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
                 with open(temp_audio_path, "wb") as f:
                     f.write(audio_data)
                 
-                # AudioFileClip is blocking, use to_thread if needed, but here it's fast enough or we can thread it
+                # Calc Duration
                 def get_duration(path):
-                    clip = AudioFileClip(path)
-                    d = int((clip.duration * 1000) + 1500)
-                    clip.close()
-                    return d
+                    try:
+                        clip = AudioFileClip(path)
+                        d = int((clip.duration * 1000) + 1500) # +1.5s padding
+                        clip.close()
+                        return d
+                    except:
+                        return 10000
                 
                 duration_ms = await asyncio.to_thread(get_duration, temp_audio_path)
-            except Exception as e:
-                print(f"   ⚠️ Duration Calc Error slide {i+1}: {e}")
-
-            if visual_type == "title_card":
-                hint_ms = slide.get("duration_hint", 3000)
-                if duration_ms < hint_ms:
-                    duration_ms = hint_ms
-
-            # Upload Audio
-            audio_filename = f"narration_{i}_{int(time.time())}.mp3"
-            audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id)
-
-            # Kinetic Text
-            word_timestamps = parse_alignment_to_words(alignment)
+                
+                # Upload Audio
+                audio_filename = f"narration_{i}_{int(time.time())}.mp3"
+                audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id)
+                alignment = new_alignment
+            
+            # 2. Generate Kinetic Text (Needs Audio Alignment)
             kinetic_events = []
-            if visual_type != "title_card":
+            visual_type = slide.get("visual_type", "image")
+            
+            if visual_type != "title_card" and alignment:
+                word_timestamps = parse_alignment_to_words(alignment)
                 pipeline = PipelineManager()
                 kinetic_events = await asyncio.to_thread(
                     pipeline.generate_kinetic_text,
@@ -1272,42 +1296,34 @@ async def generate_course_assets(course_id: str, script_plan: list, style_prompt
                     slide_duration_ms=duration_ms
                 )
 
-            return {
-                "id": i + 1,
-                "image": image_url,
-                "audio": audio_url,
-                "timestamps": alignment,
-                "text": slide.get("text", ""),
-                "visual_text": slide.get("visual_text", ""),
-                "duration": duration_ms,
-                "layout": slide.get("layout", "split"),
-                "accent_color": accent_color,
-                "visual_type": visual_type,
-                "chart_data": chart_data,
-                "kinetic_events": kinetic_events
-            }
+            # Update Slide
+            slide["audio"] = audio_url
+            slide["duration"] = duration_ms
+            slide["timestamps"] = alignment
+            slide["kinetic_events"] = kinetic_events
+            slide["accent_color"] = accent_color
+            return slide
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Launch all slide processing tasks
-            tasks = [process_slide_parallel(i, slide, temp_dir) for i, slide in enumerate(script_plan)]
+            tasks = [process_audio_parallel(i, slide, temp_dir) for i, slide in enumerate(script_plan)]
             final_slides = await asyncio.gather(*tasks)
             
-            # Sort slides by ID to ensure original order
-            final_slides.sort(key=lambda x: x["id"])
+            # Sort by ID
+            final_slides.sort(key=lambda x: x.get("id", 0) if x.get("id") else 0)
 
+        # Update DB
         supabase_admin.table("courses").update({
             "slide_data": final_slides, 
-            "status": "Assets ready, starting video compilation...",
+            "status": "compiling_video",
             "progress_phase": "compiling"
         }).eq("id", course_id).execute()
-        print("✅ Asset Generation Completed, starting video compilation...")
         
-        # Auto-trigger video compilation with AWAIT
+        print("✅ Final Assets Ready, Triggering Render...")
         await trigger_remotion_render(course_id, user_id)
 
     except Exception as e:
-        handle_failure(course_id, user_id, e, {"stage": "generate_course_assets", "style": style_prompt})
+        handle_failure(course_id, user_id, e, {"stage": "finalize_course_assets"})
 
 
 
@@ -2093,7 +2109,17 @@ Pacing Strategy:
         # 3. Inject Bookends (Welcome/Thanks)
         script_plan = inject_bookend_slides(script_plan, request.title)
         
-        # 4. Save to DB and Update Status
+        # 4. Generate DRAFT Visuals (NEW STEP)
+        start_time = time.time()
+        
+        # Extract style prompt
+        style_key = metadata.get("style", "Minimalist Vector")
+        style_config = STYLE_MAPPING.get(style_key, STYLE_MAPPING["Minimalist Vector"])
+        style_prompt = style_config["prompt"] 
+
+        script_plan = await generate_draft_visuals(course_id, script_plan, style_prompt, request.user_id)
+        
+        # 5. Save to DB and Update Status
         supabase_admin.table("courses").update({
             "slide_data": script_plan,
             "status": "reviewing_structure", # READY FOR USER REVIEW
@@ -2101,7 +2127,7 @@ Pacing Strategy:
             "progress_current_step": 100
         }).eq("id", course_id).execute()
         
-        print(f"   ✅ Structure generated for {course_id} - Waiting for user review.")
+        print(f"   ✅ Structure & Draft Visuals generated for {course_id} - Waiting for user review.")
 
     except Exception as e:
         print(f"❌ Structure Gen Error: {e}")
@@ -2112,8 +2138,8 @@ async def generate_final_assets_task(course_id: str, script_plan: list, style_pr
     Takes approved script plan and generates actual media: Audio, Images, Video.
     """
     try: 
-         # 1. Generate Assets (Audio/Images)
-         await generate_course_assets(course_id, script_plan, style_prompt, user_id, accent_color)
+         # 1. Finalize Assets (Audio/Kinetic/Render)
+         await finalize_course_assets(course_id, script_plan, user_id, accent_color)
          
          # 2. Render Video (triggered inside generate_course_assets or here? 
          # generate_course_assets currently triggers rendering. So we are good.)
@@ -2137,3 +2163,38 @@ async def delete_course(course_id: str, authorization: str = Header(None)):
     # Delete
     supabase_admin.table("courses").delete().eq("id", course_id).execute()
     return {"status": "deleted"}
+
+@app.post("/regenerate-slide-visual/{course_id}")
+async def regenerate_slide_visual(
+    course_id: str, 
+    request: Request, 
+    authorization: str = Header(None)
+):
+    print(f"🎨 Regenerating Visual for {course_id}...")
+    user_id = get_user_id_from_token(authorization)
+    body = await request.json()
+    prompt = body.get("prompt")
+    slide_index = body.get("slide_index") 
+
+    if not prompt or slide_index is None:
+        raise HTTPException(status_code=400, detail="Missing prompt or slide_index")
+    
+    # Fetch style from DB
+    res = supabase_admin.table("courses").select("metadata").eq("id", course_id).execute()
+    metadata = res.data[0]['metadata'] if res.data else {}
+    style_key = metadata.get("style", "Minimalist Vector")
+    style_config = STYLE_MAPPING.get(style_key, STYLE_MAPPING["Minimalist Vector"])
+    style_prompt = style_config["prompt"]
+
+    # Generate new image
+    full_prompt = f"{style_prompt}. {prompt}"
+    
+    image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
+    if not image_data:
+        raise HTTPException(status_code=500, detail="Failed to generate image")
+        
+    # Upload
+    image_filename = f"visual_{slide_index}_{int(time.time())}.jpg"
+    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id)
+    
+    return {"image_url": image_url}

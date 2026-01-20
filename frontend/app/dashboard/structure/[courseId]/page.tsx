@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import CourseStructureEditor from "@/components/CourseStructureEditor";
+import SlideEditor from "@/components/SlideEditor/SlideEditor";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -46,7 +46,7 @@ export default function StructurePage() {
             const supabase = createClient();
             const { data } = await supabase.from("courses").select("status, slide_data").eq("id", courseId).single();
             if (data && data.status !== course?.status) {
-                setCourse(prev => ({ ...prev, ...data }));
+                setCourse((prev: any) => ({ ...prev, ...data }));
             }
         }, 3000);
 
@@ -91,8 +91,8 @@ export default function StructurePage() {
 
     // Default to Editor
     return (
-        <div className="container max-w-5xl mx-auto py-8 px-4">
-            <CourseStructureEditor
+        <div className="container max-w-[1600px] mx-auto py-6 px-4">
+            <SlideEditor
                 courseId={courseId}
                 initialSlides={course.slide_data || []}
                 onFinalize={() => router.push('/dashboard')}
