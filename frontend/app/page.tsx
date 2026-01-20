@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Shield, UserX, Building, Check, X, FileText, Zap, Brain, FilePenLine, Palette, AudioWaveform, Code2, Lock, Monitor, Users, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ProcessVisualization from '../components/ProcessVisualization';
 
 // Animation Variants
 const containerVariants = {
@@ -231,73 +232,14 @@ export default function Home() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.4 }}
               >
+
                 {/* Decorative background blob */}
                 <div className="absolute -top-24 -right-24 w-96 h-96 bg-teal-50 rounded-full blur-3xl opacity-50 -z-10 animate-pulse" />
 
-                <div className="relative rounded-2xl bg-slate-50 border border-slate-100 p-2 shadow-2xl ring-1 ring-slate-900/5">
-                  <div className="grid grid-cols-2 gap-4 h-80 sm:h-96">
-
-                    {/* The Old Way */}
-                    <div className="relative bg-slate-100 rounded-xl p-6 flex flex-col items-center justify-center border border-slate-200 overflow-hidden group">
-                      <div className="absolute top-4 left-4">
-                        <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">The Old Way</span>
-                      </div>
-                      <div className="opacity-40 grayscale group-hover:opacity-50 transition-opacity">
-                        <FileText className="w-16 h-16 text-slate-400 mb-4" />
-                      </div>
-                      <p className="text-sm text-center text-slate-500 font-medium mt-2">Static PDFs &<br />Boring Slides</p>
-                      <div className="absolute bottom-4 right-4">
-                        <X className="w-6 h-6 text-red-400" />
-                      </div>
-                    </div>
-
-                    {/* The ComplianceVideo Way */}
-                    <div className="relative bg-white rounded-xl p-6 flex flex-col items-center justify-end border-2 border-teal-100 shadow-sm overflow-hidden">
-                      <div className="absolute top-4 left-4 z-10">
-                        <span className="inline-flex items-center rounded-full bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 ring-1 ring-inset ring-teal-600/20">ComplianceVideo</span>
-                      </div>
-
-                      {/* Animated Graph Visual */}
-                      <div className="w-full flex items-end justify-center gap-2 h-32 mb-4">
-                        <motion.div
-                          className="w-8 bg-teal-200 rounded-t-md opacity-50"
-                          initial={{ height: "10%" }}
-                          animate={{ height: "40%" }}
-                          transition={{ duration: 1, delay: 0.8 }}
-                        />
-                        <motion.div
-                          className="w-8 bg-teal-400 rounded-t-md opacity-80"
-                          initial={{ height: "10%" }}
-                          animate={{ height: "55%" }}
-                          transition={{ duration: 1, delay: 0.9 }}
-                        />
-                        <motion.div
-                          className="w-8 bg-teal-600 rounded-t-md"
-                          variants={chartVariants}
-                          initial="hidden"
-                          animate="visible"
-                        />
-                      </div>
-
-                      <div className="text-center z-10">
-                        <p className="text-sm font-bold text-slate-900">High Retention</p>
-                        <p className="text-xs text-teal-600">Kinetic & Engaging</p>
-                      </div>
-
-                      <div className="absolute bottom-4 right-4 bg-teal-100 rounded-full p-1">
-                        <Check className="w-4 h-4 text-teal-700" />
-                      </div>
-
-                      {/* Subtle particles */}
-                      <motion.div
-                        animate={{ y: [0, -10, 0], opacity: [0, 1, 0] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                        className="absolute top-1/2 right-4 w-1 h-1 bg-teal-400 rounded-full"
-                      />
-                    </div>
-
-                  </div>
+                <div className="relative w-full h-full min-h-[450px]">
+                  <ProcessVisualization />
                 </div>
+
               </motion.div>
             </div>
           </div>

@@ -23,12 +23,12 @@ import {
     MoreHorizontal,
     Loader2,
     Trash2,
+    PlayCircle,
+    AlertCircle,
 } from "lucide-react";
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useCourseGeneration } from "@/lib/CourseGenerationContext";
-import { GenerationProgressBar } from "@/components/GenerationProgressBar";
-import { GenerationPopover } from "@/components/GenerationPopover";
-import CourseGenerationModal from "@/components/CourseGenerationModal";
+
 
 interface Project {
     id: string;
@@ -59,11 +59,7 @@ export default function DashboardPage() {
     const { activeGeneration, clearGeneration } = useCourseGeneration();
 
     // Check if a project is currently being generated
-    const isProjectGenerating = (projectId: string) => {
-        return activeGeneration?.courseId === projectId &&
-            activeGeneration.status !== "completed" &&
-            !activeGeneration.error;
-    };
+
 
     useEffect(() => {
         const getUserAndProjects = async () => {
@@ -114,6 +110,33 @@ export default function DashboardPage() {
         };
 
         getUserAndProjects();
+
+        // Poll for updates every 5 seconds if there are active projects
+        const interval = setInterval(() => {
+            // Only poll if we have projects in progress to avoid unnecessary traffic?
+            // Actually, we need to know if *any* project changed status, or if listing changed (less likely).
+            // Let's simple poll getUserAndProjects silently.
+            // But getUserAndProjects sets loading=true, which causes flash. 
+            // We should split fetching from loading state.
+
+            const pollProjects = async () => {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) return;
+
+                const { data, error } = await supabase
+                    .from("courses")
+                    .select("*")
+                    .eq("user_id", session.user.id)
+                    .order("created_at", { ascending: false });
+
+                if (!error && data) {
+                    setProjects(data);
+                }
+            };
+            pollProjects();
+        }, 5000);
+
+        return () => clearInterval(interval);
     }, [router]);
 
     const handleDelete = async (id: string) => {
@@ -153,20 +176,7 @@ export default function DashboardPage() {
         return `${metadata.duration} min`;
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status?.toLowerCase()) {
-            case "completed":
-                return "bg-teal-100 text-teal-700 border-teal-200";
-            case "processing":
-            case "generating":
-                return "bg-blue-100 text-blue-700 border-blue-200";
-            case "error":
-            case "failed":
-                return "bg-red-100 text-red-700 border-red-200";
-            default:
-                return "bg-slate-100 text-slate-700 border-slate-200";
-        }
-    };
+
 
     if (loading) {
         return <LoadingScreen message="Loading dashboard..." />;
@@ -229,15 +239,6 @@ export default function DashboardPage() {
                     <h2 className="text-xl font-bold text-slate-900 tracking-tight">
                         Recent Projects
                     </h2>
-                    {projects.length > 0 && (
-                        <Button
-                            onClick={() => router.push("/dashboard/create")}
-                            className="bg-teal-700 hover:bg-teal-800 text-white"
-                        >
-                            <Plus className="h-4 w-4 mr-2" />
-                            New Course
-                        </Button>
-                    )}
                 </div>
 
                 {projects.length === 0 ? (
@@ -278,10 +279,8 @@ export default function DashboardPage() {
                                     <TableHead className="font-semibold text-slate-600">
                                         Duration
                                     </TableHead>
-                                    <TableHead className="font-semibold text-slate-600">
-                                        Status
-                                    </TableHead>
-                                    <TableHead className="text-right font-semibold text-slate-600">
+
+                                    <TableHead className="text-center font-semibold text-slate-600">
                                         Action
                                     </TableHead>
                                 </TableRow>
@@ -304,84 +303,68 @@ export default function DashboardPage() {
                                                 {formatDuration(project.metadata)}
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            {isProjectGenerating(project.id) ? (
-                                                <GenerationPopover>
-                                                    <div
-                                                        className="w-32 cursor-pointer"
-                                                        onClick={() => setShowGenerationModal(true)}
-                                                    >
-                                                        <GenerationProgressBar />
-                                                    </div>
-                                                </GenerationPopover>
-                                            ) : (
-                                                <span
-                                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(
-                                                        project.status
-                                                    )}`}
-                                                >
-                                                    {project.status || "Draft"}
-                                                </span>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                {project.status === "completed" && project.video_url ? (
+
+                                        <TableCell className="relative py-2">
+                                            <div className="flex items-center justify-center min-h-[40px]">
+                                                {/* COMPLETED: Watch/Download */}
+                                                {project.status === 'completed' && (
                                                     <Button
                                                         variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 w-8 p-0 text-slate-500 hover:text-teal-700"
-                                                        onClick={async () => {
-                                                            // Get fresh signed URL before download
-                                                            try {
-                                                                const { data: { session } } = await supabase.auth.getSession();
-                                                                if (!session) {
-                                                                    router.push("/login");
-                                                                    return;
-                                                                }
-
-                                                                const response = await fetch("http://localhost:8000/get-signed-url", {
-                                                                    method: "POST",
-                                                                    headers: {
-                                                                        "Content-Type": "application/json",
-                                                                        "Authorization": `Bearer ${session.access_token}`,
-                                                                    },
-                                                                    body: JSON.stringify({ path: project.video_url }),
-                                                                });
-
-                                                                if (response.ok) {
-                                                                    const data = await response.json();
-                                                                    window.open(data.signed_url, "_blank");
-                                                                } else {
-                                                                    // Fallback to original URL (may not work if expired)
-                                                                    window.open(project.video_url, "_blank");
-                                                                }
-                                                            } catch (error) {
-                                                                console.error("Error getting signed URL:", error);
-                                                                window.open(project.video_url, "_blank");
-                                                            }
-                                                        }}
+                                                        size="icon"
+                                                        onClick={() => router.push(`/dashboard/player?id=${project.id}`)}
+                                                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                                        title="Watch Video"
                                                     >
-                                                        <Download className="h-4 w-4" />
+                                                        <PlayCircle className="h-6 w-6" />
                                                     </Button>
-                                                ) : null}
+                                                )}
+
+                                                {/* REVIEW TOPICS */}
+                                                {project.status === 'reviewing_topics' && (
+                                                    <button
+                                                        style={{ backgroundColor: '#f97316', color: 'white' }}
+                                                        className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
+                                                        onClick={() => router.push(`/dashboard/plan/${project.id}`)}
+                                                    >
+                                                        Review Plan
+                                                    </button>
+                                                )}
+
+                                                {/* REVIEW STRUCTURE */}
+                                                {project.status === 'reviewing_structure' && (
+                                                    <button
+                                                        style={{ backgroundColor: '#f97316', color: 'white' }}
+                                                        className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
+                                                        onClick={() => router.push(`/dashboard/structure/${project.id}`)}
+                                                    >
+                                                        Edit Structure
+                                                    </button>
+                                                )}
+
+                                                {/* PROCESSING STATES */}
+                                                {!['completed', 'reviewing_topics', 'reviewing_structure', 'failed', 'error'].includes(project.status) && (
+                                                    <Button variant="ghost" size="sm" disabled className="text-slate-500">
+                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin text-teal-600" />
+                                                        Processing
+                                                    </Button>
+                                                )}
+
+                                                {/* ERROR STATE */}
+                                                {['failed', 'error'].includes(project.status) && (
+                                                    <div className="flex items-center text-red-600 text-xs font-medium mr-2">
+                                                        <AlertCircle className="h-4 w-4 mr-1" />
+                                                        Failed
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* DELETE (Always available) - Positioned to the right */}
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
                                                 <Button
                                                     variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                                    onClick={() =>
-                                                        router.push(
-                                                            `/dashboard/player?id=${project.id}`
-                                                        )
-                                                    }
-                                                >
-                                                    <Play className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 w-8 p-0 text-slate-500 hover:text-red-700"
+                                                    size="icon"
                                                     onClick={() => handleDelete(project.id)}
+                                                    className="text-slate-400 hover:text-red-600"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
@@ -396,20 +379,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Course Generation Modal - opened from dashboard when clicking on in-progress course */}
-            {showGenerationModal && activeGeneration && (
-                <CourseGenerationModal
-                    isOpen={showGenerationModal}
-                    currentPhase={activeGeneration.phase === "script" ? "script" : "designing"}
-                    statusText={activeGeneration.status}
-                    error={activeGeneration.error}
-                    onRetry={() => {
-                        clearGeneration();
-                        setShowGenerationModal(false);
-                    }}
-                    validationEnabled={true}
-                    onMinimize={() => setShowGenerationModal(false)}
-                />
-            )}
+
         </div>
     );
 }

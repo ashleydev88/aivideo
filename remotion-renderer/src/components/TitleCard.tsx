@@ -5,7 +5,9 @@ export const TitleCard: React.FC<{
     title: string;
     subtitle?: string;
     accent_color?: string;
-}> = ({ title, subtitle, accent_color = '#14b8a6' }) => {
+    custom_bg_color?: string;
+    custom_text_color?: string;
+}> = ({ title, subtitle, accent_color = '#14b8a6', custom_bg_color, custom_text_color }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
 
@@ -32,7 +34,7 @@ export const TitleCard: React.FC<{
         <div
             className="absolute inset-0 flex flex-col items-center justify-center"
             style={{
-                backgroundColor: '#ffffff',
+                backgroundColor: custom_bg_color || '#ffffff',
             }}
         >
             {/* Decorative accent line */}
@@ -47,12 +49,12 @@ export const TitleCard: React.FC<{
             {/* Main Title */}
             <h1
                 style={{
-                    fontSize: '56px',
-                    fontWeight: 700,
-                    color: '#1e293b',
+                    fontSize: '100px', // Scaled up from Preview's text-5xl (approx 2.4x)
+                    fontWeight: 900,   // font-black
+                    color: custom_text_color || '#1e293b',
                     textAlign: 'center',
                     padding: '0 64px',
-                    lineHeight: 1.2,
+                    lineHeight: 1.1,
                     opacity: opacity,
                     transform: `translateY(${titleY}px)`,
                 }}
@@ -65,7 +67,7 @@ export const TitleCard: React.FC<{
                 <p
                     style={{
                         fontSize: '24px',
-                        color: '#64748b',
+                        color: custom_text_color ? `${custom_text_color}cc` : '#64748b', // Add transparency if custom
                         marginTop: '24px',
                         textAlign: 'center',
                         padding: '0 64px',

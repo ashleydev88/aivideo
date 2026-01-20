@@ -10,7 +10,7 @@ interface Topic {
 }
 
 export default function PlanningEditor({ topics, duration, initialTitle, initialLearningObjective, onBack, onNext, isLoading }:
-    { topics: Topic[], duration: number, initialTitle: string, initialLearningObjective: string, onBack: () => void, onNext: (t: Topic[], title: string) => void, isLoading: boolean }) {
+    { topics: Topic[], duration: number, initialTitle: string, initialLearningObjective: string, onBack: () => void, onNext: (t: Topic[], title: string, learningObjective: string) => void, isLoading: boolean }) {
 
     const [editedTopics, setTopics] = useState<Topic[]>(topics);
     const [title, setTitle] = useState(initialTitle);
@@ -133,7 +133,7 @@ export default function PlanningEditor({ topics, duration, initialTitle, initial
                     ← Back to Setup
                 </button>
                 <button
-                    onClick={() => onNext(editedTopics, title)}
+                    onClick={() => onNext(editedTopics, title, learningObjective)}
                     disabled={isLoading}
                     className="flex items-center gap-3 bg-teal-700 hover:bg-teal-800 text-white px-8 py-4 rounded-full font-bold text-lg shadow-md hover:shadow-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
