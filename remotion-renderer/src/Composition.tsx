@@ -28,6 +28,9 @@ export const MainComposition: React.FC<{
                 const isTitleCard = slide.visual_type === 'title_card';
                 const hasText = slide.text || slide.visual_text;
 
+                const customBg = slide.background_color;
+                const customText = slide.text_color;
+
                 // Debug logging
                 console.log(`[Slide ${i}] visual_type: ${slide.visual_type}, hasImage: ${!!slide.image}, hasText: ${!!hasText}`);
                 console.log(`[Slide ${i}] Layout flags: hybrid=${isHybrid}, imageOnly=${isImageOnly}, kineticOnly=${isKineticOnly}, chart=${isChart}, titleCard=${isTitleCard}`);
@@ -42,19 +45,29 @@ export const MainComposition: React.FC<{
                             <TitleCard
                                 title={slide.visual_text || slide.text}
                                 accent_color={accent_color}
+                                custom_bg_color={customBg}
+                                custom_text_color={customText}
                             />
                         )}
 
                         {/* LAYOUT: CHART (Full Screen) */}
                         {isChart && slide.chart_data && (
                             <AbsoluteFill className="flex items-center justify-center p-8">
-                                <Chart data={slide.chart_data} accent_color={accent_color} />
+                                <Chart
+                                    data={slide.chart_data}
+                                    accent_color={accent_color}
+                                    custom_bg_color={customBg}
+                                    custom_text_color={customText}
+                                />
                             </AbsoluteFill>
                         )}
 
                         {/* LAYOUT: IMAGE ONLY (Full Screen) */}
                         {isImageOnly && slide.image && (
-                            <AbsoluteFill className="flex items-center justify-center">
+                            <AbsoluteFill
+                                className="flex items-center justify-center"
+                                style={{ backgroundColor: customBg || '#000000' }}
+                            >
                                 <Img
                                     src={slide.image}
                                     className="w-full h-full object-cover"
@@ -74,6 +87,8 @@ export const MainComposition: React.FC<{
                                     accent_color={accent_color}
                                     fullScreen={true}
                                     kinetic_events={slide.kinetic_events}
+                                    custom_bg_color={customBg}
+                                    custom_text_color={customText}
                                 />
                             </AbsoluteFill>
                         )}
@@ -82,7 +97,10 @@ export const MainComposition: React.FC<{
                         {isHybrid && slide.image && (
                             <AbsoluteFill className="flex flex-row">
                                 {/* Left Side: Kinetic Text */}
-                                <div className="w-1/2 h-full flex items-center justify-center p-8">
+                                <div
+                                    className="w-1/2 h-full flex items-center justify-center p-8"
+                                    style={{ backgroundColor: customBg || undefined }} // Default is transparent/inherited from Background component? No, usually AbsoluteFill is clear.
+                                >
                                     {hasText && (
                                         <KineticText
                                             text={slide.text || slide.visual_text}
@@ -90,6 +108,7 @@ export const MainComposition: React.FC<{
                                             accent_color={accent_color}
                                             fullScreen={false}
                                             kinetic_events={slide.kinetic_events}
+                                            custom_text_color={customText}
                                         />
                                     )}
                                 </div>
