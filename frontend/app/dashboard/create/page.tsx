@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'rea
 import { CheckCircle2, PlayCircle } from 'lucide-react';
 import SetupForm from '@/components/SetupForm';
 import PlanningEditor from '@/components/PlanningEditor';
-import ProcessingModal from '@/components/ProcessingModal';
+
 import { createClient } from '@/lib/supabase/client';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -415,7 +415,7 @@ function DashboardCreatePageContent() {
             const data = await res.json();
             if (data.text) {
                 setPolicyText(data.text);
-                await generatePlan(data.text, d);
+                await generateTopics(data.text, d, s, accent, colorN);
             }
         } catch (e) {
             console.error("Upload error", e);
@@ -423,24 +423,40 @@ function DashboardCreatePageContent() {
         }
     };
 
-    // --- STEP 2: GENERATE PLAN ---
-    const generatePlan = async (text: string, d: number) => {
+    // --- STEP 2: GENERATE TOPICS (Async) ---
+    const generateTopics = async (text: string, d: number, s: string, accent: string, colorN: string) => {
         try {
-            const res = await fetch("http://127.0.0.1:8000/generate-plan", {
+            const res = await fetch("http://127.0.0.1:8000/generate-topics", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ policy_text: text, duration: d, country: country })
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({
+                    policy_text: text,
+                    duration: d,
+                    country: country,
+                    style: s,
+                    accent_color: accent,
+                    color_name: colorN
+                })
             });
             const data = await res.json();
-            setTopics(data.topics || []);
-            setTitle(data.title || "New Course"); // Capture Title
-            setLearningObjective(data.learning_objective || ""); // Capture LO
-            // Use pre-processed policy if available, otherwise use original
-            setPolicyText(data.processed_policy || text);
+
+            if (data.status === "started") {
+                // Redirect to dashboard immediately
+                router.push('/dashboard');
+            } else {
+                console.error("Failed to start topic generation");
+                alert("Failed to start topic generation");
+                setIsLoading(false);
+                setIsProcessing(false);
+            }
+        } catch (e) {
+            console.error(e);
             setIsProcessing(false);
-            setView("planning");
-        } catch (e) { console.error(e); setIsProcessing(false); }
-        finally { setIsLoading(false); }
+            setIsLoading(false);
+        }
     };
 
     // --- STEP 3: START DESIGNING (Generate Script) ---
@@ -541,7 +557,7 @@ function DashboardCreatePageContent() {
     return (
         <div className="relative w-full h-full min-h-[calc(100vh-4rem)]">
             {/* Processing Modal (Setup -> Planning transition) */}
-            <ProcessingModal isOpen={isProcessing} />
+
 
             {/* Background Gradients */}
             <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80 pointer-events-none" aria-hidden="true">
@@ -557,21 +573,7 @@ function DashboardCreatePageContent() {
                     <SetupForm onStart={handleStartPlanning} isLoading={isLoading} />
                 )}
 
-                {view === "planning" && (
-                    <PlanningEditor
-                        topics={topics}
-                        duration={duration}
-                        initialTitle={title}
-                        initialLearningObjective={learningObjective}
-                        onBack={() => {
-                            if (window.confirm("You will lose your progress if you go back. Are you sure?")) {
-                                setView("setup");
-                            }
-                        }}
-                        onNext={(t, newTitle) => { setTitle(newTitle); handleStartDesigning(t); }}
-                        isLoading={isLoading}
-                    />
-                )}
+
 
                 {/* Designing view is handled by the modal - show empty placeholder */}
                 {view === "designing" && !isGenerating && (

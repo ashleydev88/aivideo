@@ -94,11 +94,38 @@ export const KineticText: React.FC<{
     accent_color?: string;
     fullScreen?: boolean;
     kinetic_events?: KineticEvent[];
-}> = ({ text, timestamps, accent_color = '#14b8a6', fullScreen = true, kinetic_events }) => {
+    custom_bg_color?: string;
+    custom_text_color?: string;
+}> = ({ text, timestamps, accent_color = '#14b8a6', fullScreen = true, kinetic_events, custom_bg_color, custom_text_color }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
     const currentTime = frame / fps;
     const currentTimeMs = frame / fps * 1000;
+
+    // Use custom background if provided, otherwise transparent/default handled by parent or fallback
+    // Actually Composition handles BG usually, but KineticText fullScreen might have its own opinion?
+    // Composition uses <Background/> then overlay.
+    // If we want to override BG here, we can.
+    // However, KineticText is often transparent overlaid on something. 
+    // BUT the user asked for SLIDE COLOR. In Composition for kinetic_only, it's AbsoluteFill.
+    // Let's assume standard kinetic text is on a dark BG.
+
+    // Style mapping for kinetic events - UPDATED FOR CUSTOM COLORS
+    const getEventStyle = (style: KineticEvent['style'], accent: string) => {
+        const baseColor = custom_text_color || '#1e293b';
+        switch (style) {
+            case 'header':
+                return { fontSize: '4rem', fontWeight: 'bold', color: baseColor };
+            case 'bullet':
+                return { fontSize: '2.5rem', fontWeight: 'normal', color: custom_text_color || '#334155' };
+            case 'emphasis':
+                return { fontSize: '3rem', fontWeight: 'bold', color: accent, textTransform: 'uppercase' as const };
+            case 'stat':
+                return { fontSize: '5rem', fontWeight: 'bold', color: accent };
+            default:
+                return { fontSize: '3rem', fontWeight: 'bold', color: baseColor };
+        }
+    };
 
     // If we have kinetic_events, use the new rendering mode
     if (kinetic_events && kinetic_events.length > 0) {
@@ -107,7 +134,10 @@ export const KineticText: React.FC<{
             : "w-full h-full flex flex-col items-center justify-center p-8 gap-4";
 
         return (
-            <div className={containerClass}>
+            <div
+                className={containerClass}
+                style={{ backgroundColor: fullScreen && custom_bg_color ? custom_bg_color : undefined }}
+            >
                 {kinetic_events.map((event, i) => {
                     const eventStartFrame = (event.start_ms / 1000) * fps;
                     const isVisible = frame >= eventStartFrame;

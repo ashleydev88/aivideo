@@ -47,7 +47,7 @@ VOICE_ID = "aHCytOTnUOgfGPn5n89j"
 
 # --- CONCURRENCY LIMITS ---
 # Limits concurrent Supabase uploads to prevent socket exhaustion (Errno 35)
-SUPABASE_UPLOAD_SEMAPHORE = asyncio.Semaphore(5)
+SUPABASE_UPLOAD_SEMAPHORE = asyncio.Semaphore(3)
 
 # --- CONFIGURATION FLAGS ---
 ENABLE_SCRIPT_VALIDATION = True  # Set to False to skip validation 
@@ -217,6 +217,9 @@ class PlanRequest(BaseModel):
     policy_text: str
     duration: int # Minutes
     country: str = "USA" # Default to USA
+    style: str = "Minimalist Vector" 
+    accent_color: str = "#14b8a6" 
+    color_name: str = "teal"
 
 class Topic(BaseModel):
     id: int
@@ -238,6 +241,7 @@ class ScriptRequest(BaseModel):
     user_id: str  # Required: User's UUID for storage paths
     accent_color: str = None  # Optional: User-selected accent color hex (e.g., "#14b8a6")
     color_name: str = None  # Optional: Color name for style prompt (e.g., "teal")
+    course_id: str = None # Added for Async Flow linking
 
 # --- HELPERS ---
 def extract_json_from_response(text_content):
@@ -384,7 +388,7 @@ def upload_asset(file_content, filename, content_type, user_id: str, max_retries
                           "Connection" in error_str
             
             if is_transient and attempt < max_retries - 1:
-                wait_time = (attempt + 1) * 0.5  # 0.5s, 1s, 1.5s backoff
+                wait_time = (attempt + 1) * 2  # 2s, 4s, 6s backoff
                 print(f"   ⚠️ Supabase Upload Error (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
@@ -847,7 +851,7 @@ AVAILABLE CHART TYPES:
 
 OUTPUT (JSON):
 {{
-  "title": "Short, punchy title",
+  "title": "Short title (Max 4 words)",
   "type": "process|list|grid|comparison|statistic|pyramid|cycle",
   "items": [
     {{ 
@@ -860,10 +864,12 @@ OUTPUT (JSON):
 }}
 
 CRITICAL:
+- Title MUST be extremely short (1-4 words max). Example: "Key Principles", "Growth Strategy".
 - Keep text labels SHORT (1-5 words) for clean UI.
 - Max 6 items for readability.
 - Choose icons from the list provided that best match the item.
 - Use color_intent to signal meaning (e.g., 'danger' for risks, 'success' for benefits).
+- Do NOT generate unnecessary words. Conciseness saves tokens.
 """
         try:
             res_text = replicate_chat_completion(
@@ -1117,6 +1123,14 @@ APPROVAL CRITERIA:
         return result
     except Exception as e:
         print(f"   ⚠️ Validation Error: {e}")
+        # Return a safe fallback so the process doesn't crash and delete the course
+        return {
+            "approved": False,
+            "issues": [f"Validation process failed: {str(e)}"],
+            "fact_check_score": 0,
+            "ungrounded_claims": [],
+            "suggestions": ["Please review manually due to validation system error."]
+        }
         # Default to approved if validation fails to run, to avoid blocking
         return {"approved": True, "issues": ["Validation mechanism failed"], "ungrounded_claims": [], "suggestions": []}
 
@@ -1139,7 +1153,8 @@ def inject_bookend_slides(script_plan: list, course_title: str) -> list:
         "prompt": "",  # No image generation - uses title card layout
         "visual_type": "title_card",  # Special type for static title
         "layout": "title",
-        "duration_hint": 4000  # ~4 seconds for welcome
+        "duration_hint": 4000,  # ~4 seconds for welcome
+        "duration": 4000  # Explicit duration for frontend
     }
     
     # Thank you slide (last)
@@ -1149,7 +1164,8 @@ def inject_bookend_slides(script_plan: list, course_title: str) -> list:
         "prompt": "",
         "visual_type": "title_card",
         "layout": "title",
-        "duration_hint": 3000  # 3 seconds (min 2s requirement met)
+        "duration_hint": 3000,  # 3 seconds (min 2s requirement met)
+        "duration": 3000  # Explicit duration for frontend
     }
     
     # Inject: [welcome] + [all content slides] + [thanks]
@@ -1157,101 +1173,123 @@ def inject_bookend_slides(script_plan: list, course_title: str) -> list:
     print(f"   ✅ Injected bookends: {len(script_plan)} content slides → {len(result)} total slides")
     return result
 
-async def generate_course_assets(course_id: str, script_plan: list, style_prompt: str, user_id: str, accent_color: str = "#14b8a6"):
-    print(f"🚀 Starting Course Gen: {course_id} for user: {user_id}")
+async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt: str, user_id: str):
+    """
+    Phase 1 Generation: Generates Images and Charts ONLY.
+    Runs before user review so they can see the visuals in the slide editor.
+    """
+    print(f"🎨 Generating Draft Visuals for {course_id}...")
+    supabase_admin.table("courses").update({"status": "drafting_visuals"}).eq("id", course_id).execute()
     
-    # Update status and progress phase to media generation
+    api_semaphore = asyncio.Semaphore(4)
+
+    async def process_visual_parallel(i, slide):
+        async with api_semaphore:
+            print(f"   🖼️ Draft Visual Slide {i+1}...")
+            
+            # Persist existing assets if re-running
+            if slide.get("image") and slide["image"].startswith("http"):
+                 pass 
+            
+            visual_type = slide.get("visual_type", "image")
+            image_url = slide.get("image")
+            chart_data = slide.get("chart_data")
+            
+            # Generate Chart Data
+            if visual_type == "chart" and not chart_data:
+                pipeline = PipelineManager()
+                chart_data = await asyncio.to_thread(pipeline.generate_chart_data, slide["text"], slide.get("visual_text", ""))
+                if not chart_data:
+                     visual_type = "kinetic_text" # Fallback
+            
+            # Generate Image (Replicate)
+            if visual_type in ["image", "hybrid"] and not image_url:
+                full_prompt = f"{style_prompt}. {slide['prompt']}"
+                image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
+                
+                if image_data:
+                    image_filename = f"visual_{i}_{int(time.time())}.jpg"
+                    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, max_retries=5)
+                else:
+                    visual_type = "kinetic_text" # Fallback
+            
+            # Update Slide
+            slide["image"] = image_url
+            slide["chart_data"] = chart_data
+            if chart_data and chart_data.get("title"):
+                 slide["visual_text"] = chart_data["title"] # Force visual_text to match chart title
+            slide["visual_type"] = visual_type
+            return slide
+
+    try:
+        tasks = [process_visual_parallel(i, slide) for i, slide in enumerate(script_plan)]
+        updated_slides = await asyncio.gather(*tasks)
+        return updated_slides
+    except Exception as e:
+        print(f"❌ Visual Draft Error: {e}")
+        # Return what we have, don't fail hard
+        return script_plan
+
+
+async def finalize_course_assets(course_id: str, script_plan: list, user_id: str, accent_color: str):
+    """
+    Phase 2 Generation: Audio, Kinetic Text, and Video Compilation.
+    Runs AFTER user review.
+    """
+    print(f"🚀 Finalizing Assets (Audio/Kinetic) for {course_id}...")
+    
     supabase_admin.table("courses").update({
-        "status": "generating_media",
+        "status": "generating_audio",
         "progress_phase": "media",
         "progress_current_step": 0
     }).eq("id", course_id).execute()
     
-    # Semaphore to limit concurrent API requests (ElevenLabs/Replicate)
-    api_semaphore = asyncio.Semaphore(5)
+    api_semaphore = asyncio.Semaphore(4)
 
-    async def process_slide_parallel(i, slide, temp_dir):
+    async def process_audio_parallel(i, slide, temp_dir):
         async with api_semaphore:
-            print(f"   🎬 Processing slide {i+1}...")
-            # Update progress for each slide
-            # Note: Since this is parallel, progress updates might be slightly out of order in the UI, 
-            # but that's acceptable for the performance gain.
-            supabase_admin.table("courses").update({
-                "status": f"Drafting Slide {i+1} of {len(script_plan)}...",
-                "progress_current_step": i + 1,
-                "progress_total_steps": len(script_plan) # Ensure total matches actual slides (including bookends)
-            }).eq("id", course_id).execute()
-
-            # 1. Parallel Audio and Visual Generation
-            # We use asyncio.to_thread for synchronous blocking calls
+            print(f"   🎤 Finalizing Slide {i+1}...")
             
-            async def get_audio():
-                audio_data, alignment = await asyncio.to_thread(generate_audio, slide["text"])
-                if audio_data is None:
-                    raise Exception(f"Audio generation failed for slide {i+1}")
-                return audio_data, alignment
-
-            async def get_visual():
-                visual_type = slide.get("visual_type", "image")
-                image_url = None
-                chart_data = None
-                
-                if visual_type == "title_card":
-                    pass # Handled in post-processing
-                elif visual_type == "chart":
-                    pipeline = PipelineManager()
-                    chart_data = await asyncio.to_thread(pipeline.generate_chart_data, slide["text"], slide.get("visual_text", ""))
-                    if not chart_data:
-                        visual_type = "kinetic_text"
-                elif visual_type in ["image", "hybrid"]:
-                    full_prompt = f"{style_prompt}. {slide['prompt']}"
-                    image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
-                    if image_data is None:
-                        visual_type = "kinetic_text"
-                    else:
-                        image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                        image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id)
-                
-                return visual_type, image_url, chart_data
-
-            # Fire both simultaneously
-            (audio_data, alignment), (visual_type, image_url, chart_data) = await asyncio.gather(
-                get_audio(),
-                get_visual()
-            )
-
-            # 2. Post-processing (Duration calculation, uploads, kinetic text)
-            # Duration Calculation
-            duration_ms = slide.get("duration", 15000)
-            try:
+            # 1. Generate Audio
+            audio_url = slide.get("audio")
+            duration_ms = slide.get("duration", 10000)
+            alignment = slide.get("timestamps")
+            
+            # Always regenerate audio on finalize to ensure it matches updated script
+            # Unless we want to be smart and check if text changed? 
+            # For robustness, let's regenerate. Cost is low for TTS.
+            
+            audio_data, new_alignment = await asyncio.to_thread(generate_audio, slide["text"])
+            
+            if audio_data:
+                # Save temp for duration calc
                 temp_audio_path = os.path.join(temp_dir, f"temp_audio_{i}.mp3")
                 with open(temp_audio_path, "wb") as f:
                     f.write(audio_data)
                 
-                # AudioFileClip is blocking, use to_thread if needed, but here it's fast enough or we can thread it
+                # Calc Duration
                 def get_duration(path):
-                    clip = AudioFileClip(path)
-                    d = int((clip.duration * 1000) + 1500)
-                    clip.close()
-                    return d
+                    try:
+                        clip = AudioFileClip(path)
+                        d = int((clip.duration * 1000) + 1500) # +1.5s padding
+                        clip.close()
+                        return d
+                    except:
+                        return 10000
                 
                 duration_ms = await asyncio.to_thread(get_duration, temp_audio_path)
-            except Exception as e:
-                print(f"   ⚠️ Duration Calc Error slide {i+1}: {e}")
-
-            if visual_type == "title_card":
-                hint_ms = slide.get("duration_hint", 3000)
-                if duration_ms < hint_ms:
-                    duration_ms = hint_ms
-
-            # Upload Audio
-            audio_filename = f"narration_{i}_{int(time.time())}.mp3"
-            audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id)
-
-            # Kinetic Text
-            word_timestamps = parse_alignment_to_words(alignment)
+                
+                # Upload Audio
+                audio_filename = f"narration_{i}_{int(time.time())}.mp3"
+                audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id, max_retries=5)
+                alignment = new_alignment
+            
+            # 2. Generate Kinetic Text (Needs Audio Alignment)
             kinetic_events = []
-            if visual_type != "title_card":
+            visual_type = slide.get("visual_type", "image")
+            
+            if visual_type != "title_card" and alignment:
+                word_timestamps = parse_alignment_to_words(alignment)
                 pipeline = PipelineManager()
                 kinetic_events = await asyncio.to_thread(
                     pipeline.generate_kinetic_text,
@@ -1261,42 +1299,34 @@ async def generate_course_assets(course_id: str, script_plan: list, style_prompt
                     slide_duration_ms=duration_ms
                 )
 
-            return {
-                "id": i + 1,
-                "image": image_url,
-                "audio": audio_url,
-                "timestamps": alignment,
-                "text": slide.get("text", ""),
-                "visual_text": slide.get("visual_text", ""),
-                "duration": duration_ms,
-                "layout": slide.get("layout", "split"),
-                "accent_color": accent_color,
-                "visual_type": visual_type,
-                "chart_data": chart_data,
-                "kinetic_events": kinetic_events
-            }
+            # Update Slide
+            slide["audio"] = audio_url
+            slide["duration"] = duration_ms
+            slide["timestamps"] = alignment
+            slide["kinetic_events"] = kinetic_events
+            slide["accent_color"] = accent_color
+            return slide
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Launch all slide processing tasks
-            tasks = [process_slide_parallel(i, slide, temp_dir) for i, slide in enumerate(script_plan)]
+            tasks = [process_audio_parallel(i, slide, temp_dir) for i, slide in enumerate(script_plan)]
             final_slides = await asyncio.gather(*tasks)
             
-            # Sort slides by ID to ensure original order
-            final_slides.sort(key=lambda x: x["id"])
+            # Sort by ID
+            final_slides.sort(key=lambda x: x.get("id", 0) if x.get("id") else 0)
 
+        # Update DB
         supabase_admin.table("courses").update({
             "slide_data": final_slides, 
-            "status": "Assets ready, starting video compilation...",
+            "status": "compiling_video",
             "progress_phase": "compiling"
         }).eq("id", course_id).execute()
-        print("✅ Asset Generation Completed, starting video compilation...")
         
-        # Auto-trigger video compilation with AWAIT
+        print("✅ Final Assets Ready, Triggering Render...")
         await trigger_remotion_render(course_id, user_id)
 
     except Exception as e:
-        handle_failure(course_id, user_id, e, {"stage": "generate_course_assets", "style": style_prompt})
+        handle_failure(course_id, user_id, e, {"stage": "finalize_course_assets"})
 
 
 
@@ -1634,188 +1664,263 @@ async def upload_policy(file: UploadFile = File(...)):
     text = parser.extract_text_from_file(content, file.filename)
     return {"text": text}
 
-@app.post("/generate-plan")
-async def generate_plan(request: PlanRequest):
-    print("🧠 Generating Topic Plan...")
+@app.post("/generate-topics")
+async def generate_topics(request: PlanRequest, background_tasks: BackgroundTasks, authorization: str = Header(None)):
+    print(f"🧠 Starting Async Topic Generation for duration: {request.duration}")
     
-    # Select strategy based on duration (default to 5 if not found)
-    strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
-    
-    # Pre-process long policies to remove boilerplate (uses DeepSeek V3)
-    # This runs transparently - user doesn't need to know
-    processed_policy = extract_policy_essence(request.policy_text)
+    user_id = get_user_id_from_token(authorization)
 
-    # Determine Jurisdiction/Language Context
-    jurisdiction_prompt = ""
-    if request.country.upper() == "UK":
-        jurisdiction_prompt = (
-            "JURISDICTION & LANGUAGE GUIDE:\n"
-            "- LANGUAGE: Use British English (colour, organisations, programme, behaviour).\n"
-            "- LEGAL RELIABILITY: Reference UK laws where applicable (e.g., Equality Act 2010, GDPR, Health and Safety at Work Act 1974).\n"
-            "- TONE: Professional, slightly more formal but accessible."
-        )
-    else:
-        jurisdiction_prompt = (
-            "JURISDICTION & LANGUAGE GUIDE:\n"
-            "- LANGUAGE: Use American English (color, organizations, program, behavior).\n"
-            "- LEGAL RELIABILITY: Reference US laws where applicable (e.g., Title VII, ADA, OSHA, CCPA/GDPR where relevant).\n"
-            "- TONE: Professional, direct and action-oriented."
-        )
-
-    prompt = (
-    f"You are an expert instructional designer specializing in engaging, scenario-based video learning courses.\n\n"
-    f"CONTEXT:\n"
-    f"Policy Document: {processed_policy}\n"
-    f"Video Duration: {request.duration} minutes\n"
-    f"Target Country/Region: {request.country}\n"
-    f"Format: Video Script Outline\n\n"
-    f"{jurisdiction_prompt}\n\n"
-    f"YOUR TASK:\n"
-    f"1. Generate a compelling course title that captures the core value proposition (avoiding dry legal names)\n"
-    f"2. Identify ONE primary learning objective (focus on behavioral change, e.g., 'recognize and report' vs 'understand the law')\n"
-    f"3. Create topics following the DURATION STRATEGY FRAMEWORK below\n\n"
-    f"DURATION STRATEGY FRAMEWORK:\n\n"
-    f"{request.duration} MINUTE VIDEO STRATEGY:\n"
-    f"{json.dumps(DURATION_STRATEGIES, indent=2)}[{request.duration}]\n\n"
-    f"TOPIC SELECTION INSTRUCTIONS:\n"
-    f"Using the strategy for {request.duration}-minute videos:\n"
-    f"- Create {strategy['topic_count']} topics\n"
-    f"- Target {strategy['slide_range']} total slides\n"
-    f"- Achieve {strategy['depth_level']} depth\n"
-    f"- Focus on: {strategy['focus']}\n"
-    f"- Allocate approximately {strategy['slides_per_topic']} per topic\n"
-    f"- Prioritize: {strategy['content_priorities']}\n\n"
-    f"CRITICAL INSTRUCTION FOR VIDEO SUITABILITY:\n"
-    f"- Avoid mentioning specific software names; use more generic terms like 'all platforms' or 'video conferencing tool'.\n"
-    f"- Do not just list rules. Structure topics around *applying* the rules.\n"
-    f"- Transform 'lists of prohibited behaviors' into 'Scenario Recognition' topics.\n"
-    f"- Ensure the tone favors Culture & Safety over Bureaucracy & Compliance.\n"
-    f"- Prioritize 'Gray Areas' (e.g., Impact vs Intent) over black-and-white definitions.\n\n"
-    f"Each topic should:\n"
-    f"- Have clear learning value appropriate to the duration tier\n"
-    f"- Build logically on previous topics\n"
-    f"- Contain specific key points from the policy reframed as actionable advice or narrative hooks\n"
-    f"- Indicate complexity level (simple/moderate/complex) to help allocate slides later\n\n"
-    f"COMPLEXITY GUIDELINES:\n"
-    f"- simple: Definitions, single concepts, straightforward rules (1-3 slides)\n"
-    f"- moderate: Concepts illustrated with examples, standard procedures (3-5 slides)\n"
-    f"- complex: Multi-step reporting processes, nuanced scenarios (like 'Impact vs Intent'), gray-area decision making (5-8 slides)\n\n"
-    f"OUTPUT FORMAT (JSON):\n"
-    f"{{\n"
-    f"  \"title\": \"Course title appropriate for {request.duration}-minute depth\",\n"
-    f"  \"learning_objective\": \"After this course, you will be able to...\",\n"
-    f"  \"duration\": {request.duration},\n"
-    f"  \"strategy_tier\": \"{strategy['purpose']}\",\n"
-    f"  \"topics\": [\n"
-    f"    {{\n"
-    f"      \"id\": 1,\n"
-    f"      \"title\": \"Topic name\",\n"
-    f"      \"purpose\": \"Why this matters in the learning journey\",\n"
-    f"      \"complexity\": \"simple|moderate|complex\",\n"
-    f"      \"key_points\": [\n"
-    f"        \"Scenario hook or Key Concept 1\",\n"
-    f"        \"Actionable takeaway 2\",\n"
-    f"        \"Specific policy reference 3\"\n"
-    f"      ],\n"
-    f"      \"estimated_slides\": 3,\n"
-    f"      \"depth_notes\": \"What level of detail this topic should cover for this duration\"\n"
-    f"    }}\n"
-    f"  ],\n"
-    f"  \"total_estimated_slides\": 0\n"
-    f"}}\n\n"
-    f"CONSTRAINTS:\n"
-    f"- RELIABILITY CHECK: Detect the jurisdiction from the text (e.g., UK Equality Act vs US Title VII) and ensure all topics align with that specific legal framework.\n"
-    f"- First topic MUST be an engaging hook/introduction that sets context\n"
-    f"- Last topic MUST be actionable summary/next steps\n"
-    f"- Total estimated slides should be within {strategy['slide_range']}\n"
-    f"- Topics must be specific to the policy content, not generic compliance topics\n"
-    f"- Shorter durations should focus on critical/high-impact information\n"
-    f"- Longer durations should cover more topics AND go deeper on each topic\n"
-    f"- The 'complexity' field is CRITICAL for pacing. Be realistic.\n"
-)
-    
+    # 1. Create Course Record Immediately
     try:
-        res_text = replicate_chat_completion(
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=20000
+        response = supabase_admin.table("courses").insert({
+            "status": "generating_topics",
+            "name": "New Policy Course", # precise title comes later
+            "user_id": user_id,
+            "metadata": {
+                "duration": request.duration,
+                "country": request.country,
+                "style": request.style,
+                "accent_color": request.accent_color,
+                "color_name": request.color_name
+            },
+            "progress_phase": "topics",
+            "progress_current_step": 0,
+            "progress_total_steps": 10
+        }).execute()
+        course_id = response.data[0]['id']
+    except Exception as e:
+        print(f"❌ DB Insert Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create course record")
+
+    # 2. Start Background Task
+    background_tasks.add_task(generate_topics_task, course_id, request.policy_text, request.duration, request.country)
+
+    return {"status": "started", "course_id": course_id}
+
+async def generate_topics_task(course_id: str, policy_text: str, duration: int, country: str):
+    """
+    Background worker to generate topics and update DB.
+    """
+    print(f"   🏗️ Worker: Generating topics for {course_id}...")
+    try:
+        # Pre-process policy
+        processed_policy = extract_policy_essence(policy_text)
+
+        # Select strategy
+        strategy = DURATION_STRATEGIES.get(duration, DURATION_STRATEGIES[5])
+
+        # Context Prompt
+        jurisdiction_prompt = ""
+        if country.upper() == "UK":
+            jurisdiction_prompt = "Reference UK laws (Equality Act 2010, GDPR, HSE)."
+        else:
+            jurisdiction_prompt = "Reference US laws (Title VII, OSHA, ADA)."
+
+        prompt = (
+            f"You are an expert instructional designer.\n"
+            f"CONTEXT: Policy Duration: {duration} mins. Region: {country}.\n"
+            f"POLICY TEXT: {processed_policy[:15000]}\n" # Truncate primarily for safety, though extraction helps
+            f"{jurisdiction_prompt}\n\n"
+            f"TASK: Generate a course plan.\n"
+            f"OUTPUT JSON:\n"
+            f"{{\n"
+            f"  \"title\": \"Course Title\",\n"
+            f"  \"learning_objective\": \"Objective\",\n"
+            f"  \"topics\": [ {{ \"id\": 1, \"title\": \"Topic\", \"purpose\": \"...\", \"key_points\": [\"...\"], \"estimated_slides\": 3 }} ]\n"
+            f"}}\n"
+            f"Follow strategy: {strategy['purpose']}, {strategy['topic_count']} topics."
         )
-        # Parse JSON from response
+
+        res_text = replicate_chat_completion(messages=[{"role": "user", "content": prompt}], max_tokens=3000)
         data = extract_json_from_response(res_text)
         
-        # Extract fields with safe defaults
-        topics = data.get("topics", [])
-        title = data.get("title", "New Course")
-        learning_objective = data.get("learning_objective", "Understand the policy key points.")
-        
-        return {
-            "title": title,
-            "learning_objective": learning_objective,
-            "topics": topics,
-            "processed_policy": processed_policy  # Return pre-processed text for script generation
-        }
+        # Update DB
+        supabase_admin.table("courses").update({
+            "status": "reviewing_topics", # Actionable state for frontend
+            "progress_phase": "topics_ready",
+            "progress_current_step": 100,
+            "name": data.get("title", "New Course"),
+            "metadata": {
+                "duration": duration,
+                "country": country,
+                "topics": data.get("topics", []),
+                "learning_objective": data.get("learning_objective", ""),
+                "processed_policy": processed_policy
+            }
+        }).eq("id", course_id).execute()
+        print(f"   ✅ Topics generated for {course_id}")
 
     except Exception as e:
-        print(f"❌ Planning Error: {e}")
-        # Fallback structure
-        fallback_topics = [
-            {"id": 1, "title": "Introduction", "purpose": "Welcome", "key_points": ["Overview"]},
-            {"id": 2, "title": "Policy Highlights", "purpose": "Core content", "key_points": ["Main rule"]},
-            {"id": 3, "title": "Summary", "purpose": "Wrap up", "key_points": ["Review"]}
-        ]
-        return {"topics": fallback_topics, "title": "Policy Overview", "learning_objective": "Understand the basics."}
+        print(f"   ❌ Topic Gen Failed: {e}")
+        handle_failure(course_id, "system", e, {"stage": "generate_topics"})
 
-@app.post("/generate-script")
-async def generate_script(request: ScriptRequest, background_tasks: BackgroundTasks, authorization: str = Header(None)):
-    print("✍️ Generating Full Script...")
 
-    # Validate User
+@app.post("/generate-structure")
+async def generate_structure(request: ScriptRequest, background_tasks: BackgroundTasks, authorization: str = Header(None)):
+    print("🏗️ Generating Structure...")
+    try:
+        user_id = get_user_id_from_token(authorization)
+        
+        if user_id != request.user_id:
+            raise HTTPException(status_code=403, detail="User ID mismatch")
+
+        # If course_id is provided, use it. If not (legacy or first pass?), create one? 
+        # In the new flow, we should have a course_id.
+        course_id = request.course_id 
+        
+        # Validation: If no course_id, we can fall back to creating one, but really we should require it.
+        if not course_id:
+            # Fallback for now: create a new record if missing (Safety net)
+            print("   ⚠️ No course_id provided in request, creating new record...")
+            try:
+                 response = supabase_admin.table("courses").insert({
+                    "status": "generating_structure",
+                    "name": request.title,
+                    "user_id": user_id,
+                    "progress_phase": "structure",
+                    "progress_current_step": 0
+                }).execute()
+                 course_id = response.data[0]['id']
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to initiate course: {e}")
+        else:
+            # Update existing record status
+            supabase_admin.table("courses").update({
+                "status": "generating_structure",
+                "progress_phase": "structure",
+                "progress_current_step": 0,
+                # Update basic metadata just in case title changed
+                "name": request.title
+            }).eq("id", course_id).execute()
+
+        # Calculate approx slide count
+        target_slides = request.duration * 3
+        
+        # Create Context Package
+        topics_list = [t.dict() for t in request.topics]
+        strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
+        
+        context_package = {
+            "policy_text": request.policy_text, 
+            "original_policy_text": request.policy_text, 
+            "title": request.title,
+            "learning_objective": request.learning_objective,
+            "topics": topics_list,
+            "duration": request.duration,
+            "target_slides": target_slides,
+            "style_guide": STYLE_MAPPING.get(request.style, {"prompt": MINIMALIST_PROMPT})["prompt"],
+            "strategy_tier": strategy["purpose"],
+            "country": request.country
+        }
+        
+        base_prompt = (
+            f"You are an expert video course scriptwriter creating engaging, comprehensive e-learning content.\n\n"
+            f"CONTEXT:\n"
+            f"- Course Title: {context_package['title']}\n"
+            f"- Learning Objective: {context_package['learning_objective']}\n"
+            f"- Duration: {context_package['duration']} minutes ({context_package['target_slides']} slides target)\n"
+            f"- Original Policy Content: {context_package['policy_text']}\n"
+            f"- Approved Topics: {json.dumps(context_package['topics'])}\n\n"
+            f"VISUAL STYLE GUIDE: {context_package['style_guide']}\n\n"
+        )
+
+        # We will build the full prompt inside the background worker to keep this controller clean.
+        
+        metadata = {
+            "topics": topics_list, 
+            "style": request.style,
+            "target_slides": target_slides,
+            "accent_color": request.accent_color,
+            "color_name": request.color_name
+        }
+        supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
+
+        background_tasks.add_task(
+            generate_structure_task, 
+            course_id, 
+            context_package, 
+            request, 
+            metadata
+        )
+        
+        return {"status": "started", "course_id": course_id}
+
+    except Exception as e:
+        print(f"❌ Error in generate-structure endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+
+@app.post("/finalize-course")
+async def finalize_course(course_id: str, request: Request, background_tasks: BackgroundTasks, authorization: str = Header(None)):
+    """
+    Triggers final media generation and rendering.
+    Expects 'slide_data' in the body if edits were made, or uses DB data.
+    """
+    print(f"🎬 Finalizing Course {course_id}...")
     user_id = get_user_id_from_token(authorization)
-    if user_id != request.user_id:
-        raise HTTPException(status_code=403, detail="User ID mismatch")
     
-    # Calculate approx slide count (3 slides per minute as per new rules)
-    target_slides = request.duration * 3
+    body = await request.json()
+    slide_data = body.get("slide_data") 
     
-    # Create Context Package
-    topics_list = [t.dict() for t in request.topics]
-    
-    strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
-    
-    # NOTE: Pre-processing is done in generate-plan endpoint
-    # The policy_text from frontend is already condensed
-    
-    context_package = {
-        "policy_text": request.policy_text,  # Already pre-processed from generate-plan
-        "original_policy_text": request.policy_text,  # Same as policy_text now (already condensed)
-        "title": request.title,
-        "learning_objective": request.learning_objective,
-        "topics": topics_list,
-        "duration": request.duration,
-        "target_slides": target_slides,
-        "style_guide": STYLE_MAPPING.get(request.style, {"prompt": MINIMALIST_PROMPT})["prompt"],
-        "strategy_tier": strategy["purpose"],
-        "country": request.country
-    }
-    
-    # Determine Jurisdiction/Language Context for Script
-    jurisdiction_prompt = ""
-    if request.country.upper() == "UK":
-        jurisdiction_prompt = (
-            "JURISDICTION & LANGUAGE RULES:\n"
-            "- STRICTLY use British English spelling and terminology (e.g., 'colour', 'lift', 'flat', 'mobile').\n"
-            "- Reference UK specific legal frameworks (Equality Act, HSE guidelines) if laws are mentioned.\n"
-        )
+    # Update slides in DB if provided (user edits)
+    if slide_data:
+         supabase_admin.table("courses").update({
+            "slide_data": slide_data,
+            "status": "finalizing_assets"
+        }).eq("id", course_id).execute()
     else:
-        jurisdiction_prompt = (
-            "JURISDICTION & LANGUAGE RULES:\n"
-            "- STRICTLY use American English spelling and terminology (e.g., 'color', 'elevator', 'apartment', 'cell phone').\n"
-            "- Reference US specific legal frameworks (Title VII, OSHA) if laws are mentioned.\n"
-        )
+        # Fetch existing if not provided
+        res = supabase_admin.table("courses").select("slide_data, metadata").eq("id", course_id).execute()
+        slide_data = res.data[0].get("slide_data", [])
+
+    # Fetch needed config
+    res = supabase_admin.table("courses").select("metadata, accent_color").eq("id", course_id).execute()
+    metadata = res.data[0]['metadata']
+    accent_color = res.data[0].get('accent_color', '#14b8a6')
     
-    # Calculate slides per topic average
-    avg_slides_per_topic = math.floor(target_slides / len(topics_list)) if topics_list else 3
+    # Reconstruct style prompt
+    style_key = metadata.get("style", "Minimalist Vector")
+    style_config = STYLE_MAPPING.get(style_key, STYLE_MAPPING["Minimalist Vector"])
+    style_prompt = style_config["prompt"] # We don't have the color name easily, default is fine or store it?
     
-    depth_requirements = f"""
+    # Start Final Asset Gen Task
+    background_tasks.add_task(generate_final_assets_task, course_id, slide_data, style_prompt, user_id, accent_color)
+    
+    return {"status": "finalizing"}
+
+
+async def generate_structure_task(course_id: str, context_package: dict, request: ScriptRequest, metadata: dict):
+    """
+    Generates Script Plan, Visual Plan, and Kinetic Text Plan.
+    STOPS before audio/image generation.
+    """
+    try:
+        # Reconstruct Prompt
+        strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
+        
+        # Calculate slides per topic average
+        topics_list = context_package['topics']
+        avg_slides_per_topic = math.floor(context_package['target_slides'] / len(topics_list)) if topics_list else 3
+
+        jurisdiction_prompt = ""
+        if request.country.upper() == "UK":
+            jurisdiction_prompt = (
+                "JURISDICTION & LANGUAGE RULES:\n"
+                "- STRICTLY use British English spelling and terminology (e.g., 'colour', 'lift', 'flat', 'mobile').\n"
+                "- Reference UK specific legal frameworks (Equality Act, HSE guidelines) if laws are mentioned.\n"
+            )
+        else:
+            jurisdiction_prompt = (
+                "JURISDICTION & LANGUAGE RULES:\n"
+                "- STRICTLY use American English spelling and terminology (e.g., 'color', 'elevator', 'apartment', 'cell phone').\n"
+                "- Reference US specific legal frameworks (Title VII, OSHA) if laws are mentioned.\n"
+            )
+
+        depth_requirements = f"""
 DURATION-SPECIFIC DEPTH REQUIREMENTS:
 
 Your script is for a {context_package['duration']}-MINUTE video with strategy tier: {context_package['strategy_tier']}
@@ -1873,231 +1978,183 @@ Pacing Strategy:
 - Aim for 80% of slides in the 16-26 second range
 """
 
-    base_prompt = (
-        f"You are an expert video course scriptwriter creating engaging, comprehensive e-learning content.\n\n"
-        f"CONTEXT:\n"
-        f"- Course Title: {context_package['title']}\n"
-        f"- Learning Objective: {context_package['learning_objective']}\n"
-        f"- Duration: {context_package['duration']} minutes ({context_package['target_slides']} slides target)\n"
-        f"- Original Policy Content: {context_package['policy_text']}\n"
-        f"- Approved Topics: {json.dumps(context_package['topics'])}\n\n"
-        f"VISUAL STYLE GUIDE: {context_package['style_guide']}\n\n"
-        f"{depth_requirements}\n\n"
-        f"{jurisdiction_prompt}\n\n"
-        f"YOUR TASK:\n"
-        f"Create a complete video script that transforms policy content into an engaging learning experience.\n\n"
-        f"CONTENT RULES:\n"
-        f"1. ACCURACY: Extract specific facts, procedures, and requirements from the policy. Don't generalize.\n"
-        f"2. COMPREHENSIVENESS: Cover all key points identified in topics, with sufficient depth for learner retention.\n"
-        f"3. ENGAGEMENT: Use storytelling techniques - scenarios, questions, \"imagine if...\" moments.\n"
-        f"4. COHERENCE: Each slide must connect to the previous one. Use transitional phrases.\n"
-        f"5. SPECIFICITY: Include concrete examples, numbers, or scenarios from the policy when relevant.\n\n"
-        f"NARRATION RULES (text field):\n"
-        f"- Follow the NARRATION LENGTH GUIDELINES above intimately.\n"
-        f"- Conversational but professional tone\n"
-        f"- Use \"you\" to address learner directly\n"
-        f"- Avoid specific software names; use generic terms like 'all platforms' or 'the software'.\n"
-        f"- Vary sentence structure (questions, statements, imperatives)\n"
-        f"- First slide: Hook with a relatable problem or surprising fact\n"
-        f"- Last slide: Actionable summary with next steps\n"
-        f"- TIMING: You MUST format the 'duration' field in milliseconds strictly according to the SLIDE DURATION RULES based on your word count and complexity.\n"
-        f"VISUAL TEXT RULES (visual_text field):\n"
-        f"- Support narration, don't duplicate it\n"
-        f"- Use markdown: # for headers, > for quotes, - for lists\n"
-        f"- Maximum 3 bullet points or 15 words for 'split' layout\n"
-        f"- text_only: One impactful statement (5-10 words)\n"
-        f"- image_only: Empty string \"\"\n\n"
-        f"LAYOUT DISTRIBUTION:\n"
-        f"- 70% 'split': Main teaching slides (text left, image right)\n"
-        f"- 15% 'text_only': Key principles, memorable quotes, strong statements\n"
-        f"- 15% 'image_only': Emotional moments, scene-setters, transitions\n"
-        f"- First slide should be 'split' or 'image_only' with title\n"
-        f"- Last slide should be 'text_only' or 'split' with clear takeaway\n\n"
-        f"IMAGE PROMPT RULES (prompt field):\n"
-        f"CRITICAL: Each prompt must be detailed and contextually specific.\n\n"
-        f"1. SUBJECT FOCUS: Prioritize relevant objects, diagrams, and conceptual visuals over human subjects. Use humans only when essential for context.\n"
-        f"2. TEXT RENDERING: NEVER include text, letters, or numbers within images. The image should be entirely wordless. Focus on visual metaphors and symbols instead of labels or signs.\n\n"
-        f"Template: \"Professional e-learning illustration: [SUBJECT] [ACTION/CONTEXT]. [VISUAL STYLE from guide]. [SPECIFIC DETAILS: clothing, setting, objects, composition]. [MOOD/EMOTION]. High quality, well-lit, modern corporate aesthetic.\"\n\n"
-        f"Examples:\n"
-        f"✅ OBJECT FOCUS: \"Professional e-learning illustration: A modern laptop displaying a generic 'Security Notification' shield icon. No text on screen. Soft glow from the screen, desk accessories like a coffee mug and notebook in the background. Minimalist office setting. Alert and focused mood. High quality, natural lighting, modern corporate aesthetic. No text or lettering.\"\n"
-        f"✅ DIAGRAM FOCUS: \"Professional e-learning illustration: A conceptual 3D isometric flowchart showing data moving securely between three generic nodes. No labels or text. Clean lines, glowing blue connection paths. Airy white background. Organized and technical mood. High quality, crisp details, modern corporate aesthetic. Wordless composition.\"\n"
-        f"✅ HUMAN FOCUS (use sparingly): \"Professional e-learning illustration: Diverse team of three reviewing documents at modern conference table. Medium shot showing hands pointing at papers, laptop visible. No readable text on papers or screen. Business casual attire, bright office with plants. Collaborative and focused mood. High quality, natural lighting, modern corporate aesthetic. Entirely wordless.\"\n\n"
-        f"❌ BAD: \"People in meeting\"\n\n"
-        f"- Vary subjects: Use a mix of objects, diagrams, and environments.\n"
-        f"- Match emotional tone to content (concerned for risks, optimistic for benefits)\n"
-        f"- Specify diversity in every human image\n"
-        f"- Include environmental context (office, outdoor, home office, etc.)\n\n"
-        f"DURATION CALCULATION:\n"
-        f"- Use the SLIDE DURATION RULES to determine exact duration for each slide in milliseconds.\n"
-        f"- Total duration must sum up to approx {context_package['duration'] * 60000}ms (within 10% margin).\n"
-        f"- Validate: Sum of all slide durations = Target Total Duration.\n\n"
-        f"OUTPUT FORMAT (JSON):\n"
-        f"{{\n"
-        f"  \"script\": [\n"
-        f"    {{\n"
-        f"      \"slide_number\": 1,\n"
-        f"      \"text\": \"Narration text here...\",\n"
-        f"      \"visual_text\": \"# Markdown text here\",\n"
-        f"      \"layout\": \"split\",\n"
-        f"      \"prompt\": \"Detailed image generation prompt...\",\n"
-        f"      \"duration\": 15000\n"
-        f"    }}\n"
-        f"  ]\n"
-        f"}}\n\n"
-        f"FINAL CHECKLIST (validate before outputting):\n"
-        f"☐ Exactly {context_package['target_slides']} slides\n"
-        f"☐ Covers all topics from the learning path\n"
-        f"☐ Each slide has 30-40 word narration\n"
-        f"☐ Image prompts are detailed, varied, and STRICTLY wordless (no text)\n"
-        f"☐ Layout distribution approximately matches 70/15/15\n"
-        f"☐ Story flows logically from hook to conclusion\n"
-        f"☐ Policy-specific information is included (not generic advice)\n"
-    )
-
-    # Create DB Entry EARLY so we can update status throughout the process
-    metadata = {
-        "topics": topics_list, 
-        "style": request.style
-    }
-    
-    try:
-        response = supabase_admin.table("courses").insert({
-            "status": "generating_script",  # Pre-processing already done in generate-plan
-            "name": request.title,
-            "metadata": metadata,
-            "user_id": request.user_id,
-            "accent_color": request.accent_color # Save preferenec
-        }).execute()
-        course_id = response.data[0]['id']
-    except Exception as e:
-        print(f"❌ DB Insert Error: {e}")
-        return {"status": "error", "message": str(e)}
-    
-    # Start background task immediately - return early so frontend can poll
-    background_tasks.add_task(
-        generate_script_and_assets, 
-        course_id, 
-        base_prompt, 
-        context_package, 
-        request, 
-        metadata
-    )
-    
-    return {"status": "started", "course_id": course_id, "validation_enabled": ENABLE_SCRIPT_VALIDATION}
-
-
-async def generate_script_and_assets(course_id: str, base_prompt: str, context_package: dict, request: ScriptRequest, metadata: dict):
-    """
-    Background task that handles script generation, validation, and triggers media generation.
-    This runs asynchronously so the frontend can poll for status updates.
-    """
-    try:
-        # Initialize progress tracking
-        supabase_admin.table("courses").update({
-            "progress_phase": "script",
-            "progress_current_step": 0,
-            "progress_total_steps": 0
-        }).eq("id", course_id).execute()
+        base_prompt = (
+            f"You are an expert video course scriptwriter creating engaging, comprehensive e-learning content.\n\n"
+            f"CONTEXT:\n"
+            f"- Course Title: {context_package['title']}\n"
+            f"- Learning Objective: {context_package['learning_objective']}\n"
+            f"- Duration: {context_package['duration']} minutes ({context_package['target_slides']} slides target)\n"
+            f"- Original Policy Content: {context_package['policy_text']}\n"
+            f"- Approved Topics: {json.dumps(context_package['topics'])}\n\n"
+            f"VISUAL STYLE GUIDE: {context_package['style_guide']}\n\n"
+            f"{depth_requirements}\n\n"
+            f"{jurisdiction_prompt}\n\n"
+            f"YOUR TASK:\n"
+            f"Create a complete video script that transforms policy content into an engaging learning experience.\n\n"
+            f"CONTENT RULES:\n"
+            f"1. ACCURACY: Extract specific facts, procedures, and requirements from the policy. Don't generalize.\n"
+            f"2. COMPREHENSIVENESS: Cover all key points identified in topics, with sufficient depth for learner retention.\n"
+            f"3. ENGAGEMENT: Use storytelling techniques - scenarios, questions, \"imagine if...\" moments.\n"
+            f"4. COHERENCE: Each slide must connect to the previous one. Use transitional phrases.\n"
+            f"5. SPECIFICITY: Include concrete examples, numbers, or scenarios from the policy when relevant.\n\n"
+            f"NARRATION RULES (text field):\n"
+            f"- Follow the NARRATION LENGTH GUIDELINES above intimately.\n"
+            f"- Conversational but professional tone\n"
+            f"- Use \"you\" to address learner directly\n"
+            f"- Avoid specific software names; use generic terms like 'all platforms' or 'the software'.\n"
+            f"- Vary sentence structure (questions, statements, imperatives)\n"
+            f"- First slide: Hook with a relatable problem or surprising fact\n"
+            f"- Last slide: Actionable summary with next steps\n"
+            f"- TIMING: You MUST format the 'duration' field in milliseconds strictly according to the SLIDE DURATION RULES based on your word count and complexity.\n"
+            f"VISUAL TEXT RULES (visual_text field):\n"
+            f"- Support narration, don't duplicate it\n"
+            f"- Use markdown: # for headers, > for quotes, - for lists\n"
+            f"- Maximum 3 bullet points or 15 words for 'split' layout\n"
+            f"- text_only: One impactful statement (5-10 words)\n"
+            f"- image_only: Empty string \"\"\n\n"
+            f"LAYOUT DISTRIBUTION:\n"
+            f"- 70% 'split': Main teaching slides (text left, image right)\n"
+            f"- 15% 'text_only': Key principles, memorable quotes, strong statements\n"
+            f"- 15% 'image_only': Emotional moments, scene-setters, transitions\n"
+            f"- First slide should be 'split' or 'image_only' with title\n"
+            f"- Last slide should be 'text_only' or 'split' with clear takeaway\n\n"
+            f"IMAGE PROMPT RULES (prompt field):\n"
+            f"CRITICAL: Each prompt must be detailed and contextually specific.\n\n"
+            f"1. SUBJECT FOCUS: Prioritize relevant objects, diagrams, and conceptual visuals over human subjects. Use humans only when essential for context.\n"
+            f"2. TEXT RENDERING: NEVER include text, letters, or numbers within images. The image should be entirely wordless. Focus on visual metaphors and symbols instead of labels or signs.\n\n"
+            f"Template: \"Professional e-learning illustration: [SUBJECT] [ACTION/CONTEXT]. [VISUAL STYLE from guide]. [SPECIFIC DETAILS: clothing, setting, objects, composition]. [MOOD/EMOTION]. High quality, well-lit, modern corporate aesthetic.\"\n\n"
+            f"Examples:\n"
+            f"✅ OBJECT FOCUS: \"Professional e-learning illustration: A modern laptop displaying a generic 'Security Notification' shield icon. No text on screen. Soft glow from the screen, desk accessories like a coffee mug and notebook in the background. Minimalist office setting. Alert and focused mood. High quality, natural lighting, modern corporate aesthetic. No text or lettering.\"\n"
+            f"✅ DIAGRAM FOCUS: \"Professional e-learning illustration: A conceptual 3D isometric flowchart showing data moving securely between three generic nodes. No labels or text. Clean lines, glowing blue connection paths. Airy white background. Organized and technical mood. High quality, crisp details, modern corporate aesthetic. Wordless composition.\"\n"
+            f"✅ HUMAN FOCUS (use sparingly): \"Professional e-learning illustration: Diverse team of three reviewing documents at modern conference table. Medium shot showing hands pointing at papers, laptop visible. No readable text on papers or screen. Business casual attire, bright office with plants. Collaborative and focused mood. High quality, natural lighting, modern corporate aesthetic. Entirely wordless.\"\n\n"
+            f"❌ BAD: \"People in meeting\"\n\n"
+            f"- Vary subjects: Use a mix of objects, diagrams, and environments.\n"
+            f"- Match emotional tone to content (concerned for risks, optimistic for benefits)\n"
+            f"- Specify diversity in every human image\n"
+            f"- Include environmental context (office, outdoor, home office, etc.)\n\n"
+            f"DURATION CALCULATION:\n"
+            f"- Use the SLIDE DURATION RULES to determine exact duration for each slide in milliseconds.\n"
+            f"- Total duration must sum up to approx {context_package['duration'] * 60000}ms (within 10% margin).\n"
+            f"- Validate: Sum of all slide durations = Target Total Duration.\n\n"
+            f"OUTPUT FORMAT (JSON):\n"
+            f"{{\n"
+            f"  \"script\": [\n"
+            f"    {{\n"
+            f"      \"slide_number\": 1,\n"
+            f"      \"text\": \"Narration text here...\",\n"
+            f"      \"visual_text\": \"# Markdown text here\",\n"
+            f"      \"layout\": \"split\",\n"
+            f"      \"prompt\": \"Detailed image generation prompt...\",\n"
+            f"      \"duration\": 15000\n"
+            f"    }}\n"
+            f"  ]\n"
+            f"}}\n\n"
+            f"FINAL CHECKLIST (validate before outputting):\n"
+            f"☐ Exactly {context_package['target_slides']} slides\n"
+            f"☐ Covers all topics from the learning path\n"
+            f"☐ Each slide has 30-40 word narration\n"
+            f"☐ Image prompts are detailed, varied, and STRICTLY wordless (no text)\n"
+            f"☐ Layout distribution approximately matches 70/15/15\n"
+            f"☐ Story flows logically from hook to conclusion\n"
+            f"☐ Policy-specific information is included (not generic advice)\n"
+        )
         
-        # NOTE: Pre-processing is now done in generate-plan endpoint
-        # The policy_text in context_package is already condensed
-        
+        # Validation Loop
         messages = [{"role": "user", "content": base_prompt}]
         script_plan = []
         max_retries = 2
         
         for attempt in range(max_retries):
             # Generate Script
-            res_text = replicate_chat_completion(
-                messages=messages,
-                max_tokens=20000
-            )
+            res_text = replicate_chat_completion(messages=messages, max_tokens=20000)
             data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
-            
-            # Update total steps now that we know the slide count
-            total_slides = len(script_plan)
-            supabase_admin.table("courses").update({
-                "progress_total_steps": total_slides
-            }).eq("id", course_id).execute()
             
             # Skip validation if disabled
             if not ENABLE_SCRIPT_VALIDATION:
                 break
-            
-            # Update status and phase to validating
+                
+            # Update status
             supabase_admin.table("courses").update({
                 "status": "validating",
                 "progress_phase": "validation"
             }).eq("id", course_id).execute()
             
+            # Run Validation
             validation_result = validate_script(script_plan, context_package)
             
             if validation_result['approved']:
                 print("   ✅ Script Validation Passed")
                 break
-            
-            # If failed, update status back to generating for retry
+                
             print(f"   ⚠️ Script Validation Failed (Attempt {attempt+1}/{max_retries})")
-            print(f"      Issues: {validation_result.get('issues', [])}")
             
             if attempt < max_retries - 1:
-                supabase_admin.table("courses").update({"status": "generating_script"}).eq("id", course_id).execute()
-                # Add context for retry
+                # Retry
+                supabase_admin.table("courses").update({"status": "generating_structure"}).eq("id", course_id).execute()
                 messages.append({"role": "assistant", "content": res_text})
-                # Include ungrounded claims in feedback for targeted revision
-                ungrounded = validation_result.get('ungrounded_claims', [])
-                ungrounded_feedback = ""
-                if ungrounded:
-                    ungrounded_feedback = f"\nUNGROUNDED/HALLUCINATED CLAIMS (MUST FIX): {json.dumps(ungrounded)}\n"
                 
                 feedback = (
-                    f"CRITICAL QUALITY FEEDBACK - REVISION REQUIRED:\n"
-                    f"The script above failed validation checks. Please rewrite sections or the whole script to address these issues:\n"
+                    f"CRITICAL QUALITY FEEDBACK:\n"
                     f"ISSUES: {json.dumps(validation_result.get('issues', []))}\n"
-                    f"{ungrounded_feedback}"
-                    f"SUGGESTIONS: {json.dumps(validation_result.get('suggestions', []))}\n"
-                    f"Constraint Reminder: Must be exactly {context_package['target_slides']} slides and cover all specific policy details.\n"
-                    f"CRITICAL: All claims MUST be verifiable from the original policy. Do not invent statistics, deadlines, or procedures."
+                    f"Constraint Reminder: Must be exactly {context_package['target_slides']} slides.\n"
+                    f"Fix these issues specifically."
                 )
                 messages.append({"role": "user", "content": feedback})
             else:
-                print("   ⚠️ Max retries reached. Proceeding with best effort.")
+                 print("   ⚠️ Max retries reached. Proceeding with best effort.")
 
-        # Update metadata with validation result if available
+        # Update metadata with validation result
         if ENABLE_SCRIPT_VALIDATION and 'validation_result' in locals():
             metadata["validation_last_result"] = validation_result
             supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
 
-        # --- PIPELINE STEP 2: VISUAL DIRECTOR ---
-        # Enrich the script with visual types (Chart vs Image vs Hybrid)
+        # 2. Visual Director (Assign visual types)
+        print("   🎬 AI: Assigning Visual Types...")
         pipeline = PipelineManager()
         script_plan = pipeline.assign_visual_types(script_plan)
-
-        # Determine Style Prompt and Accent Color
-        style_config = STYLE_MAPPING.get(request.style, {
-            "prompt": MINIMALIST_PROMPT,
-            "default_accent": "#14b8a6",
-            "default_color_name": "teal"
-        })
         
-        # Use user-selected color if provided, otherwise use style default
-        accent_color = request.accent_color or style_config["default_accent"]
-        color_name = request.color_name or style_config["default_color_name"]
-        
-        # Inject color into style prompt
-        style_prompt = style_config["prompt"].format(primary_color=color_name)
-        
-        # --- PIPELINE STEP 3: INJECT BOOKEND SLIDES ---
-        # Add welcome and thank you slides (after visual types to avoid AI touching them)
+        # 3. Inject Bookends (Welcome/Thanks)
         script_plan = inject_bookend_slides(script_plan, request.title)
         
-        # Run media generation directly (not as a separate background task since we're already in one)
-        await generate_course_assets(course_id, script_plan, style_prompt, request.user_id, accent_color)
+        # 4. Generate DRAFT Visuals (NEW STEP)
+        start_time = time.time()
         
+        # Extract style prompt
+        style_key = metadata.get("style", "Minimalist Vector")
+        style_config = STYLE_MAPPING.get(style_key, STYLE_MAPPING["Minimalist Vector"])
+        style_prompt = style_config["prompt"] 
+
+        script_plan = await generate_draft_visuals(course_id, script_plan, style_prompt, request.user_id)
+        
+        # 5. Save to DB and Update Status
+        supabase_admin.table("courses").update({
+            "slide_data": script_plan,
+            "status": "reviewing_structure", # READY FOR USER REVIEW
+            "progress_phase": "structure_ready",
+            "progress_current_step": 100
+        }).eq("id", course_id).execute()
+        
+        print(f"   ✅ Structure & Draft Visuals generated for {course_id} - Waiting for user review.")
+
     except Exception as e:
-        print(f"❌ Script Generation Error: {e}")
-        handle_failure(course_id, request.user_id, e, metadata)
+        print(f"❌ Structure Gen Error: {e}")
+        handle_failure(course_id, request.user_id, e, {"stage": "generate_structure"})
+
+async def generate_final_assets_task(course_id: str, script_plan: list, style_prompt: str, user_id: str, accent_color: str):
+    """
+    Takes approved script plan and generates actual media: Audio, Images, Video.
+    """
+    try: 
+         # 1. Finalize Assets (Audio/Kinetic/Render)
+         await finalize_course_assets(course_id, script_plan, user_id, accent_color)
+         
+         # 2. Render Video (triggered inside generate_course_assets or here? 
+         # generate_course_assets currently triggers rendering. So we are good.)
+         
+    except Exception as e:
+        print(f"❌ Final Asset Gen Error: {e}")
+        handle_failure(course_id, user_id, e, {"stage": "final_assets"})
 
 @app.delete("/course/{course_id}")
 async def delete_course(course_id: str, authorization: str = Header(None)):
@@ -2114,3 +2171,62 @@ async def delete_course(course_id: str, authorization: str = Header(None)):
     # Delete
     supabase_admin.table("courses").delete().eq("id", course_id).execute()
     return {"status": "deleted"}
+
+@app.post("/regenerate-slide-visual/{course_id}")
+async def regenerate_slide_visual(
+    course_id: str, 
+    request: Request, 
+    authorization: str = Header(None)
+):
+    print(f"🎨 Regenerating Visual for {course_id}...")
+    user_id = get_user_id_from_token(authorization)
+    body = await request.json()
+    prompt = body.get("prompt")
+    slide_index = body.get("slide_index") 
+
+    if not prompt or slide_index is None:
+        raise HTTPException(status_code=400, detail="Missing prompt or slide_index")
+    
+    # Fetch style from DB
+    res = supabase_admin.table("courses").select("metadata").eq("id", course_id).execute()
+    metadata = res.data[0]['metadata'] if res.data else {}
+    style_key = metadata.get("style", "Minimalist Vector")
+    style_config = STYLE_MAPPING.get(style_key, STYLE_MAPPING["Minimalist Vector"])
+    style_prompt = style_config["prompt"]
+
+    # Generate new image
+    full_prompt = f"{style_prompt}. {prompt}"
+    
+    image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
+    if not image_data:
+        raise HTTPException(status_code=500, detail="Failed to generate image")
+        
+    # Upload
+    image_filename = f"visual_{slide_index}_{int(time.time())}.jpg"
+    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, max_retries=5)
+    
+    return {"image_url": image_url}
+
+@app.post("/course/{course_id}/mark-viewed")
+async def mark_viewed(course_id: str, authorization: str = Header(None)):
+    """
+    Marks the course video as 'viewed' by the user.
+    This helps clear the 'Completed' notification.
+    """
+    user_id = get_user_id_from_token(authorization)
+    
+    # 1. Fetch current metadata
+    res = supabase_admin.table("courses").select("user_id, metadata").eq("id", course_id).execute()
+    if not res.data or res.data[0]['user_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    current_metadata = res.data[0].get('metadata') or {}
+    
+    # 2. Update metadata
+    current_metadata['viewed_result'] = True
+    
+    supabase_admin.table("courses").update({
+        "metadata": current_metadata
+    }).eq("id", course_id).execute()
+    
+    return {"status": "marked_viewed"}

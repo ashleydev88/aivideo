@@ -35,7 +35,9 @@ const IconWrapper: React.FC<{ name: string; color: string; size?: number }> = ({
 export const Chart: React.FC<{
     data: ChartData;
     accent_color?: string;
-}> = ({ data, accent_color = '#14b8a6' }) => {
+    custom_bg_color?: string;
+    custom_text_color?: string;
+}> = ({ data, accent_color = '#14b8a6', custom_bg_color, custom_text_color }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
 
@@ -52,6 +54,10 @@ export const Chart: React.FC<{
     const titleScale = interpolate(titleOpacity, [0, 1], [0.9, 1]);
 
     const renderItems = () => {
+        // ... (Skipping inner render items logic for brevity, assuming they use their own colors or accent_color)
+        // Ideally we pass custom_text_color to items too?
+        // Chart items have specific 'color_intent'. Stick to that for now to avoid breaking semantic colors.
+
         switch (data.type) {
             case 'process':
                 return (
@@ -67,7 +73,7 @@ export const Chart: React.FC<{
                                 <React.Fragment key={i}>
                                     {i > 0 && (
                                         <div className="flex-shrink-0 animate-pulse" style={{ opacity }}>
-                                            <Lucide.ArrowRight size={40} color="#cbd5e1" strokeWidth={3} />
+                                            <Lucide.ArrowRight size={40} color={custom_text_color ? `${custom_text_color}cc` : "#cbd5e1"} strokeWidth={3} />
                                         </div>
                                     )}
                                     <div
@@ -76,6 +82,7 @@ export const Chart: React.FC<{
                                             opacity,
                                             transform: `scale(${scale})`,
                                             borderColor: color,
+                                            // Maybe override card bg if needed, but white/90 is nice.
                                         }}
                                     >
                                         <div className="mb-6 p-4 rounded-2xl bg-slate-50" style={{ backgroundColor: `${color}15` }}>
@@ -156,7 +163,7 @@ export const Chart: React.FC<{
                         <svg className="absolute inset-0 w-full h-full rotate-[-90deg]">
                             <circle
                                 cx="300" cy="300" r="220"
-                                fill="none" stroke="#e2e8f0" strokeWidth="4" strokeDasharray="10 10"
+                                fill="none" stroke={custom_text_color ? `${custom_text_color}40` : "#e2e8f0"} strokeWidth="4" strokeDasharray="10 10"
                                 style={{ opacity: titleOpacity }}
                             />
                         </svg>
@@ -293,12 +300,16 @@ export const Chart: React.FC<{
     };
 
     return (
-        <AbsoluteFill className="flex flex-col items-center justify-center p-20 bg-slate-50/50">
+        <AbsoluteFill
+            className="flex flex-col items-center justify-center p-20"
+            style={{ backgroundColor: custom_bg_color || '#f8fafc' }}
+        >
             <h2
-                className="text-6xl font-black mb-20 text-slate-900 tracking-tight uppercase"
+                className="text-6xl font-black mb-20 tracking-tight uppercase"
                 style={{
                     opacity: titleOpacity,
-                    transform: `scale(${titleScale}) translateY(${interpolate(titleOpacity, [0, 1], [20, 0])}px)`
+                    transform: `scale(${titleScale}) translateY(${interpolate(titleOpacity, [0, 1], [20, 0])}px)`,
+                    color: custom_text_color || '#0f172a'
                 }}
             >
                 {data.title}
