@@ -120,6 +120,28 @@ function PlayerContent() {
         fetchProject();
     }, [id, router, supabase]);
 
+    // Effect to mark as viewed
+    useEffect(() => {
+        if (project?.status === "completed" && id) {
+            const markViewed = async () => {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) return;
+
+                try {
+                    await fetch(`http://localhost:8000/course/${id}/mark-viewed`, {
+                        method: "POST",
+                        headers: {
+                            Authorization: `Bearer ${session.access_token}`,
+                        },
+                    });
+                } catch (e) {
+                    console.error("Failed to mark as viewed", e);
+                }
+            };
+            markViewed();
+        }
+    }, [project, id, supabase]);
+
     if (loading) {
         return <LoadingScreen message="Loading player..." />;
     }

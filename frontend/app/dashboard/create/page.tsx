@@ -415,7 +415,7 @@ function DashboardCreatePageContent() {
             const data = await res.json();
             if (data.text) {
                 setPolicyText(data.text);
-                await generateTopics(data.text, d);
+                await generateTopics(data.text, d, s, accent, colorN);
             }
         } catch (e) {
             console.error("Upload error", e);
@@ -424,7 +424,7 @@ function DashboardCreatePageContent() {
     };
 
     // --- STEP 2: GENERATE TOPICS (Async) ---
-    const generateTopics = async (text: string, d: number) => {
+    const generateTopics = async (text: string, d: number, s: string, accent: string, colorN: string) => {
         try {
             const res = await fetch("http://127.0.0.1:8000/generate-topics", {
                 method: "POST",
@@ -432,7 +432,14 @@ function DashboardCreatePageContent() {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${session?.access_token}`
                 },
-                body: JSON.stringify({ policy_text: text, duration: d, country: country })
+                body: JSON.stringify({
+                    policy_text: text,
+                    duration: d,
+                    country: country,
+                    style: s,
+                    accent_color: accent,
+                    color_name: colorN
+                })
             });
             const data = await res.json();
 

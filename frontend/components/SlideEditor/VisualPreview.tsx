@@ -96,13 +96,31 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
 
     // 1. CHART RENDERER
     if (visual_type === 'chart' && chart_data) {
+        // Helper for colors
+        const getColor = (intent: string | undefined): string => {
+            const colors: Record<string, string> = {
+                'danger': '#ef4444',
+                'success': '#22c55e',
+                'warning': '#f59e0b',
+                'accent': '#8b5cf6',
+                'primary': '#3b82f6',
+                'secondary': '#64748b'
+            };
+            return colors[intent || ''] || '#14b8a6'; // Default teal
+        };
+
+        const ChartIcon = ({ name, color, size = 20 }: any) => {
+            const Icon = IconMap[name] || IconMap.default;
+            return <Icon size={size} color={color} />;
+        };
+
         return (
             <div
                 className="w-full h-full relative overflow-hidden flex flex-col items-center justify-start p-4 border-2 border-slate-200 rounded-lg"
                 style={{ backgroundColor: slide.background_color || '#f8fafc' }}
             >
                 <h3
-                    className="text-lg font-bold mb-2 text-center sticky top-0 py-1 w-full z-10 truncate px-4"
+                    className="text-lg font-black mb-4 text-center sticky top-0 py-1 w-full z-10 truncate px-4"
                     style={{
                         color: slide.text_color || '#1e293b',
                         backgroundColor: slide.background_color || '#f8fafc'
@@ -110,62 +128,185 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                 >
                     {(() => {
                         const rawText = slide.visual_text || chart_data.title || "";
-                        // Extract first line and remove markdown headers (#, ##, etc.)
                         return rawText.split('\n')[0].replace(/^#+\s*/, '').trim();
                     })()}
                 </h3>
 
-                {/* Dynamic Chart Layouts - COMPACT MODE */}
-                <div className="w-full max-w-lg flex-1 min-h-0 flex flex-col justify-center">
-                    {/* List Type */}
+                <div className="w-full flex-1 min-h-0 flex items-center justify-center overflow-y-auto">
+
+                    {/* LIST */}
                     {chart_data.type === 'list' && (
-                        <div className="space-y-2">
-                            {chart_data.items?.map((item: any, i: number) => (
-                                <div key={i} className="flex items-center gap-2 bg-white p-2 rounded-md shadow-sm border border-slate-100">
-                                    <div className={`p-1.5 rounded-full bg-${item.color_intent || 'blue'}-100`}>
-                                        <div className={`text-${item.color_intent || 'blue'}-600`}>
-                                            {React.createElement(IconMap[item.icon] || IconMap.default, { size: 16 })}
+                        <div className="w-full max-w-xl space-y-2 px-4">
+                            {chart_data.items?.map((item: any, i: number) => {
+                                const color = getColor(item.color_intent);
+                                return (
+                                    <div key={i} className="flex items-center gap-3 bg-white p-2.5 rounded-lg shadow-sm border-l-4" style={{ borderLeftColor: color }}>
+                                        <div className="w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ backgroundColor: color }}>
+                                            {i + 1}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="font-bold text-slate-700 text-sm truncate">{item.label}</div>
+                                            {item.description && <div className="text-xs text-slate-500 truncate">{item.description}</div>}
+                                        </div>
+                                        <ChartIcon name={item.icon} color={color} size={16} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* PROCESS */}
+                    {chart_data.type === 'process' && (
+                        <div className="w-full px-4 flex flex-row items-center justify-center gap-2">
+                            {chart_data.items?.map((item: any, i: number) => {
+                                const color = getColor(item.color_intent);
+                                return (
+                                    <React.Fragment key={i}>
+                                        {i > 0 && <div className="text-slate-300 flex-shrink-0">→</div>}
+                                        <div
+                                            className="flex-1 min-w-0 bg-white p-2 rounded-xl shadow-sm border-b-4 flex flex-col items-center text-center"
+                                            style={{ borderColor: color }}
+                                        >
+                                            <div className="mb-1 p-1 rounded-full bg-slate-50">
+                                                <ChartIcon name={item.icon || 'box'} color={color} size={18} />
+                                            </div>
+                                            <div className="font-bold text-slate-800 text-[10px] sm:text-xs leading-tight mb-0.5 w-full truncate">{item.label}</div>
+                                        </div>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* STATISTICS */}
+                    {chart_data.type === 'statistic' && (
+                        <div className="flex flex-wrap justify-center gap-3 w-full px-4">
+                            {chart_data.items?.map((item: any, i: number) => {
+                                const color = getColor(item.color_intent);
+                                return (
+                                    <div
+                                        key={i}
+                                        className="bg-white/80 p-3 rounded-2xl shadow-sm text-center flex-1 min-w-[100px] max-w-[160px] border-t-4"
+                                        style={{ borderTopColor: color }}
+                                    >
+                                        <div className="text-2xl sm:text-3xl font-black mb-1 tracking-tighter" style={{ color }}>
+                                            {item.label}
+                                        </div>
+                                        <div className="text-[10px] sm:text-xs font-bold text-slate-700 leading-tight line-clamp-2">
+                                            {item.description}
                                         </div>
                                     </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="font-semibold text-slate-700 text-xs truncate">{item.label}</div>
-                                        {item.description && <div className="text-[10px] text-slate-500 truncate">{item.description}</div>}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 
-                    {/* Process Type (Step by Step) */}
-                    {chart_data.type === 'process' && (
-                        <div className="flex flex-col gap-1.5">
-                            {chart_data.items?.map((item: any, i: number) => (
-                                <div key={i} className="relative pl-4 pb-2 border-l-2 border-slate-200 last:border-0 last:pb-0">
-                                    <div className="absolute -left-[9px] top-0 w-3 h-3 rounded-full bg-teal-500 border-2 border-white shadow-sm" />
-                                    <div className="bg-white p-1.5 rounded border shadow-sm ml-2">
-                                        <div className="font-bold text-xs text-slate-700 truncate">{item.label}</div>
-                                    </div>
-                                </div>
-                            ))}
+                    {/* COMPARISON */}
+                    {chart_data.type === 'comparison' && (
+                        <div className="flex flex-row items-stretch justify-center gap-2 w-full px-6">
+                            {chart_data.items?.slice(0, 2).map((item: any, i: number) => {
+                                const color = getColor(item.color_intent) || (i === 0 ? '#3b82f6' : '#ef4444');
+                                return (
+                                    <React.Fragment key={i}>
+                                        {i === 1 && (
+                                            <div className="flex items-center justify-center -mx-3 z-10">
+                                                <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shadow-md border-2 border-white">
+                                                    VS
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div
+                                            className="flex-1 bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center text-center border-t-4 min-w-0"
+                                            style={{ borderTopColor: color }}
+                                        >
+                                            <div className="mb-2">
+                                                <ChartIcon name={item.icon || (i === 0 ? 'check-circle' : 'x-circle')} color={color} size={24} />
+                                            </div>
+                                            <h3 className="text-sm font-black text-slate-800 mb-1 w-full truncate">{item.label}</h3>
+                                            <p className="text-[10px] text-slate-500 font-medium leading-tight line-clamp-3">{item.description}</p>
+                                        </div>
+                                    </React.Fragment>
+                                );
+                            })}
                         </div>
                     )}
 
-                    {/* Fallback Grid */}
-                    {!['list', 'process'].includes(chart_data.type) && (
-                        <div className="grid grid-cols-2 gap-2">
-                            {chart_data.items?.map((item: any, i: number) => (
-                                <div key={i} className="bg-white p-2 rounded-lg shadow-sm border text-center">
-                                    <div className="mx-auto w-8 h-8 mb-1 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
-                                        {React.createElement(IconMap[item.icon] || IconMap.default, { size: 16 })}
+                    {/* GRID */}
+                    {['grid'].includes(chart_data.type) && (
+                        <div className="grid grid-cols-2 gap-3 w-full px-6">
+                            {chart_data.items?.map((item: any, i: number) => {
+                                const color = getColor(item.color_intent);
+                                return (
+                                    <div
+                                        key={i}
+                                        className="bg-white p-3 rounded-xl shadow-sm flex items-start gap-3 border-l-4 overflow-hidden"
+                                        style={{ borderLeftColor: color }}
+                                    >
+                                        <div className="mt-0.5 flex-shrink-0">
+                                            <ChartIcon name={item.icon || 'layers'} color={color} size={16} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="font-bold text-slate-800 text-xs mb-0.5 truncate">{item.label}</div>
+                                            <div className="text-[10px] text-slate-500 leading-tight line-clamp-2">{item.description}</div>
+                                        </div>
                                     </div>
-                                    <div className="font-bold text-xs text-slate-800 leading-tight">{item.label}</div>
-                                </div>
-                            ))}
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* PYRAMID */}
+                    {chart_data.type === 'pyramid' && (
+                        <div className="flex flex-col items-center justify-center w-full px-4 gap-1.5">
+                            {chart_data.items?.map((item: any, i: number) => {
+                                const width = 100 - (i * 15);
+                                const color = getColor(item.color_intent);
+                                return (
+                                    <div
+                                        key={i}
+                                        className="h-10 flex items-center justify-center bg-white shadow-sm rounded-lg border-l-4 overflow-hidden relative"
+                                        style={{ width: `${Math.max(width, 40)}%`, borderLeftColor: color }}
+                                    >
+                                        <div className="px-2 text-center min-w-0 w-full">
+                                            <div className="text-xs font-bold text-slate-800 truncate">{item.label}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* CYCLE */}
+                    {chart_data.type === 'cycle' && (
+                        <div className="relative w-64 h-64 flex items-center justify-center flex-shrink-0 scale-75 sm:scale-90">
+                            <div className="absolute inset-0 rounded-full border-2 border-dashed border-slate-200" />
+                            {chart_data.items?.map((item: any, i: number) => {
+                                const count = chart_data.items.length;
+                                const angle = (i / count) * 2 * Math.PI - (Math.PI / 2); // Start at top
+                                const radius = 100; // px
+                                const x = Math.cos(angle) * radius;
+                                const y = Math.sin(angle) * radius;
+                                const color = getColor(item.color_intent);
+
+                                return (
+                                    <div
+                                        key={i}
+                                        className="absolute bg-white p-2 rounded-lg shadow-sm border text-center w-24 flex flex-col items-center"
+                                        style={{
+                                            left: `calc(50% + ${x}px)`,
+                                            top: `calc(50% + ${y}px)`,
+                                            transform: 'translate(-50%, -50%)',
+                                            borderColor: color
+                                        }}
+                                    >
+                                        <ChartIcon name={item.icon || 'refresh-cw'} color={color} size={16} />
+                                        <span className="mt-1 font-bold text-slate-800 text-[10px] leading-tight line-clamp-2">{item.label}</span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
-
-                <Badge className="absolute top-2 right-2 opacity-50" variant="outline">Chart Preview</Badge>
             </div>
         );
     }
@@ -212,9 +353,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                     className="h-1 w-20 rounded-full mx-auto"
                     style={{ backgroundColor: slide.text_color ? `${slide.text_color}4D` : 'rgba(255,255,255,0.3)' }}
                 />
-                <Badge className="absolute top-2 right-2 bg-white/20 hover:bg-white/30 text-white border-0">
-                    Title Card
-                </Badge>
+
             </div>
         )
     }
@@ -257,9 +396,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                     )}
                 </div>
 
-                <Badge className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white border-0">
-                    Hybrid
-                </Badge>
+
             </div>
         )
     }
@@ -290,11 +427,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                 </div>
             )}
 
-            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Badge className="bg-black/50 hover:bg-black/70 text-white border-0">
-                    {visual_type}
-                </Badge>
-            </div>
+
         </div>
     );
 }
