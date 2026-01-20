@@ -125,7 +125,8 @@ export default function PlanPage() {
                 country: course.metadata.country,
                 policy_text: course.metadata.processed_policy || "Policy text missing",
                 style: course.metadata.style || "Minimalist Vector",
-
+                accent_color: course.metadata.accent_color,
+                color_name: course.metadata.color_name
             };
 
             const res = await fetch("http://127.0.0.1:8000/generate-structure", {

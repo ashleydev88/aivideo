@@ -49,12 +49,12 @@ export const TitleCard: React.FC<{
             {/* Main Title */}
             <h1
                 style={{
-                    fontSize: '56px',
-                    fontWeight: 700,
+                    fontSize: '100px', // Scaled up from Preview's text-5xl (approx 2.4x)
+                    fontWeight: 900,   // font-black
                     color: custom_text_color || '#1e293b',
                     textAlign: 'center',
                     padding: '0 64px',
-                    lineHeight: 1.2,
+                    lineHeight: 1.1,
                     opacity: opacity,
                     transform: `translateY(${titleY}px)`,
                 }}

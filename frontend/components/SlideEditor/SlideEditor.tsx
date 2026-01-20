@@ -253,8 +253,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             {/* Toolbar */}
             <div className="h-16 border-b flex items-center justify-between px-6 bg-slate-50/50">
                 <div className="flex items-center gap-4">
-                    <h2 className="font-bold text-lg text-slate-800">Slide {currentSlideIndex + 1} <span className="text-slate-400 font-normal">/ {slides.length}</span></h2>
-                    <Badge variant="outline" className="bg-white capitalize">{currentSlide.visual_type}</Badge>
+                    <h2 className="font-bold text-lg text-slate-800">{currentSlideIndex + 1} <span className="text-slate-400 font-normal">/ {slides.length}</span></h2>
                 </div>
 
                 {/* ... (Tool buttons remain same) ... */}

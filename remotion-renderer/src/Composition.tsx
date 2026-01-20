@@ -35,6 +35,17 @@ export const MainComposition: React.FC<{
                 console.log(`[Slide ${i}] visual_type: ${slide.visual_type}, hasImage: ${!!slide.image}, hasText: ${!!hasText}`);
                 console.log(`[Slide ${i}] Layout flags: hybrid=${isHybrid}, imageOnly=${isImageOnly}, kineticOnly=${isKineticOnly}, chart=${isChart}, titleCard=${isTitleCard}`);
 
+                // Title Card Logic
+                let titleCardBg = customBg;
+                let titleCardText = customText;
+
+                if (isTitleCard && !customBg) {
+                    const textContent = (slide.text || slide.visual_text || '').toLowerCase();
+                    const isThankYou = textContent.includes("thank you");
+                    titleCardBg = isThankYou ? '#1e293b' : '#0d9488';
+                    if (!customText) titleCardText = '#ffffff'; // Default to white text on colored bg
+                }
+
                 return (
                     <Sequence key={i} from={fromFrame} durationInFrames={durationFrames}>
                         {/* Audio */}
@@ -45,8 +56,8 @@ export const MainComposition: React.FC<{
                             <TitleCard
                                 title={slide.visual_text || slide.text}
                                 accent_color={accent_color}
-                                custom_bg_color={customBg}
-                                custom_text_color={customText}
+                                custom_bg_color={titleCardBg}
+                                custom_text_color={titleCardText}
                             />
                         )}
 
@@ -75,6 +86,15 @@ export const MainComposition: React.FC<{
                                         filter: 'contrast(1.05) saturate(1.1)',
                                     }}
                                 />
+                                {/* Overlay Text (Match Preview) */}
+                                {slide.visual_text && (
+                                    <div className="absolute bottom-12 left-12 right-12 bg-black/60 backdrop-blur-md p-8 rounded-2xl text-white">
+                                        <div className="font-mono text-xl opacity-70 mb-2 font-bold tracking-wider">ON-SCREEN TEXT</div>
+                                        <div className="font-sans text-3xl font-bold leading-relaxed whitespace-pre-wrap">
+                                            {slide.visual_text}
+                                        </div>
+                                    </div>
+                                )}
                             </AbsoluteFill>
                         )}
 

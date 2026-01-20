@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Bell, Search, HelpCircle } from "lucide-react";
+import { Search, HelpCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Notifications } from "./Notifications";
 
 interface TopbarProps {
     sidebarCollapsed?: boolean;
@@ -36,11 +37,7 @@ export function Topbar({ sidebarCollapsed = false, title = "Dashboard" }: Topbar
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="h-5 w-5" />
-                    {/* Notification badge */}
-                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive" />
-                </Button>
+                <Notifications />
                 <Button variant="ghost" size="icon">
                     <HelpCircle className="h-5 w-5" />
                 </Button>

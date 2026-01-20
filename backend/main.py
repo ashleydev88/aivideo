@@ -47,7 +47,7 @@ VOICE_ID = "aHCytOTnUOgfGPn5n89j"
 
 # --- CONCURRENCY LIMITS ---
 # Limits concurrent Supabase uploads to prevent socket exhaustion (Errno 35)
-SUPABASE_UPLOAD_SEMAPHORE = asyncio.Semaphore(5)
+SUPABASE_UPLOAD_SEMAPHORE = asyncio.Semaphore(3)
 
 # --- CONFIGURATION FLAGS ---
 ENABLE_SCRIPT_VALIDATION = True  # Set to False to skip validation 
@@ -217,6 +217,9 @@ class PlanRequest(BaseModel):
     policy_text: str
     duration: int # Minutes
     country: str = "USA" # Default to USA
+    style: str = "Minimalist Vector" 
+    accent_color: str = "#14b8a6" 
+    color_name: str = "teal"
 
 class Topic(BaseModel):
     id: int
@@ -385,7 +388,7 @@ def upload_asset(file_content, filename, content_type, user_id: str, max_retries
                           "Connection" in error_str
             
             if is_transient and attempt < max_retries - 1:
-                wait_time = (attempt + 1) * 0.5  # 0.5s, 1s, 1.5s backoff
+                wait_time = (attempt + 1) * 2  # 2s, 4s, 6s backoff
                 print(f"   ⚠️ Supabase Upload Error (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
                 time.sleep(wait_time)
             else:
@@ -1178,7 +1181,7 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
     print(f"🎨 Generating Draft Visuals for {course_id}...")
     supabase_admin.table("courses").update({"status": "drafting_visuals"}).eq("id", course_id).execute()
     
-    api_semaphore = asyncio.Semaphore(5)
+    api_semaphore = asyncio.Semaphore(4)
 
     async def process_visual_parallel(i, slide):
         async with api_semaphore:
@@ -1206,7 +1209,7 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
                 
                 if image_data:
                     image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id)
+                    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, max_retries=5)
                 else:
                     visual_type = "kinetic_text" # Fallback
             
@@ -1241,7 +1244,7 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
         "progress_current_step": 0
     }).eq("id", course_id).execute()
     
-    api_semaphore = asyncio.Semaphore(5)
+    api_semaphore = asyncio.Semaphore(4)
 
     async def process_audio_parallel(i, slide, temp_dir):
         async with api_semaphore:
@@ -1278,7 +1281,7 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
                 
                 # Upload Audio
                 audio_filename = f"narration_{i}_{int(time.time())}.mp3"
-                audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id)
+                audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id, max_retries=5)
                 alignment = new_alignment
             
             # 2. Generate Kinetic Text (Needs Audio Alignment)
@@ -1675,7 +1678,10 @@ async def generate_topics(request: PlanRequest, background_tasks: BackgroundTask
             "user_id": user_id,
             "metadata": {
                 "duration": request.duration,
-                "country": request.country
+                "country": request.country,
+                "style": request.style,
+                "accent_color": request.accent_color,
+                "color_name": request.color_name
             },
             "progress_phase": "topics",
             "progress_current_step": 0,
@@ -1823,7 +1829,9 @@ async def generate_structure(request: ScriptRequest, background_tasks: Backgroun
         metadata = {
             "topics": topics_list, 
             "style": request.style,
-            "target_slides": target_slides
+            "target_slides": target_slides,
+            "accent_color": request.accent_color,
+            "color_name": request.color_name
         }
         supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
 
@@ -2195,6 +2203,30 @@ async def regenerate_slide_visual(
         
     # Upload
     image_filename = f"visual_{slide_index}_{int(time.time())}.jpg"
-    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id)
+    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, max_retries=5)
     
     return {"image_url": image_url}
+
+@app.post("/course/{course_id}/mark-viewed")
+async def mark_viewed(course_id: str, authorization: str = Header(None)):
+    """
+    Marks the course video as 'viewed' by the user.
+    This helps clear the 'Completed' notification.
+    """
+    user_id = get_user_id_from_token(authorization)
+    
+    # 1. Fetch current metadata
+    res = supabase_admin.table("courses").select("user_id, metadata").eq("id", course_id).execute()
+    if not res.data or res.data[0]['user_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    current_metadata = res.data[0].get('metadata') or {}
+    
+    # 2. Update metadata
+    current_metadata['viewed_result'] = True
+    
+    supabase_admin.table("courses").update({
+        "metadata": current_metadata
+    }).eq("id", course_id).execute()
+    
+    return {"status": "marked_viewed"}
