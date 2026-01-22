@@ -109,6 +109,19 @@ def process_render_job(course_id, user_id, payload):
         print(f"   🏃 Running: {' '.join(cmd_args)}")
         
         env = os.environ.copy()
+        
+        # Ensure AWS credentials are passed to the subprocess
+        # Map REMOTION_AWS_* to AWS_* if standard keys are missing but REMOTION keys exist
+        if not env.get("AWS_ACCESS_KEY_ID") and env.get("REMOTION_AWS_ACCESS_KEY_ID"):
+            env["AWS_ACCESS_KEY_ID"] = env["REMOTION_AWS_ACCESS_KEY_ID"]
+            print("   🔑 Mapped REMOTION_AWS_ACCESS_KEY_ID to AWS_ACCESS_KEY_ID")
+            
+        if not env.get("AWS_SECRET_ACCESS_KEY") and env.get("REMOTION_AWS_SECRET_ACCESS_KEY"):
+            env["AWS_SECRET_ACCESS_KEY"] = env["REMOTION_AWS_SECRET_ACCESS_KEY"]
+            
+        if not env.get("AWS_REGION") and env.get("REMOTION_AWS_REGION"):
+            env["AWS_REGION"] = env["REMOTION_AWS_REGION"]
+
         env["PATH"] = f"{env.get('PATH', '')}:/var/lang/bin:/usr/local/bin:/opt/homebrew/bin"
         
         process = subprocess.Popen(
