@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "start": "ts-node src/server.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "npx remotion lambda functions deploy && npx remotion lambda sites create src/remotion.tsx --site-name=video-renderer"
   },
   "keywords": [],
   "author": "",
