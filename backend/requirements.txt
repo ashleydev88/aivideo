@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+requests
+pydantic
+supabase
+replicate
+python-dotenv
+moviepy<2.0
+Pillow
+boto3
