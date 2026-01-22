@@ -42,15 +42,21 @@ export default function StructurePage() {
         fetchCourse();
 
         // Polling for updates if status is generating_structure
-        const interval = setInterval(async () => {
-            const supabase = createClient();
-            const { data } = await supabase.from("courses").select("status, slide_data").eq("id", courseId).single();
-            if (data && data.status !== course?.status) {
-                setCourse((prev: any) => ({ ...prev, ...data }));
-            }
-        }, 3000);
+        let interval: NodeJS.Timeout;
+        if (course?.status === 'generating_structure') {
+            interval = setInterval(async () => {
+                const supabase = createClient();
+                const { data } = await supabase.from("courses").select("status, slide_data").eq("id", courseId).single();
+                // Check if status changed or if we hit a terminal state in DB
+                if (data && data.status !== course?.status) {
+                    setCourse((prev: any) => ({ ...prev, ...data }));
+                }
+            }, 3000);
+        }
 
-        return () => clearInterval(interval);
+        return () => {
+            if (interval) clearInterval(interval);
+        };
 
     }, [courseId, router, course?.status]); // Add course?.status dependency to update local state logic? existing logic works fine
 
