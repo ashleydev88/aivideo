@@ -64,89 +64,87 @@ export default function DashboardPage() {
     // Check if a project is currently being generated
 
 
+    // Initial fetch on mount
     useEffect(() => {
         const getUserAndProjects = async () => {
             try {
-                // Use getSession() (cookie-based, instant) instead of getUser() (network call)
-                const {
-                    data: { session },
-                } = await supabase.auth.getSession();
-                const user = session?.user;
-
-                if (!user) {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
                     router.push("/login");
                     return;
                 }
+                setUser(session.user);
 
-                setUser(user);
-
-                // Parallel fetch for courses (via backend) and profile (via supabase)
-                const [coursesResponse, profileResult] = await Promise.all([
+                // Fetch profile and projects
+                const [coursesRes, profileRes] = await Promise.all([
                     fetch("http://127.0.0.1:8000/dashboard/courses", {
-                        headers: {
-                            Authorization: `Bearer ${session.access_token}`,
-                        },
+                        headers: { Authorization: `Bearer ${session.access_token}` },
                     }),
-                    supabase
-                        .from("profiles")
-                        .select("*")
-                        .eq("id", user.id)
-                        .single(),
+                    supabase.from("profiles").select("*").eq("id", session.user.id).single(),
                 ]);
 
-                if (!coursesResponse.ok) {
-                    console.error("Error fetching projects from backend:", coursesResponse.statusText);
-                } else {
-                    const coursesData = await coursesResponse.json();
-                    setProjects(coursesData || []);
+                if (coursesRes.ok) {
+                    const data = await coursesRes.json();
+                    setProjects(data || []);
                 }
 
-                if (profileResult.error) {
-                    console.log("Error fetching profile (might be new user lacking profile row):", profileResult.error);
-                } else {
-                    setProfile(profileResult.data);
+                if (profileRes.data) {
+                    setProfile(profileRes.data);
                 }
             } catch (error) {
-                console.error("Error:", error);
+                console.error("Error loading dashboard:", error);
             } finally {
                 setLoading(false);
             }
         };
-
         getUserAndProjects();
+    }, [router, supabase]);
 
-        // Poll for updates every 5 seconds if there are active projects
-        const interval = setInterval(() => {
-            // Only poll if we have projects in progress to avoid unnecessary traffic?
-            // Actually, we need to know if *any* project changed status, or if listing changed (less likely).
-            // Let's simple poll getUserAndProjects silently.
-            // But getUserAndProjects sets loading=true, which causes flash. 
-            // We should split fetching from loading state.
+    // Smart Polling: Only poll if there are projects in a processing state
+    useEffect(() => {
+        // Define what statuses require polling
+        const isProcessing = (status: string) => {
+            const terminalStates = [
+                "completed",
+                "failed",
+                "error",
+                "reviewing_topics",
+                "reviewing_structure"
+            ];
+            return !terminalStates.includes(status);
+        };
 
-            const pollProjects = async () => {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) return;
+        const hasActiveProjects = projects.some(p => isProcessing(p.status));
 
-                try {
-                    const res = await fetch("http://127.0.0.1:8000/dashboard/courses", {
-                        headers: {
-                            Authorization: `Bearer ${session.access_token}`,
-                        },
+        if (!hasActiveProjects) return;
+
+        const intervalId = setInterval(async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            try {
+                const res = await fetch("http://127.0.0.1:8000/dashboard/courses", {
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // Update projects; this will trigger re-evaluation of this useEffect
+                    setProjects(prev => {
+                        // Optional: Only update if data changed to avoid unnecessary re-renders
+                        // For now simple replacement is robust enough
+                        if (JSON.stringify(prev) !== JSON.stringify(data)) {
+                            return data;
+                        }
+                        return prev;
                     });
-
-                    if (res.ok) {
-                        const data = await res.json();
-                        setProjects(data);
-                    }
-                } catch (e) {
-                    console.error("Polling error:", e);
                 }
-            };
-            pollProjects();
+            } catch (e) {
+                console.error("Polling error:", e);
+            }
         }, 5000);
 
-        return () => clearInterval(interval);
-    }, [router]);
+        return () => clearInterval(intervalId);
+    }, [projects, supabase]);
 
     const handleDelete = async (id: string) => {
         if (!confirm("Are you sure you want to delete this project?")) return;
