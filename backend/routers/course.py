@@ -281,6 +281,12 @@ async def mark_viewed(course_id: str, authorization: str = Header(None)):
     
     return {"status": "marked_viewed"}
 
+@router.get("/courses")
+async def get_courses(authorization: str = Header(None)):
+    user_id = get_user_id_from_token(authorization)
+    response = supabase_admin.table("courses").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+    return response.data
+
 @router.get("/history")
 async def get_history(authorization: str = Header(None)):
     user_id = get_user_id_from_token(authorization)
