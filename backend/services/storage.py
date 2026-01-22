@@ -27,13 +27,39 @@ def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dic
     except Exception as e:
         print(f"   ⚠️  Failed to log failure: {e}")
 
-    # 2. Update Course Status (instead of deleting)
+    # 2. Update Course Status (Soft Fail vs Hard Fail)
     try:
-        supabase_admin.table("courses").update({
-            "status": "failed",
-            "metadata": {"error": str(error), "context": metadata}
-        }).eq("id", course_id).execute()
-        print(f"   ❌ Marked course {course_id} as failed.")
+        stage = metadata.get("stage") if metadata else "unknown"
+        
+        # Soft Fail: Revert to previous state for retryable stages
+        if stage in ["queue_render", "lambda_worker", "finalizing_assets", "render", "compiling"]:
+            print(f"   ↩️ Soft Fail: Reverting course {course_id} to 'reviewing_structure'")
+            
+            # Fetch current metadata to preserve other fields
+            res = supabase_admin.table("courses").select("metadata").eq("id", course_id).execute()
+            current_metadata = res.data[0]['metadata'] if res.data else {}
+            
+            # Update metadata with error info
+            current_metadata.update({
+                "last_error": str(error),
+                "failure_notice": "The last render attempt failed. Support has been notified. You can try again.",
+                "failed_at": int(time.time()),
+                "failed_stage": stage
+            })
+
+            supabase_admin.table("courses").update({
+                "status": "reviewing_structure",
+                "metadata": current_metadata
+            }).eq("id", course_id).execute()
+            
+        else:
+            # Hard Fail: Default behavior
+            supabase_admin.table("courses").update({
+                "status": "failed",
+                "metadata": {"error": str(error), "context": metadata}
+            }).eq("id", course_id).execute()
+            print(f"   ❌ Marked course {course_id} as failed.")
+
     except Exception as e:
          print(f"   ❌ CRITICAL: Failed to update course status {course_id}: {e}")
 

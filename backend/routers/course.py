@@ -281,6 +281,13 @@ async def mark_viewed(course_id: str, authorization: str = Header(None)):
     
     return {"status": "marked_viewed"}
 
+@router.get("/dashboard/courses")
+async def get_dashboard_courses(authorization: str = Header(None)):
+    user_id = get_user_id_from_token(authorization)
+    # Fetch only lightweight fields for the dashboard list
+    response = supabase_admin.table("courses").select("id, created_at, status, name, metadata, video_url").eq("user_id", user_id).order("created_at", desc=True).execute()
+    return response.data
+
 @router.get("/courses")
 async def get_courses(authorization: str = Header(None)):
     user_id = get_user_id_from_token(authorization)

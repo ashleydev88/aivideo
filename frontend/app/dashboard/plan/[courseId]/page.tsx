@@ -49,18 +49,23 @@ export default function PlanPage() {
         fetchCourse();
 
         // Poll for completion of topic generation if status is 'generating_topics'
-        const interval = setInterval(async () => {
-            const supabase = createClient();
-            const { data } = await supabase.from("courses").select("status, metadata, name").eq("id", courseId).single();
-            if (data && data.status !== 'generating_topics') {
-                // Refresh data when complete
-                const { data: fullData } = await supabase.from("courses").select("*").eq("id", courseId).single();
-                setCourse(fullData);
-            }
-        }, 3000);
-        return () => clearInterval(interval);
+        let interval: NodeJS.Timeout;
+        if (course?.status === 'generating_topics') {
+            interval = setInterval(async () => {
+                const supabase = createClient();
+                const { data } = await supabase.from("courses").select("status, metadata, name").eq("id", courseId).single();
+                if (data && data.status !== 'generating_topics') {
+                    // Refresh data when complete (or failed)
+                    const { data: fullData } = await supabase.from("courses").select("*").eq("id", courseId).single();
+                    setCourse(fullData);
+                }
+            }, 3000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
 
-    }, [courseId, router]);
+    }, [courseId, router, course?.status]);
 
     const handleNext = async (updatedTopics: Topic[], updatedTitle: string, updatedLearningObjective: string) => {
         setIsGenerating(true);
