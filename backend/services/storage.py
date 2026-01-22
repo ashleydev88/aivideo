@@ -1,11 +1,12 @@
 import asyncio
 import time
 import traceback
-from backend.db import supabase_admin
+from backend.db import supabase_admin, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+from supabase import create_client
 
 # --- CONCURRENCY LIMITS ---
 # Limits concurrent Supabase uploads to prevent socket exhaustion (Errno 35)
-SUPABASE_UPLOAD_SEMAPHORE = asyncio.Semaphore(3)
+SUPABASE_UPLOAD_SEMAPHORE = asyncio.Semaphore(2)
 
 def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dict = None):
     """
@@ -78,8 +79,13 @@ def upload_asset(file_content, filename, content_type, user_id: str, max_retries
     
     for attempt in range(max_retries):
         try:
-            # Use admin client to bypass RLS for backend uploads
-            supabase_admin.storage.from_(bucket).upload(path=path, file=file_content, file_options={"content-type": content_type})
+            # Create a fresh client for this thread/attempt to avoid connection pool issues
+            # This is critical for preventing [Errno 35] in threaded environments
+            local_supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+            
+            # Use local client to bypass RLS for backend uploads
+            local_supabase.storage.from_(bucket).upload(path=path, file=file_content, file_options={"content-type": content_type})
+            
             # Return the storage path instead of signed URL
             # Fresh signed URLs will be generated on-demand via /get-signed-url endpoint
             return path

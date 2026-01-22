@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bell, CheckCircle, FileText, Video } from "lucide-react";
+import { Bell, CheckCircle, FileText, Video, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Popover,
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 interface NotificationItem {
     id: string;
-    type: "topics" | "structure" | "completed";
+    type: "topics" | "structure" | "completed" | "error";
     title: string;
     time: string;
     link: string;
@@ -48,6 +48,16 @@ export function Notifications() {
                 const newNotifications: NotificationItem[] = [];
 
                 courses.forEach((course: any) => {
+                    if (course.metadata?.failure_notice) {
+                        newNotifications.push({
+                            id: course.id,
+                            type: "error",
+                            title: `Generation Failed: ${course.name || 'Untitled'}`,
+                            time: course.metadata.failed_at ? new Date(course.metadata.failed_at * 1000).toLocaleDateString() : new Date().toLocaleDateString(),
+                            link: `/dashboard/structure/${course.id}`, // Assuming revert to structure
+                        });
+                    }
+
                     if (course.status === "reviewing_topics") {
                         newNotifications.push({
                             id: course.id,
@@ -141,6 +151,7 @@ export function Notifications() {
                                         {notification.type === "topics" && <FileText className="h-4 w-4" />}
                                         {notification.type === "structure" && <FileText className="h-4 w-4" />}
                                         {notification.type === "completed" && <Video className="h-4 w-4" />}
+                                        {notification.type === "error" && <AlertCircle className="h-4 w-4 text-red-500" />}
                                     </div>
                                     <div className="flex-1">
                                         <div className="text-sm font-medium leading-none">

@@ -350,15 +350,7 @@ export default function DashboardPage() {
                                                     </button>
                                                 )}
 
-                                                {/* FAILURE NOTICE (Soft Fail) */}
-                                                {project.metadata?.failure_notice && (
-                                                    <div className="absolute top-1 right-12 group">
-                                                        <AlertCircle className="h-4 w-4 text-red-500 cursor-help" />
-                                                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-red-50 text-red-800 text-xs p-2 rounded shadow-lg border border-red-200 hidden group-hover:block z-10">
-                                                            {project.metadata.failure_notice}
-                                                        </div>
-                                                    </div>
-                                                )}
+
 
                                                 {/* PROCESSING STATES */}
                                                 {!['completed', 'reviewing_topics', 'reviewing_structure', 'failed', 'error'].includes(project.status) && (
