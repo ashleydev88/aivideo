@@ -117,7 +117,7 @@ async def generate_topics_task(course_id: str, policy_text: str, duration: int, 
     print(f"   🏗️ Worker: Generating topics for {course_id}...")
     try:
         # Pre-process policy
-        processed_policy = extract_policy_essence(policy_text)
+        processed_policy = await asyncio.to_thread(extract_policy_essence, policy_text)
 
         # Select strategy
         strategy = DURATION_STRATEGIES.get(duration, DURATION_STRATEGIES[5])
@@ -144,7 +144,7 @@ async def generate_topics_task(course_id: str, policy_text: str, duration: int, 
             f"Follow strategy: {strategy['purpose']}, {strategy['topic_count']} topics."
         )
 
-        res_text = replicate_chat_completion(messages=[{"role": "user", "content": prompt}], max_tokens=3000)
+        res_text = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000)
         data = extract_json_from_response(res_text)
         
         # Update DB
@@ -246,7 +246,7 @@ Target Average: 20 seconds per slide.
         max_retries = 2
         
         for attempt in range(max_retries):
-            res_text = replicate_chat_completion(messages=messages, max_tokens=20000)
+            res_text = await asyncio.to_thread(replicate_chat_completion, messages=messages, max_tokens=20000)
             data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
             
@@ -258,7 +258,7 @@ Target Average: 20 seconds per slide.
                 "progress_phase": "validation"
             }).eq("id", course_id).execute()
             
-            validation_result = validate_script(script_plan, context_package)
+            validation_result = await asyncio.to_thread(validate_script, script_plan, context_package)
             
             if validation_result['approved']:
                 print("   ✅ Script Validation Passed")
@@ -284,7 +284,7 @@ Target Average: 20 seconds per slide.
         # Visual Director
         print("   🎬 AI: Assigning Visual Types...")
         pipeline = PipelineManager()
-        script_plan = pipeline.assign_visual_types(script_plan)
+        script_plan = await asyncio.to_thread(pipeline.assign_visual_types, script_plan)
         
         # Inject Bookends
         script_plan = inject_bookend_slides(script_plan, request.title)
