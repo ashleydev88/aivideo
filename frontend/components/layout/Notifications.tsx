@@ -23,58 +23,66 @@ interface NotificationItem {
 export function Notifications() {
     const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
     const [open, setOpen] = React.useState(false);
+    const [mounted, setMounted] = React.useState(false);
     const supabase = createClient();
     const router = useRouter();
 
     React.useEffect(() => {
+        setMounted(true);
         const fetchNotifications = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            const { data: courses } = await supabase
-                .from("courses")
-                .select("id, name, status, created_at, metadata")
-                .eq("user_id", session.user.id)
-                .in("status", ["reviewing_topics", "reviewing_structure", "completed"])
-                .order("created_at", { ascending: false });
+            try {
+                const res = await fetch("http://127.0.0.1:8000/courses", {
+                    headers: {
+                        Authorization: `Bearer ${session.access_token}`,
+                    },
+                });
 
-            if (!courses) return;
+                if (!res.ok) return;
 
-            const newNotifications: NotificationItem[] = [];
+                const courses = await res.json();
+                if (!courses) return;
 
-            courses.forEach((course) => {
-                if (course.status === "reviewing_topics") {
-                    newNotifications.push({
-                        id: course.id,
-                        type: "topics",
-                        title: `Topics ready for: ${course.name}`,
-                        time: new Date(course.created_at).toLocaleDateString(),
-                        link: `/dashboard/plan/${course.id}`,
-                    });
-                } else if (course.status === "reviewing_structure") {
-                    newNotifications.push({
-                        id: course.id,
-                        type: "structure",
-                        title: `Structure ready for: ${course.name}`,
-                        time: new Date(course.created_at).toLocaleDateString(),
-                        link: `/dashboard/structure/${course.id}`,
-                    });
-                } else if (course.status === "completed") {
-                    // Check if already viewed
-                    const isViewed = course.metadata?.viewed_result === true;
-                    if (!isViewed) {
+                const newNotifications: NotificationItem[] = [];
+
+                courses.forEach((course: any) => {
+                    if (course.status === "reviewing_topics") {
                         newNotifications.push({
                             id: course.id,
-                            type: "completed",
-                            title: `Video ready: ${course.name}`,
+                            type: "topics",
+                            title: `Topics ready for: ${course.name}`,
                             time: new Date(course.created_at).toLocaleDateString(),
-                            link: `/dashboard/player?id=${course.id}`,
+                            link: `/dashboard/plan/${course.id}`,
                         });
+                    } else if (course.status === "reviewing_structure") {
+                        newNotifications.push({
+                            id: course.id,
+                            type: "structure",
+                            title: `Structure ready for: ${course.name}`,
+                            time: new Date(course.created_at).toLocaleDateString(),
+                            link: `/dashboard/structure/${course.id}`,
+                        });
+                    } else if (course.status === "completed") {
+                        // Check if already viewed
+                        const isViewed = course.metadata?.viewed_result === true;
+                        if (!isViewed) {
+                            newNotifications.push({
+                                id: course.id,
+                                type: "completed",
+                                title: `Video ready: ${course.name}`,
+                                time: new Date(course.created_at).toLocaleDateString(),
+                                link: `/dashboard/player?id=${course.id}`,
+                            });
+                        }
                     }
-                }
-            });
+                });
 
-            setNotifications(newNotifications);
+                setNotifications(newNotifications);
+            } catch (error) {
+                console.error("Error fetching notifications:", error);
+            }
         };
 
         fetchNotifications();
@@ -83,6 +91,8 @@ export function Notifications() {
         const interval = setInterval(fetchNotifications, 15000);
         return () => clearInterval(interval);
     }, []);
+
+    if (!mounted) return null;
 
     const handleNotificationClick = (link: string) => {
         setOpen(false);

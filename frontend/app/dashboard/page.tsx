@@ -77,13 +77,13 @@ export default function DashboardPage() {
 
                 setUser(user);
 
-                // Parallel fetch for courses and profile
-                const [coursesResult, profileResult] = await Promise.all([
-                    supabase
-                        .from("courses")
-                        .select("*")
-                        .eq("user_id", user.id)
-                        .order("created_at", { ascending: false }),
+                // Parallel fetch for courses (via backend) and profile (via supabase)
+                const [coursesResponse, profileResult] = await Promise.all([
+                    fetch("http://127.0.0.1:8000/courses", {
+                        headers: {
+                            Authorization: `Bearer ${session.access_token}`,
+                        },
+                    }),
                     supabase
                         .from("profiles")
                         .select("*")
@@ -91,10 +91,11 @@ export default function DashboardPage() {
                         .single(),
                 ]);
 
-                if (coursesResult.error) {
-                    console.error("Error fetching projects:", coursesResult.error);
+                if (!coursesResponse.ok) {
+                    console.error("Error fetching projects from backend:", coursesResponse.statusText);
                 } else {
-                    setProjects(coursesResult.data || []);
+                    const coursesData = await coursesResponse.json();
+                    setProjects(coursesData || []);
                 }
 
                 if (profileResult.error) {
@@ -123,14 +124,19 @@ export default function DashboardPage() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) return;
 
-                const { data, error } = await supabase
-                    .from("courses")
-                    .select("*")
-                    .eq("user_id", session.user.id)
-                    .order("created_at", { ascending: false });
+                try {
+                    const res = await fetch("http://127.0.0.1:8000/courses", {
+                        headers: {
+                            Authorization: `Bearer ${session.access_token}`,
+                        },
+                    });
 
-                if (!error && data) {
-                    setProjects(data);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setProjects(data);
+                    }
+                } catch (e) {
+                    console.error("Polling error:", e);
                 }
             };
             pollProjects();
