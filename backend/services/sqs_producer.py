@@ -5,7 +5,7 @@ import asyncio
 
 # Retrieve Queue URL from env or use a default/placeholder
 # In production, this should be set in environment variables
-QUEUE_URL = os.environ.get("VIDEO_RENDER_QUEUE_URL", "https://sqs.eu-west-2.amazonaws.com/123456789012/video-render-queue")
+QUEUE_URL = os.environ.get("VIDEO_RENDER_QUEUE_URL")
 
 def get_sqs_client():
     return boto3.client("sqs", region_name=os.environ.get("AWS_REGION", "eu-west-2"))
