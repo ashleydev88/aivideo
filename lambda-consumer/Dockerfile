@@ -1,10 +1,13 @@
-FROM public.ecr.aws/lambda/python:3.11
+FROM public.ecr.aws/lambda/python:3.12
 
-# Install Node.js (required for Remotion Lambda SDK internals if it invokes CLI)
-RUN yum install -y tar gzip \
-    && curl -fsSL https://rpm.nodesource.com/setup_16.x | bash - \
-    && yum install -y nodejs \
-    && npm install -g remotion @remotion/lambda
+# Set HOME for npm cache (Lambda filesystem is read-only except /tmp)
+ENV HOME=/tmp
+
+# Install Node.js 20 LTS (required for Remotion 4.x which needs glibc 2.31+)
+RUN dnf install -y tar gzip \
+    && curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - \
+    && dnf install -y nodejs \
+    && npm install -g remotion@4.0.405 @remotion/cli@4.0.405 @remotion/lambda@4.0.405
 
 # Copy requirements and install Python deps
 COPY requirements.txt .

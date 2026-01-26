@@ -9,7 +9,7 @@ import traceback
 import boto3
 from botocore.config import Config as BotoConfig
 from supabase import create_client
-from remotion_lambda import RemotionClient, RenderMediaParams, Privacy, ValidStillImageFormats, RenderProgressParams
+from remotion_lambda import RemotionClient, RenderMediaParams, Privacy, ValidStillImageFormats
 
 # Environment variables
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -100,6 +100,7 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
         privacy=Privacy.PUBLIC,
         image_format=ValidStillImageFormats.JPEG,
         input_props=payload,
+        concurrency=8,  # Limit parallel Lambdas to stay within AWS quota
     )
     
     # 3. Start render using Remotion SDK
@@ -137,12 +138,10 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
     poll_interval = 10  # seconds
     
     while (time.time() - start_time) < max_wait_time:
-        progress_params = RenderProgressParams(
+        progress_response = remotion_client.get_render_progress(
             render_id=render_id,
-            bucket_name=bucket_name,
-            function_name=REMOTION_FUNCTION_NAME
+            bucket_name=bucket_name
         )
-        progress_response = remotion_client.get_render_progress(progress_params)
         
         if not progress_response:
             print("   ⚠️ No progress response, continuing...")
