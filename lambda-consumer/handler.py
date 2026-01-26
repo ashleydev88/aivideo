@@ -100,7 +100,7 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
         privacy=Privacy.PUBLIC,
         image_format=ValidStillImageFormats.JPEG,
         input_props=payload,
-        concurrency=8,  # Limit parallel Lambdas to stay within AWS quota
+        concurrency=3,  # Safe limit: (1 Consumer + 3 Workers) * 2 Max SQS Concurrency = 8 Total Lambdas
     )
     
     # 3. Start render using Remotion SDK
@@ -148,7 +148,26 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
             time.sleep(poll_interval)
             continue
         
-        overall_progress = progress_response.overallProgress or 0
+        # Handle both dict and object responses for robustness
+        if isinstance(progress_response, dict):
+            overall_progress = progress_response.get('overallProgress')
+            fatal_error = progress_response.get('fatalErrorEncountered')
+            errors = progress_response.get('errors')
+            done = progress_response.get('done')
+            output_file = progress_response.get('outputFile')
+        else:
+            overall_progress = getattr(progress_response, 'overallProgress', None)
+            fatal_error = getattr(progress_response, 'fatalErrorEncountered', None)
+            errors = getattr(progress_response, 'errors', None)
+            done = getattr(progress_response, 'done', None)
+            output_file = getattr(progress_response, 'outputFile', None)
+
+        # Normalize values
+        overall_progress = overall_progress or 0
+        fatal_error = fatal_error or False
+        errors = errors or []
+        done = done or False
+        
         progress_pct = int(overall_progress * 100)
         
         # Update progress in database
@@ -162,13 +181,11 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
         print(f"   📊 Progress: {progress_pct}%")
         
         # Check for fatal errors
-        if progress_response.fatalErrorEncountered:
-            errors = progress_response.errors if hasattr(progress_response, 'errors') else []
+        if fatal_error:
             raise Exception(f"Remotion render fatal error: {errors}")
         
         # Check if done
-        if progress_response.done:
-            output_file = progress_response.outputFile
+        if done:
             if output_file:
                 print(f"   ✅ Render complete: {output_file}")
                 finalize_render(course_id, output_file)
