@@ -75,17 +75,20 @@ export default function DashboardPage() {
                 }
                 setUser(session.user);
 
-                // Fetch profile and projects
+                // Fetch profile and projects directly from Supabase
                 const [coursesRes, profileRes] = await Promise.all([
-                    fetch("http://127.0.0.1:8000/dashboard/courses", {
-                        headers: { Authorization: `Bearer ${session.access_token}` },
-                    }),
+                    supabase
+                        .from("courses")
+                        .select("*")
+                        .eq("user_id", session.user.id)
+                        .order("created_at", { ascending: false }),
                     supabase.from("profiles").select("*").eq("id", session.user.id).single(),
                 ]);
 
-                if (coursesRes.ok) {
-                    const data = await coursesRes.json();
-                    setProjects(data || []);
+                if (coursesRes.error) {
+                    console.error("Error fetching courses:", coursesRes.error);
+                } else {
+                    setProjects(coursesRes.data || []);
                 }
 
                 if (profileRes.data) {
@@ -100,71 +103,51 @@ export default function DashboardPage() {
         getUserAndProjects();
     }, [router, supabase]);
 
-    // Smart Polling: Only poll if there are projects in a processing state
+    // Realtime Subscription
     useEffect(() => {
-        // Define what statuses require polling
-        const isProcessing = (status: string) => {
-            const terminalStates = [
-                "completed",
-                "failed",
-                "error",
-                "reviewing_topics",
-                "reviewing_structure"
-            ];
-            return !terminalStates.includes(status);
-        };
+        if (!user) return;
 
-        const hasActiveProjects = projects.some(p => isProcessing(p.status));
-
-        if (!hasActiveProjects) return;
-
-        const intervalId = setInterval(async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            try {
-                const res = await fetch("http://127.0.0.1:8000/dashboard/courses", {
-                    headers: { Authorization: `Bearer ${session.access_token}` },
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    // Update projects; this will trigger re-evaluation of this useEffect
-                    setProjects(prev => {
-                        // Optional: Only update if data changed to avoid unnecessary re-renders
-                        // For now simple replacement is robust enough
-                        if (JSON.stringify(prev) !== JSON.stringify(data)) {
-                            return data;
-                        }
-                        return prev;
-                    });
+        const channel = supabase
+            .channel('dashboard-courses')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'courses',
+                    filter: `user_id=eq.${user.id}`
+                },
+                (payload) => {
+                    console.log("Realtime update:", payload);
+                    if (payload.eventType === 'INSERT') {
+                        setProjects((prev) => [payload.new as Project, ...prev]);
+                    } else if (payload.eventType === 'UPDATE') {
+                        setProjects((prev) =>
+                            prev.map((p) => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
+                        );
+                    } else if (payload.eventType === 'DELETE') {
+                        setProjects((prev) => prev.filter((p) => p.id !== payload.old.id));
+                    }
                 }
-            } catch (e) {
-                console.error("Polling error:", e);
-            }
-        }, 5000);
+            )
+            .subscribe();
 
-        return () => clearInterval(intervalId);
-    }, [projects, supabase]);
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, supabase]);
 
     const handleDelete = async (id: string) => {
         if (!confirm("Are you sure you want to delete this project?")) return;
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
+            const { error } = await supabase.from("courses").delete().eq("id", id);
 
-            const res = await fetch(`http://127.0.0.1:8000/course/${id}`, {
-                method: "DELETE",
-                headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                },
-            });
-
-            if (res.ok) {
-                setProjects(projects.filter((p) => p.id !== id));
-            } else {
+            if (error) {
                 alert("Failed to delete project");
+                console.error("Error deleting project:", error);
             }
+            // Realtime subscription will handle the UI update
         } catch (error) {
             console.error("Error deleting project:", error);
         }
