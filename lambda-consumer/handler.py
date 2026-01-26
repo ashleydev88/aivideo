@@ -1,17 +1,20 @@
 """
 AWS Lambda Handler for SQS Video Render Queue.
-Processes render jobs by invoking Remotion Lambda via CLI.
+Processes render jobs via Remotion Lambda Python SDK.
 """
 import json
 import os
-import subprocess
-import tempfile
+import time
 import traceback
+import boto3
+from botocore.config import Config as BotoConfig
 from supabase import create_client
+from remotion_lambda import RemotionClient, RenderMediaParams, Privacy, ValidStillImageFormats, RenderProgressParams
 
 # Environment variables
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+AWS_REGION = os.environ.get("AWS_REGION", "eu-west-2")
 
 # Remotion Configuration
 SERVE_URL = os.environ.get(
@@ -19,15 +22,30 @@ SERVE_URL = os.environ.get(
     "https://remotionlambda-euwest2-wxjopockvc.s3.eu-west-2.amazonaws.com/sites/video-renderer/index.html"
 )
 COMPOSITION_ID = os.environ.get("REMOTION_COMPOSITION_ID", "Main")
-FUNCTION_NAME = os.environ.get(
+REMOTION_FUNCTION_NAME = os.environ.get(
     "REMOTION_FUNCTION_NAME",
     "remotion-render-4-0-405-mem3008mb-disk10240mb-900sec"
 )
 
-# Initialize Supabase Admin
+# Initialize Supabase client
 supabase_admin = None
 if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
     supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+# Configure boto3 with extended timeouts for long-running Lambda invocations
+boto_config = BotoConfig(
+    read_timeout=900,  # 15 minutes
+    connect_timeout=30,
+    retries={'max_attempts': 0}  # Don't retry on timeout
+)
+
+# Initialize Remotion client with custom boto config
+# Note: RemotionClient uses boto3 internally, we need to patch it
+remotion_client = RemotionClient(
+    region=AWS_REGION,
+    serve_url=SERVE_URL,
+    function_name=REMOTION_FUNCTION_NAME
+)
 
 
 def lambda_handler(event, context):
@@ -58,7 +76,7 @@ def lambda_handler(event, context):
 
 def process_render_job(course_id: str, user_id: str, payload: dict):
     """
-    Orchestrates the render process via Remotion Lambda CLI.
+    Orchestrates the render process via Remotion Lambda Python SDK.
     """
     if not supabase_admin:
         raise Exception("Supabase client not initialized")
@@ -73,75 +91,114 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
     except Exception as e:
         print(f"⚠️ Failed to update status: {e}")
 
-    # 2. Prepare Props File
-    props_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
-    json.dump(payload, props_file)
-    props_file.close()
-
+    # 2. Prepare Remotion render params
+    print(f"   📤 Starting Remotion render for course {course_id}")
+    print(f"   📊 Input props: {len(payload.get('slide_data', []))} slides")
+    
+    render_params = RenderMediaParams(
+        composition=COMPOSITION_ID,
+        privacy=Privacy.PUBLIC,
+        image_format=ValidStillImageFormats.JPEG,
+        input_props=payload,
+    )
+    
+    # 3. Start render using Remotion SDK
+    print(f"   🎬 Invoking Remotion Lambda via SDK: {REMOTION_FUNCTION_NAME}")
+    
     try:
-        # 3. Construct Remotion CLI Command
-        cmd_args = [
-            "npx", "remotion", "lambda", "render",
-            SERVE_URL,
-            COMPOSITION_ID,
-            "--function-name", FUNCTION_NAME,
-            "--props", props_file.name,
-            "--log", "verbose",
-            "--yes",
-            "--concurrency", "8",
-            "--timeout", "900"
-        ]
+        response_payload = remotion_client.render_media_on_lambda(render_params)
         
-        print(f"   🏃 Running: {' '.join(cmd_args)}")
+        # The Python SDK returns a dict-like object or Pydantic model
+        # based on the library version. Converting to dict if needed.
+        # Handle both dict and object responses robustly
+        if isinstance(response_payload, dict):
+            render_id = response_payload.get('renderId') or response_payload.get('render_id')
+            bucket_name = response_payload.get('bucketName') or response_payload.get('bucket_name')
+        else:
+            # Try attribute access for Pydantic models / objects
+            render_id = getattr(response_payload, 'renderId', None) or getattr(response_payload, 'render_id', None)
+            bucket_name = getattr(response_payload, 'bucketName', None) or getattr(response_payload, 'bucket_name', None)
+            
+        print(f"   📥 Remotion Response (Parsed): render_id={render_id}, bucket={bucket_name}")
         
-        # Run subprocess
-        process = subprocess.Popen(
-            cmd_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True
+        if not render_id:
+            raise Exception(f"No renderId in response: {response_payload}")
+            
+        print(f"   🎬 Render started: {render_id}")
+        print(f"   📦 Bucket: {bucket_name}")
+        
+    except Exception as e:
+        print(f"   ❌ Failed to start render: {e}")
+        raise e
+    
+    # 4. Poll for progress using SDK
+    max_wait_time = 840  # 14 minutes
+    start_time = time.time()
+    poll_interval = 10  # seconds
+    
+    while (time.time() - start_time) < max_wait_time:
+        progress_params = RenderProgressParams(
+            render_id=render_id,
+            bucket_name=bucket_name,
+            function_name=REMOTION_FUNCTION_NAME
         )
-
-        s3_url = None
+        progress_response = remotion_client.get_render_progress(progress_params)
         
-        # Stream and parse output
-        for line in process.stdout:
-            print(f"   [Remotion] {line.strip()}")
-            # Extract S3 URL from output
-            if "https://" in line and ".mp4" in line and "s3" in line.lower():
-                parts = line.split()
-                for p in parts:
-                    if p.startswith("https://") and ".mp4" in p:
-                        s3_url = p.strip().rstrip('.')
-
-        return_code = process.wait()
+        if not progress_response:
+            print("   ⚠️ No progress response, continuing...")
+            time.sleep(poll_interval)
+            continue
         
-        if return_code != 0:
-            raise Exception(f"Remotion CLI failed with code {return_code}")
-
-        if not s3_url:
-            raise Exception("Could not find S3 URL in CLI output")
-
-        print(f"   ✅ Video Rendered: {s3_url}")
+        overall_progress = progress_response.overallProgress or 0
+        progress_pct = int(overall_progress * 100)
         
-        # 4. Update Success
-        supabase_admin.table("courses").update({
-            "video_url": s3_url,
-            "status": "completed",
-            "progress_current_step": 100
-        }).eq("id", course_id).execute()
+        # Update progress in database
+        try:
+            supabase_admin.table("courses").update({
+                "progress_current_step": progress_pct
+            }).eq("id", course_id).execute()
+        except:
+            pass
+        
+        print(f"   📊 Progress: {progress_pct}%")
+        
+        # Check for fatal errors
+        if progress_response.fatalErrorEncountered:
+            errors = progress_response.errors if hasattr(progress_response, 'errors') else []
+            raise Exception(f"Remotion render fatal error: {errors}")
+        
+        # Check if done
+        if progress_response.done:
+            output_file = progress_response.outputFile
+            if output_file:
+                print(f"   ✅ Render complete: {output_file}")
+                finalize_render(course_id, output_file)
+                return
+            else:
+                raise Exception("Render reported done but no output file")
+        
+        time.sleep(poll_interval)
+    
+    raise Exception(f"Render timed out after {max_wait_time} seconds")
 
-    finally:
-        # Cleanup temp file
-        if os.path.exists(props_file.name):
-            os.remove(props_file.name)
+
+def finalize_render(course_id: str, s3_url: str):
+    """
+    Updates the course with the final video URL.
+    """
+    print(f"   ✅ Finalizing render for {course_id}: {s3_url}")
+    
+    supabase_admin.table("courses").update({
+        "video_url": s3_url,
+        "status": "completed",
+        "progress_current_step": 100
+    }).eq("id", course_id).execute()
 
 
 def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dict = None):
     """
     Logs failure and reverts course to reviewable state.
     """
-    import time
     print(f"🔥 Handling Failure for {course_id}: {error}")
     
     # Log to failures table
