@@ -91,6 +91,10 @@ REPLICATE_API_TOKEN=your_replicate_token
 REMOTION_AWS_ACCESS_KEY_ID=your_aws_access_key
 REMOTION_AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 REMOTION_AWS_REGION=eu-west-2
+AWS_ACCESS_KEY_ID=Same as remotion access key
+AWS_SECRET_ACCESS_KEY=Same as remotion secret key
+AWS_REGION=eu-west-2
+VIDEO_RENDER_QUEUE_URL=SQS Queue URL
 ```
 
 #### Frontend (`frontend/.env.local`)

@@ -57,6 +57,25 @@ EOF
     $AWS iam attach-role-policy --role-name $ROLE_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
     $AWS iam attach-role-policy --role-name $ROLE_NAME --policy-arn arn:aws:iam::aws:policy/AmazonSQSFullAccess
     
+    # Create inline policy for invoking Remotion Lambda
+    echo "   Adding Lambda invoke permissions..."
+    cat > /tmp/lambda-invoke-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:*:*:function:remotion-render-*"
+    }
+  ]
+}
+EOF
+    $AWS iam put-role-policy \
+        --role-name $ROLE_NAME \
+        --policy-name "RemotionLambdaInvoke" \
+        --policy-document file:///tmp/lambda-invoke-policy.json
+    
     # Wait for role to propagate
     echo "   Waiting for role to propagate..."
     sleep 10
@@ -78,7 +97,7 @@ $AWS ecr get-login-password --region $AWS_REGION | $DOCKER login --username AWS 
 
 # 3. Build Docker Image
 echo "🔨 Building Docker image..."
-$DOCKER build --platform linux/amd64 -t $ECR_REPO .
+$DOCKER build --platform linux/amd64 --provenance=false -t $ECR_REPO .
 
 # 4. Tag and Push
 echo "📤 Pushing to ECR..."

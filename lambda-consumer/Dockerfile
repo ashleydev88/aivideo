@@ -1,14 +1,10 @@
 FROM public.ecr.aws/lambda/python:3.11
 
-# Install Node.js 16 via Amazon Linux 2 repos (compatible with glibc 2.26)
-# Node 16 is the last version compatible with Amazon Linux 2
-RUN curl -sL https://rpm.nodesource.com/setup_16.x | bash - && \
-    yum install -y nodejs && \
-    yum clean all
-
-# Install Remotion CLI globally
-# Note: We need to check if Remotion CLI supports Node 16
-RUN npm install -g @remotion/cli @remotion/lambda
+# Install Node.js (required for Remotion Lambda SDK internals if it invokes CLI)
+RUN yum install -y tar gzip \
+    && curl -fsSL https://rpm.nodesource.com/setup_16.x | bash - \
+    && yum install -y nodejs \
+    && npm install -g remotion @remotion/lambda
 
 # Copy requirements and install Python deps
 COPY requirements.txt .

@@ -5,7 +5,7 @@
   "scripts": {
     "start": "ts-node src/server.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "deploy": "npx remotion lambda functions deploy && npx remotion lambda sites create src/remotion.tsx --site-name=video-renderer"
+    "deploy": "npx remotion lambda functions deploy --memory=3008 --disk=10240 --timeout=900 && npx remotion lambda sites create src/remotion.tsx --site-name=video-renderer"
   },
   "keywords": [],
   "author": "",
