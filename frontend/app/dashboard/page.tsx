@@ -330,84 +330,88 @@ export default function DashboardPage() {
                                             </div>
                                         </TableCell>
 
-                                        <TableCell className="relative py-2">
-                                            <div className="flex items-center justify-end gap-2 min-h-[40px]">
-                                                {/* PRIMARY ACTION: Watch Video (Always visible if completed) */}
-                                                {project.status === 'completed' && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => router.push(`/dashboard/player?id=${project.id}`)}
-                                                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                                                        title="Watch Video"
-                                                    >
-                                                        <PlayCircle className="h-6 w-6" />
-                                                    </Button>
-                                                )}
+                                        <TableCell className="py-2">
+                                            <div className="relative flex items-center justify-center min-h-[40px]">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    {/* PRIMARY ACTION: Watch Video (Always visible if completed) */}
+                                                    {project.status === 'completed' && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => router.push(`/dashboard/player?id=${project.id}`)}
+                                                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                                            title="Watch Video"
+                                                        >
+                                                            <PlayCircle className="h-6 w-6" />
+                                                        </Button>
+                                                    )}
 
-                                                {/* REVIEW TOPICS: Primary Action if in this state */}
-                                                {project.status === 'reviewing_topics' && (
-                                                    <button
-                                                        style={{ backgroundColor: '#f97316', color: 'white' }}
-                                                        className="inline-flex items-center justify-center h-8 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
-                                                        onClick={() => router.push(`/dashboard/plan/${project.id}`)}
-                                                    >
-                                                        Review Plan
-                                                    </button>
-                                                )}
+                                                    {/* REVIEW TOPICS: Primary Action if in this state */}
+                                                    {project.status === 'reviewing_topics' && (
+                                                        <button
+                                                            style={{ backgroundColor: '#f97316', color: 'white' }}
+                                                            className="inline-flex items-center justify-center h-8 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
+                                                            onClick={() => router.push(`/dashboard/plan/${project.id}`)}
+                                                        >
+                                                            Review Plan
+                                                        </button>
+                                                    )}
 
-                                                {/* REVIEW STRUCTURE: Primary Action if in this state */}
-                                                {project.status === 'reviewing_structure' && (
-                                                    <button
-                                                        style={{ backgroundColor: '#f97316', color: 'white' }}
-                                                        className="inline-flex items-center justify-center h-8 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
-                                                        onClick={() => router.push(`/dashboard/structure/${project.id}`)}
-                                                    >
-                                                        Edit Structure
-                                                    </button>
-                                                )}
+                                                    {/* REVIEW STRUCTURE: Primary Action if in this state */}
+                                                    {project.status === 'reviewing_structure' && (
+                                                        <button
+                                                            style={{ backgroundColor: '#f97316', color: 'white' }}
+                                                            className="inline-flex items-center justify-center h-8 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
+                                                            onClick={() => router.push(`/dashboard/structure/${project.id}`)}
+                                                        >
+                                                            Edit Structure
+                                                        </button>
+                                                    )}
 
-                                                {/* PROCESSING STATES */}
-                                                {!['completed', 'reviewing_topics', 'reviewing_structure', 'failed', 'error'].includes(project.status) && (
-                                                    <Button variant="ghost" size="sm" disabled className="text-slate-500">
-                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin text-teal-600" />
-                                                        Processing
-                                                    </Button>
-                                                )}
+                                                    {/* PROCESSING STATES */}
+                                                    {!['completed', 'reviewing_topics', 'reviewing_structure', 'failed', 'error'].includes(project.status) && (
+                                                        <Button variant="ghost" size="sm" disabled className="text-slate-500">
+                                                            <Loader2 className="h-4 w-4 mr-2 animate-spin text-teal-600" />
+                                                            Processing
+                                                        </Button>
+                                                    )}
 
-                                                {/* ERROR STATE */}
-                                                {['failed', 'error'].includes(project.status) && (
-                                                    <div className="flex items-center text-red-600 text-xs font-medium mr-2">
-                                                        <AlertCircle className="h-4 w-4 mr-1" />
-                                                        Failed
-                                                    </div>
-                                                )}
+                                                    {/* ERROR STATE */}
+                                                    {['failed', 'error'].includes(project.status) && (
+                                                        <div className="flex items-center text-red-600 text-xs font-medium mr-2">
+                                                            <AlertCircle className="h-4 w-4 mr-1" />
+                                                            Failed
+                                                        </div>
+                                                    )}
+                                                </div>
 
                                                 {/* MENU: Edit (Copy) & Delete */}
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
-                                                            <span className="sr-only">Open menu</span>
-                                                            <MoreHorizontal className="h-4 w-4 text-slate-500" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                        {project.status === 'completed' && (
-                                                            <DropdownMenuItem onClick={() => handleCopyAndEdit(project.id)}>
-                                                                <Video className="mr-2 h-4 w-4" />
-                                                                <span>Copy & Edit</span>
+                                                <div className="absolute right-5">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
+                                                                <span className="sr-only">Open menu</span>
+                                                                <MoreHorizontal className="h-4 w-4 text-slate-500" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                            {project.status === 'completed' && (
+                                                                <DropdownMenuItem onClick={() => handleCopyAndEdit(project.id)}>
+                                                                    <Video className="mr-2 h-4 w-4" />
+                                                                    <span>Copy & Edit</span>
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                            <DropdownMenuItem
+                                                                onClick={() => handleDelete(project.id)}
+                                                                className="text-red-600 focus:text-red-600"
+                                                            >
+                                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                                <span>Delete</span>
                                                             </DropdownMenuItem>
-                                                        )}
-                                                        <DropdownMenuItem
-                                                            onClick={() => handleDelete(project.id)}
-                                                            className="text-red-600 focus:text-red-600"
-                                                        >
-                                                            <Trash2 className="mr-2 h-4 w-4" />
-                                                            <span>Delete</span>
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
                                             </div>
                                         </TableCell>
                                     </TableRow>
