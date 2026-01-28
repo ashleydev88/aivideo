@@ -14,6 +14,14 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
     Video,
     Plus,
     Download,
@@ -162,8 +170,14 @@ export default function DashboardPage() {
     };
 
     const formatDuration = (metadata: any) => {
-        if (!metadata?.duration) return "N/A";
-        return `${metadata.duration} min`;
+        if (metadata?.actual_duration) {
+            const totalSeconds = Math.round(metadata.actual_duration / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+        if (metadata?.duration) return `~${metadata.duration} min`;
+        return "N/A";
     };
 
 
@@ -171,6 +185,28 @@ export default function DashboardPage() {
     if (loading) {
         return <LoadingScreen message="Loading dashboard..." />;
     }
+
+    const handleCopyAndEdit = async (courseId: string) => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const res = await fetch(`http://127.0.0.1:8000/copy-course/${courseId}`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${session.access_token}`
+                }
+            });
+
+            if (!res.ok) throw new Error("Failed to copy course");
+
+            const data = await res.json();
+            router.push(`/dashboard/structure/${data.course_id}`);
+        } catch (error) {
+            console.error("Error editing course:", error);
+            alert("Failed to start editing course.");
+        }
+    };
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto">
@@ -295,8 +331,8 @@ export default function DashboardPage() {
                                         </TableCell>
 
                                         <TableCell className="relative py-2">
-                                            <div className="flex items-center justify-center min-h-[40px]">
-                                                {/* COMPLETED: Watch/Download */}
+                                            <div className="flex items-center justify-end gap-2 min-h-[40px]">
+                                                {/* PRIMARY ACTION: Watch Video (Always visible if completed) */}
                                                 {project.status === 'completed' && (
                                                     <Button
                                                         variant="ghost"
@@ -309,29 +345,27 @@ export default function DashboardPage() {
                                                     </Button>
                                                 )}
 
-                                                {/* REVIEW TOPICS */}
+                                                {/* REVIEW TOPICS: Primary Action if in this state */}
                                                 {project.status === 'reviewing_topics' && (
                                                     <button
                                                         style={{ backgroundColor: '#f97316', color: 'white' }}
-                                                        className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
+                                                        className="inline-flex items-center justify-center h-8 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
                                                         onClick={() => router.push(`/dashboard/plan/${project.id}`)}
                                                     >
                                                         Review Plan
                                                     </button>
                                                 )}
 
-                                                {/* REVIEW STRUCTURE */}
+                                                {/* REVIEW STRUCTURE: Primary Action if in this state */}
                                                 {project.status === 'reviewing_structure' && (
                                                     <button
                                                         style={{ backgroundColor: '#f97316', color: 'white' }}
-                                                        className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
+                                                        className="inline-flex items-center justify-center h-8 px-3 text-sm font-medium rounded-md shadow-sm hover:opacity-90 transition-opacity"
                                                         onClick={() => router.push(`/dashboard/structure/${project.id}`)}
                                                     >
                                                         Edit Structure
                                                     </button>
                                                 )}
-
-
 
                                                 {/* PROCESSING STATES */}
                                                 {!['completed', 'reviewing_topics', 'reviewing_structure', 'failed', 'error'].includes(project.status) && (
@@ -348,18 +382,32 @@ export default function DashboardPage() {
                                                         Failed
                                                     </div>
                                                 )}
-                                            </div>
 
-                                            {/* DELETE (Always available) - Positioned to the right */}
-                                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleDelete(project.id)}
-                                                    className="text-slate-400 hover:text-red-600"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                                {/* MENU: Edit (Copy) & Delete */}
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
+                                                            <span className="sr-only">Open menu</span>
+                                                            <MoreHorizontal className="h-4 w-4 text-slate-500" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                        {project.status === 'completed' && (
+                                                            <DropdownMenuItem onClick={() => handleCopyAndEdit(project.id)}>
+                                                                <Video className="mr-2 h-4 w-4" />
+                                                                <span>Copy & Edit</span>
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleDelete(project.id)}
+                                                            className="text-red-600 focus:text-red-600"
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                            <span>Delete</span>
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -372,6 +420,6 @@ export default function DashboardPage() {
 
             {/* Course Generation Modal - opened from dashboard when clicking on in-progress course */}
 
-        </div>
+        </div >
     );
 }

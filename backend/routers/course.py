@@ -67,7 +67,7 @@ async def generate_topics(request: PlanRequest, background_tasks: BackgroundTask
     try:
         response = supabase_admin.table("courses").insert({
             "status": "generating_topics",
-            "name": "New Policy Course",
+            "name": request.title or "New Policy Course",
             "user_id": user_id,
             "metadata": {
                 "duration": request.duration,
@@ -231,6 +231,50 @@ async def delete_course(course_id: str, authorization: str = Header(None)):
     supabase_admin.table("courses").delete().eq("id", course_id).execute()
     return {"status": "deleted"}
 
+@router.post("/copy-course/{course_id}")
+async def copy_course(course_id: str, authorization: str = Header(None)):
+    """
+    Creates a copy of an existing course for editing purposes.
+    The new course will be in 'reviewing_structure' state.
+    """
+    user_id = get_user_id_from_token(authorization)
+    
+    # 1. Fetch source course
+    res = supabase_admin.table("courses").select("*").eq("id", course_id).execute()
+    
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Course not found")
+        
+    source_course = res.data[0]
+    
+    # Security check
+    if source_course['user_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to copy this course")
+        
+    # 2. Prepare new course data
+    new_name = f"Copy of {source_course.get('name', 'Untitled')}"
+    
+    new_course_data = {
+        "user_id": user_id,
+        "name": new_name,
+        "status": "reviewing_structure",
+        "progress_phase": "structure_ready",
+        "progress_current_step": 100,
+        "progress_total_steps": 100,
+        "slide_data": source_course.get("slide_data"),
+        "metadata": source_course.get("metadata", {}),
+        "video_url": None # Reset video url
+    }
+    
+    # 3. Insert new course
+    try:
+        insert_res = supabase_admin.table("courses").insert(new_course_data).execute()
+        new_course_id = insert_res.data[0]['id']
+        return {"status": "copied", "course_id": new_course_id}
+    except Exception as e:
+        print(f"❌ Copy Course Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to copy course")
+
 @router.post("/regenerate-slide-visual/{course_id}")
 async def regenerate_slide_visual(
     course_id: str, 
@@ -261,7 +305,7 @@ async def regenerate_slide_visual(
         raise HTTPException(status_code=500, detail="Failed to generate image")
         
     image_filename = f"visual_{slide_index}_{int(time.time())}.jpg"
-    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, max_retries=5)
+    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, course_id=course_id, max_retries=5)
     
     return {"image_url": image_url}
 
