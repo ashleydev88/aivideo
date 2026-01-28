@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.routers import course
 
 # 1. LOAD SECRETS
-load_dotenv()
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(env_path)
 
 # --- CONFIGURATION IMPORTS ---
 # We keep these here if they are needed for app initialization or global settings, 

@@ -8,8 +8,7 @@ export interface GenerationProgress {
     courseId: string;
     status: string;
     phase: "script" | "validation" | "media" | "compiling" | null;
-    currentStep: number;
-    totalSteps: number;
+    progress: number;
     error: string | null;
     videoUrl: string | null;
     slideData: any[] | null;
@@ -106,8 +105,7 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
                             ...prev,
                             status: newData.status || prev.status,
                             phase: newData.progress_phase || prev.phase,
-                            currentStep: newData.progress_current_step || prev.currentStep,
-                            totalSteps: newData.progress_total_steps || prev.totalSteps,
+                            progress: newData.progress !== undefined ? newData.progress : prev.progress,
                             videoUrl: newData.video_url || prev.videoUrl,
                             slideData: newData.slide_data || prev.slideData,
                             error: (newData.status === "failed" || newData.status === "error")
@@ -127,8 +125,7 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
                     ...prev!,
                     status: data.status,
                     phase: data.progress_phase,
-                    currentStep: data.progress_current_step,
-                    totalSteps: data.progress_total_steps,
+                    progress: data.progress || 0,
                     videoUrl: data.video_url,
                     slideData: data.slide_data,
                     error: (data.status === "failed" || data.status === "error") ? "Generation failed" : null
@@ -148,8 +145,7 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
             courseId,
             status: "Initializing...",
             phase: "script",
-            currentStep: 0,
-            totalSteps: 0,
+            progress: 0,
             error: null,
             videoUrl: null,
             slideData: null

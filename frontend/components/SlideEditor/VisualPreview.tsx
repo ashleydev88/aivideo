@@ -357,7 +357,11 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     }
 
     // 4. HYBRID RENDERER (Text Left 50%, Image Right 50%)
-    if (visual_type === 'hybrid') {
+    // Also catch "image" types that have text, as we don't want the overlay layout
+    const isHybrid = visual_type === 'hybrid' ||
+        ((visual_type === 'image' || !visual_type) && !!slide.visual_text);
+
+    if (isHybrid) {
         return (
             <div className="w-full h-full flex flex-row bg-slate-900 overflow-hidden rounded-lg">
                 {/* Left: Text */}

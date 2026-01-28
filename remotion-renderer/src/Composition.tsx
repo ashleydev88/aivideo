@@ -23,8 +23,9 @@ export const MainComposition: React.FC<{
                 const fromFrame = currentFrame;
                 currentFrame += durationFrames;
 
-                const isHybrid = slide.visual_type === 'hybrid';
-                const isImageOnly = slide.visual_type === 'image';
+                const hasVisualText = !!(slide.visual_text && slide.visual_text.trim().length > 0);
+                const isHybrid = slide.visual_type === 'hybrid' || (slide.visual_type === 'image' && hasVisualText);
+                const isImageOnly = slide.visual_type === 'image' && !hasVisualText;
                 const isKineticOnly = slide.visual_type === 'kinetic_text';
                 const isChart = slide.visual_type === 'chart';
                 const isTitleCard = slide.visual_type === 'title_card';

@@ -194,7 +194,7 @@ async def generate_topics_task(course_id: str, policy_text: str, duration: int, 
         supabase_admin.table("courses").update({
             "status": "reviewing_topics",
             "progress_phase": "topics_ready",
-            "progress_current_step": 100,
+            "progress": 100,
             "name": course_title,
             "metadata": new_metadata
         }).eq("id", course_id).execute()
@@ -263,7 +263,7 @@ Target Average: 20 seconds per slide.
             f"YOUR TASK:\n"
             f"Create a complete video script that transforms policy content into an engaging learning experience.\n"
             f"Follow all previous instructions regarding narration length, visual text, and image prompts.\n"
-             f"OUTPUT FORMAT (JSON):\n"
+            f"OUTPUT FORMAT (JSON):\n"
             f"{{\n"
             f"  \"script\": [\n"
             f"    {{\n"
@@ -339,7 +339,7 @@ Target Average: 20 seconds per slide.
             "slide_data": script_plan,
             "status": "reviewing_structure",
             "progress_phase": "structure_ready",
-            "progress_current_step": 100
+            "progress": 100
         }).eq("id", course_id).execute()
         
         print(f"   ✅ Structure & Draft Visuals generated for {course_id}")
@@ -359,8 +359,7 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         supabase_admin.table("courses").update({
             "status": "queued",
             "progress_phase": "compiling",
-            "progress_current_step": 0,
-            "progress_total_steps": 100
+            "progress": 0
         }).eq("id", course_id).execute()
     except Exception as e:
         print(f"   ⚠️ DB Update Error: {e}")
@@ -425,7 +424,7 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
     supabase_admin.table("courses").update({
         "status": "generating_audio",
         "progress_phase": "media",
-        "progress_current_step": 0
+        "progress": 0
     }).eq("id", course_id).execute()
     
     api_semaphore = asyncio.Semaphore(4)
