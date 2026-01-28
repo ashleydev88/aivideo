@@ -4,6 +4,8 @@ import math
 import time
 import tempfile
 import os
+from io import BytesIO
+from PIL import Image
 from moviepy.editor import AudioFileClip
 
 from backend.config import (
@@ -22,6 +24,19 @@ from backend.utils.helpers import extract_json_from_response, parse_alignment_to
 from backend.schemas import ScriptRequest
 
 # Helpers / Shared Logic
+
+def convert_bytes_to_webp(image_bytes: bytes) -> bytes:
+    """
+    Converts image bytes (JPEG/PNG) to WebP format.
+    """
+    try:
+        img = Image.open(BytesIO(image_bytes))
+        output = BytesIO()
+        img.save(output, format="WEBP", quality=85, optimize=True)
+        return output.getvalue()
+    except Exception as e:
+        print(f"⚠️ WebP Conversion Failed: {e}")
+        return image_bytes
 
 def inject_bookend_slides(script_plan: list, course_title: str, logo_url: str = None, logo_crop: dict = None) -> list:
     """
@@ -96,8 +111,11 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
                 image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
                 
                 if image_data:
-                    image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, course_id=course_id, max_retries=5)
+                    # Convert to WebP
+                    image_data = await asyncio.to_thread(convert_bytes_to_webp, image_data)
+                    
+                    image_filename = f"visual_{i}_{int(time.time())}.webp"
+                    image_url = await upload_asset_throttled(image_data, image_filename, "image/webp", user_id, course_id=course_id, max_retries=5)
                 else:
                     visual_type = "kinetic_text" # Fallback
             
