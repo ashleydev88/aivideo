@@ -64,18 +64,24 @@ def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dic
     except Exception as e:
          print(f"   ❌ CRITICAL: Failed to update course status {course_id}: {e}")
 
-def upload_asset(file_content, filename, content_type, user_id: str, max_retries: int = 3):
+def upload_asset(file_content, filename, content_type, user_id: str, course_id: str = None, max_retries: int = 3):
     """Upload asset to Supabase storage with user_id folder prefix for RLS.
     
     Returns the storage path (not a signed URL) for on-demand URL generation.
-    Format: {user_id}/{filename}
+    Format:
+        - {user_id}/{filename} (Legacy / Default)
+        - {user_id}/{course_id}/{filename} (If course_id is provided)
     
     Includes retry logic for transient network errors (e.g., EAGAIN/Errno 35).
     """
     if not file_content: return None 
     bucket = "course-assets"
+    
     # Use user_id as folder prefix for RLS policy compatibility
-    path = f"{user_id}/{filename}"
+    if course_id:
+        path = f"{user_id}/{course_id}/{filename}"
+    else:
+        path = f"{user_id}/{filename}"
     
     for attempt in range(max_retries):
         try:
@@ -107,14 +113,14 @@ def upload_asset(file_content, filename, content_type, user_id: str, max_retries
     
     return None
 
-async def upload_asset_throttled(file_content, filename, content_type, user_id: str, max_retries: int = 3):
+async def upload_asset_throttled(file_content, filename, content_type, user_id: str, course_id: str = None, max_retries: int = 3):
     """Async wrapper for upload_asset with semaphore-based throttling.
     
     Limits concurrent Supabase uploads to prevent socket exhaustion (Errno 35).
     Uses SUPABASE_UPLOAD_SEMAPHORE to control concurrency.
     """
     async with SUPABASE_UPLOAD_SEMAPHORE:
-        return await asyncio.to_thread(upload_asset, file_content, filename, content_type, user_id, max_retries)
+        return await asyncio.to_thread(upload_asset, file_content, filename, content_type, user_id, course_id, max_retries)
 
 def get_asset_url(path_or_url, validity=600):
     """

@@ -97,7 +97,7 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
                 
                 if image_data:
                     image_filename = f"visual_{i}_{int(time.time())}.jpg"
-                    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, max_retries=5)
+                    image_url = await upload_asset_throttled(image_data, image_filename, "image/jpeg", user_id, course_id=course_id, max_retries=5)
                 else:
                     visual_type = "kinetic_text" # Fallback
             
@@ -377,6 +377,15 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         
         total_duration_ms = sum(s.get('duration', 0) for s in slides)
         print(f"   📊 Payload: {len(slides)} slides, total duration: {total_duration_ms}ms")
+
+        # Update metadata with actual duration
+        metadata['actual_duration'] = total_duration_ms
+        try:
+            supabase_admin.table("courses").update({
+                "metadata": metadata
+            }).eq("id", course_id).execute()
+        except Exception as e:
+            print(f"   ⚠️ Failed to update metadata duration: {e}")
         
         job_id = await send_render_job_async(course_id, user_id, payload)
         
@@ -431,7 +440,7 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
                 duration_ms = await asyncio.to_thread(get_duration, temp_audio_path)
                 
                 audio_filename = f"narration_{i}_{int(time.time())}.mp3"
-                audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id, max_retries=5)
+                audio_url = await upload_asset_throttled(audio_data, audio_filename, "audio/mpeg", user_id, course_id=course_id, max_retries=5)
                 alignment = new_alignment
             
             kinetic_events = []
