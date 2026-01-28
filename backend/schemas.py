@@ -11,6 +11,9 @@ class PlanRequest(BaseModel):
     style: str = "Minimalist Vector" 
     accent_color: str = "#14b8a6" 
     color_name: str = "teal"
+    title: Optional[str] = None
+    logo_url: Optional[str] = None
+    logo_crop: Optional[dict] = None
 
 class Topic(BaseModel):
     id: int
@@ -33,3 +36,5 @@ class ScriptRequest(BaseModel):
     accent_color: Optional[str] = None  # Optional: User-selected accent color hex (e.g., "#14b8a6")
     color_name: Optional[str] = None  # Optional: Color name for style prompt (e.g., "teal")
     course_id: Optional[str] = None # Added for Async Flow linking
+    logo_url: Optional[str] = None
+    logo_crop: Optional[dict] = None

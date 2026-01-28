@@ -23,12 +23,18 @@ from backend.schemas import ScriptRequest
 
 # Helpers / Shared Logic
 
-def inject_bookend_slides(script_plan: list, course_title: str) -> list:
+def inject_bookend_slides(script_plan: list, course_title: str, logo_url: str = None, logo_crop: dict = None) -> list:
     """
     Injects a welcome slide at the beginning and a thank you slide at the end of the script.
+    Now includes logo information if provided.
     """
     print("   📚 Injecting welcome and thank you slides...")
     
+    logo_info = {
+        "url": logo_url,
+        "crop": logo_crop
+    } if logo_url else None
+
     # Welcome slide (first)
     welcome_slide = {
         "text": f"Welcome to the {course_title} training.",
@@ -37,7 +43,8 @@ def inject_bookend_slides(script_plan: list, course_title: str) -> list:
         "visual_type": "title_card",
         "layout": "title",
         "duration_hint": 4000,
-        "duration": 4000
+        "duration": 4000,
+        "logo_info": logo_info
     }
     
     # Thank you slide (last)
@@ -48,7 +55,8 @@ def inject_bookend_slides(script_plan: list, course_title: str) -> list:
         "visual_type": "title_card",
         "layout": "title",
         "duration_hint": 3000,
-        "duration": 3000
+        "duration": 3000,
+        "logo_info": logo_info
     }
     
     result = [welcome_slide] + script_plan + [thanks_slide]
@@ -110,7 +118,7 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
         return script_plan
 
 
-async def generate_topics_task(course_id: str, policy_text: str, duration: int, country: str):
+async def generate_topics_task(course_id: str, policy_text: str, duration: int, country: str, user_provided_title: str = None):
     """
     Background worker to generate topics and update DB.
     """
@@ -147,19 +155,30 @@ async def generate_topics_task(course_id: str, policy_text: str, duration: int, 
         res_text = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000)
         data = extract_json_from_response(res_text)
         
+        # Use user-provided title if available, otherwise use generated title
+        course_title = user_provided_title if user_provided_title else data.get("title", "New Course")
+
+        # Fetch existing metadata to preserve fields like logo_url, custom_title, style
+        existing_res = supabase_admin.table("courses").select("metadata").eq("id", course_id).execute()
+        existing_metadata = existing_res.data[0].get("metadata", {}) if existing_res.data else {}
+
+        # Update metadata
+        new_metadata = {
+            **existing_metadata,
+            "duration": duration,
+            "country": country,
+            "topics": data.get("topics", []),
+            "learning_objective": data.get("learning_objective", ""),
+            "processed_policy": processed_policy
+        }
+
         # Update DB
         supabase_admin.table("courses").update({
             "status": "reviewing_topics",
             "progress_phase": "topics_ready",
             "progress_current_step": 100,
-            "name": data.get("title", "New Course"),
-            "metadata": {
-                "duration": duration,
-                "country": country,
-                "topics": data.get("topics", []),
-                "learning_objective": data.get("learning_objective", ""),
-                "processed_policy": processed_policy
-            }
+            "name": course_title,
+            "metadata": new_metadata
         }).eq("id", course_id).execute()
         print(f"   ✅ Topics generated for {course_id}")
 
@@ -287,7 +306,9 @@ Target Average: 20 seconds per slide.
         script_plan = await asyncio.to_thread(pipeline.assign_visual_types, script_plan)
         
         # Inject Bookends
-        script_plan = inject_bookend_slides(script_plan, request.title)
+        logo_url = metadata.get("logo_url")
+        logo_crop = metadata.get("logo_crop")
+        script_plan = inject_bookend_slides(script_plan, request.title, logo_url, logo_crop)
         
         # Generate Draft Visuals
         style_key = metadata.get("style", "Minimalist Vector")
@@ -327,11 +348,14 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         print(f"   ⚠️ DB Update Error: {e}")
 
     try:
-        res = supabase_admin.table("courses").select("slide_data, accent_color").eq("id", course_id).execute()
+        res = supabase_admin.table("courses").select("slide_data, accent_color, metadata").eq("id", course_id).execute()
         if not res.data: return
         course_data = res.data[0]
         slides = course_data.get('slide_data', [])
         accent_color = course_data.get('accent_color', '#14b8a6')
+        metadata = course_data.get('metadata', {})
+        logo_url = metadata.get('logo_url')
+        logo_crop = metadata.get('logo_crop')
 
         # Sign URLs for Lambda
         print("   🔑 Signing assets for Lambda...")
@@ -341,9 +365,14 @@ async def trigger_remotion_render(course_id: str, user_id: str):
             if slide.get("image") and not slide["image"].startswith("http"):
                  slide["image"] = get_asset_url(slide["image"], 3600)
 
+        if logo_url and not logo_url.startswith("http"):
+             logo_url = get_asset_url(logo_url, 3600)
+
         payload = {
             "slide_data": slides,
-            "accent_color": accent_color
+            "accent_color": accent_color,
+            "logo_url": logo_url,
+            "logo_crop": logo_crop
         }
         
         total_duration_ms = sum(s.get('duration', 0) for s in slides)
@@ -416,7 +445,8 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
                     narration=slide.get("text", ""),
                     word_timestamps=word_timestamps,
                     visual_type=visual_type,
-                    slide_duration_ms=duration_ms
+                    slide_duration_ms=duration_ms,
+                    visual_text=slide.get("visual_text", "")
                 )
 
             slide["audio"] = audio_url

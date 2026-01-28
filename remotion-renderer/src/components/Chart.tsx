@@ -34,10 +34,11 @@ const IconWrapper: React.FC<{ name: string; color: string; size?: number }> = ({
 
 export const Chart: React.FC<{
     data: ChartData;
+    title?: string;
     accent_color?: string;
     custom_bg_color?: string;
     custom_text_color?: string;
-}> = ({ data, accent_color = '#14b8a6', custom_bg_color, custom_text_color }) => {
+}> = ({ data, title, accent_color = '#14b8a6', custom_bg_color, custom_text_color }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
 
@@ -88,8 +89,8 @@ export const Chart: React.FC<{
                                         <div className="mb-6 p-4 rounded-2xl bg-slate-50" style={{ backgroundColor: `${color}15` }}>
                                             <IconWrapper name={item.icon || 'box'} color={color} size={48} />
                                         </div>
-                                        <h3 className="text-3xl font-black text-slate-800 mb-3">{item.label}</h3>
-                                        {item.description && <p className="text-slate-500 text-xl font-medium leading-tight">{item.description}</p>}
+                                        <h3 className="text-3xl font-black text-slate-800 mb-3" style={{ color: custom_text_color || '#1e293b' }}>{item.label}</h3>
+                                        {item.description && <p className="text-slate-500 text-xl font-medium leading-tight" style={{ color: custom_text_color ? `${custom_text_color}cc` : '#64748b' }}>{item.description}</p>}
                                     </div>
                                 </React.Fragment>
                             );
@@ -119,8 +120,8 @@ export const Chart: React.FC<{
                                         <IconWrapper name={item.icon || 'layers'} color={color} size={40} />
                                     </div>
                                     <div>
-                                        <h4 className="text-2xl font-bold text-slate-800 mb-2">{item.label}</h4>
-                                        <p className="text-slate-500 text-lg font-medium">{item.description}</p>
+                                        <h4 className="text-2xl font-bold text-slate-800 mb-2" style={{ color: custom_text_color || '#1e293b' }}>{item.label}</h4>
+                                        <p className="text-slate-500 text-lg font-medium" style={{ color: custom_text_color ? `${custom_text_color}cc` : '#64748b' }}>{item.description}</p>
                                     </div>
                                 </div>
                             );
@@ -147,7 +148,7 @@ export const Chart: React.FC<{
                                     <div className="text-8xl font-black mb-4 tracking-tighter" style={{ color }}>
                                         {item.label}
                                     </div>
-                                    <div className="text-3xl font-bold text-slate-700 tracking-tight">
+                                    <div className="text-3xl font-bold text-slate-700 tracking-tight" style={{ color: custom_text_color || '#334155' }}>
                                         {item.description}
                                     </div>
                                 </div>
@@ -190,7 +191,7 @@ export const Chart: React.FC<{
                                     }}
                                 >
                                     <IconWrapper name={item.icon || 'refresh-cw'} color={color} size={28} />
-                                    <span className="mt-2 font-bold text-slate-800">{item.label}</span>
+                                    <span className="mt-2 font-bold text-slate-800" style={{ color: custom_text_color || '#1e293b' }}>{item.label}</span>
                                 </div>
                             );
                         })}
@@ -226,8 +227,8 @@ export const Chart: React.FC<{
                                         <div className="mb-8 p-6 rounded-3xl" style={{ backgroundColor: `${color}15` }}>
                                             <IconWrapper name={item.icon || (i === 0 ? 'check-circle' : 'x-circle')} color={color} size={56} />
                                         </div>
-                                        <h3 className="text-4xl font-black text-slate-800 mb-4">{item.label}</h3>
-                                        <p className="text-slate-500 text-xl font-medium leading-relaxed">{item.description}</p>
+                                        <h3 className="text-4xl font-black text-slate-800 mb-4" style={{ color: custom_text_color || '#1e293b' }}>{item.label}</h3>
+                                        <p className="text-slate-500 text-xl font-medium leading-relaxed" style={{ color: custom_text_color ? `${custom_text_color}cc` : '#64748b' }}>{item.description}</p>
                                     </div>
                                 </React.Fragment>
                             );
@@ -258,8 +259,8 @@ export const Chart: React.FC<{
                                         <IconWrapper name={item.icon || 'triangle'} color={color} size={32} />
                                     </div>
                                     <div className="pl-28 pr-8 text-center">
-                                        <h4 className="text-2xl font-bold text-slate-800 uppercase tracking-wider">{item.label}</h4>
-                                        <p className="text-slate-500 font-bold truncate">{item.description}</p>
+                                        <h4 className="text-2xl font-bold text-slate-800 uppercase tracking-wider" style={{ color: custom_text_color || '#1e293b' }}>{item.label}</h4>
+                                        <p className="text-slate-500 font-bold truncate" style={{ color: custom_text_color ? `${custom_text_color}cc` : '#64748b' }}>{item.description}</p>
                                     </div>
                                 </div>
                             );
@@ -287,8 +288,8 @@ export const Chart: React.FC<{
                                         {i + 1}
                                     </div>
                                     <div className="flex-1">
-                                        <h4 className="text-2xl font-bold text-slate-800">{item.label}</h4>
-                                        {item.description && <p className="text-slate-500 font-medium">{item.description}</p>}
+                                        <h4 className="text-2xl font-bold text-slate-800" style={{ color: custom_text_color || '#1e293b' }}>{item.label}</h4>
+                                        {item.description && <p className="text-slate-500 font-medium" style={{ color: custom_text_color ? `${custom_text_color}cc` : '#64748b' }}>{item.description}</p>}
                                     </div>
                                     <IconWrapper name={item.icon || 'check-circle'} color={color} size={32} />
                                 </div>
@@ -312,7 +313,7 @@ export const Chart: React.FC<{
                     color: custom_text_color || '#0f172a'
                 }}
             >
-                {data.title}
+                {title || data.title}
                 <div className="h-2 w-32 mt-4 mx-auto rounded-full" style={{ backgroundColor: accent_color }} />
             </h2>
 

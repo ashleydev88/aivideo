@@ -97,6 +97,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     // 1. CHART RENDERER
     if (visual_type === 'chart' && chart_data) {
         // Helper for colors
+        const accentColor = slide.accent_color;
         const getColor = (intent: string | undefined): string => {
             const colors: Record<string, string> = {
                 'danger': '#ef4444',
@@ -106,7 +107,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                 'primary': '#3b82f6',
                 'secondary': '#64748b'
             };
-            return colors[intent || ''] || '#14b8a6'; // Default teal
+            return colors[intent || ''] || accentColor || '#14b8a6';
         };
 
         const ChartIcon = ({ name, color, size = 20 }: any) => {
@@ -126,10 +127,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                         backgroundColor: slide.background_color || '#f8fafc'
                     }}
                 >
-                    {(() => {
-                        const rawText = slide.visual_text || chart_data.title || "";
-                        return rawText.split('\n')[0].replace(/^#+\s*/, '').trim();
-                    })()}
+                    {slide.visual_text || chart_data.title || ""}
                 </h3>
 
                 <div className="w-full flex-1 min-h-0 flex items-center justify-center overflow-y-auto">
@@ -319,7 +317,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                 style={{ backgroundColor: slide.background_color || '#0f172a' }}
             >
                 <div className="space-y-6 w-full">
-                    {(slide.visual_text || "Motion Text").split('\n').map((line: string, i: number) => (
+                    {(slide.visual_text || slide.text || "Motion Text").split('\n').map((line: string, i: number) => (
                         <h1
                             key={i}
                             className="text-3xl font-black tracking-tight uppercase text-left leading-tight"
@@ -347,11 +345,11 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                 }}
             >
                 <h1 className="text-5xl font-bold tracking-tight mb-4">
-                    {slide.visual_text || "Title Card"}
+                    {slide.visual_text || slide.text || "Title Card"}
                 </h1>
                 <div
                     className="h-1 w-20 rounded-full mx-auto"
-                    style={{ backgroundColor: slide.text_color ? `${slide.text_color}4D` : 'rgba(255,255,255,0.3)' }}
+                    style={{ backgroundColor: slide.text_color ? `${slide.text_color}4D` : (slide.accent_color || 'rgba(255,255,255,0.3)') }}
                 />
 
             </div>

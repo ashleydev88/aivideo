@@ -14,8 +14,9 @@ const COLOR_PALETTE = [
     { name: "green", hex: "#22c55e", label: "Green" },
 ];
 
-export default function SetupForm({ onStart, isLoading }: { onStart: (file: File, duration: number, style: string, accentColor: string, colorName: string) => void, isLoading: boolean }) {
+export default function SetupForm({ onStart, isLoading }: { onStart: (title: string, file: File, duration: number, style: string, accentColor: string, colorName: string) => void, isLoading: boolean }) {
     const [method, setMethod] = useState<'policy' | 'script' | 'topic' | null>(null);
+    const [title, setTitle] = useState("");
     const [duration, setDuration] = useState<number | null>(null);
     const [style, setStyle] = useState<string | null>(null);
     const [file, setFile] = useState<File | null>(null);
@@ -37,6 +38,20 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
 
     // Close color picker when clicking outside
     useEffect(() => {
+        // Fetch user metadata for visual preference
+        const fetchPrefs = async () => {
+            const { createClient } = await import('@/lib/supabase/client');
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.user_metadata?.visual_preference) {
+                const pref = user.user_metadata.visual_preference;
+                if (["Minimalist Vector", "Photo Realistic", "Sophisticated Watercolour"].includes(pref)) {
+                    setStyle(pref);
+                }
+            }
+        };
+        fetchPrefs();
+
         const handleClickOutside = (e: MouseEvent) => {
             if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
                 setColorPickerOpen(null);
@@ -60,7 +75,6 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
             image: "https://ctkhjhfmwttpjtmtqjdh.supabase.co/storage/v1/object/sign/global-assets/Tech%20isometric%20sample.webp?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV80ZjM2ZjBlYi1hYjBiLTQ5NjQtOGE0My1hMmEyZGUzOGM4NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJnbG9iYWwtYXNzZXRzL1RlY2ggaXNvbWV0cmljIHNhbXBsZS53ZWJwIiwiaWF0IjoxNzY4MTI0NTk1LCJleHAiOjQ5MjE3MjQ1OTV9.-uCEwrWH2-aq8cawlSV-rAxtdEry4ab83hwYSyusbVk"
         },
     ];
-
 
     return (
         <div className="w-full max-w-4xl mx-auto space-y-8 pb-20">
@@ -143,29 +157,44 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
                 </div>
             </div>
 
-            {/* Step 2: Policy Upload (Conditional) */}
+            {/* Step 2: Policy Upload & Title (Conditional) */}
             {method === 'policy' && (
-                <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <label className="flex items-center gap-2 text-lg font-bold mb-6 text-slate-800">
-                        <Upload size={20} className="text-teal-700" /> Policy Document
-                    </label>
-                    <div className="relative group">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                        <label className="flex items-center gap-2 text-lg font-bold mb-6 text-slate-800">
+                            <PenTool size={20} className="text-teal-700" /> Course Title
+                        </label>
                         <input
-                            type="file"
-                            onChange={handleFile}
-                            accept=".pdf,.docx,.txt"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="e.g., Annual Cybersecurity Awareness 2024"
+                            className="w-full p-4 rounded-lg border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition-all text-lg font-medium"
                         />
-                        <div className={`border-2 border-dashed rounded-lg p-12 text-center transition-all group-hover:bg-slate-50
-                            ${file ? 'border-teal-500 bg-teal-50' : 'border-slate-300'}`}>
-                            {file ? (
-                                <div className="text-teal-700 font-medium truncate text-lg">{file.name}</div>
-                            ) : (
-                                <div className="text-slate-500">
-                                    <p className="font-semibold text-lg">Drop PDF or DOCX here</p>
-                                    <p className="text-sm mt-2 text-slate-400">or click to browse your files</p>
-                                </div>
-                            )}
+                    </div>
+
+                    <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                        <label className="flex items-center gap-2 text-lg font-bold mb-6 text-slate-800">
+                            <Upload size={20} className="text-teal-700" /> Policy Document
+                        </label>
+                        <div className="relative group">
+                            <input
+                                type="file"
+                                onChange={handleFile}
+                                accept=".pdf,.docx,.txt"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            />
+                            <div className={`border-2 border-dashed rounded-lg p-12 text-center transition-all group-hover:bg-slate-50
+                                ${file ? 'border-teal-500 bg-teal-50' : 'border-slate-300'}`}>
+                                {file ? (
+                                    <div className="text-teal-700 font-medium truncate text-lg">{file.name}</div>
+                                ) : (
+                                    <div className="text-slate-500">
+                                        <p className="font-semibold text-lg">Drop PDF or DOCX here</p>
+                                        <p className="text-sm mt-2 text-slate-400">or click to browse your files</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -296,10 +325,11 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (file: File
             )}
 
             {/* Step 5: Submit Button (Conditional) */}
-            {style && (
+            {style && title && file && (
                 <div className="flex justify-center pt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <button
                         onClick={() => file && duration && style && onStart(
+                            title,
                             file,
                             duration,
                             style,

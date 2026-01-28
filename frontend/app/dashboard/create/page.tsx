@@ -108,8 +108,8 @@ const KEN_BURNS_EFFECTS = [
 ] as const;
 
 // --- PLAYER COMPONENT (Split Screen) ---
-function SeamlessPlayer({ slides = [], onReset, videoUrl }:
-    { slides: Slide[], onReset: () => void, videoUrl?: string }) {
+function SeamlessPlayer({ slides = [], onReset, videoUrl, logoInfo }:
+    { slides: Slide[], onReset: () => void, videoUrl?: string, logoInfo?: { url: string, crop: any } }) {
 
     const [index, setIndex] = useState(0);
     const [hasStarted, setHasStarted] = useState(false);
@@ -278,6 +278,21 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl }:
                 <div className="absolute bottom-4 right-4 text-xs font-medium text-slate-500 bg-white/90 backdrop-blur px-3 py-1 rounded-full shadow-sm z-20 border border-slate-200">
                     Slide {index + 1} of {slides.length}
                 </div>
+
+                {/* Logo Overlay on First and Last Slides */}
+                {(index === 0 || index === slides.length - 1) && logoInfo?.url && (
+                    <div className="absolute bottom-4 left-4 z-30 w-16 h-16 bg-white/80 backdrop-blur rounded-lg border border-white/50 shadow-sm overflow-hidden p-1 flex items-center justify-center">
+                        <img
+                            src={logoInfo.url.startsWith('http') ? logoInfo.url : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/course-assets/${logoInfo.url}`}
+                            alt="Logo"
+                            className="max-w-full max-h-full object-contain"
+                            style={logoInfo.crop ? {
+                                transform: `scale(${logoInfo.crop.zoom || 1})`,
+                                transformOrigin: 'center'
+                            } : {}}
+                        />
+                    </div>
+                )}
             </div>
 
             <div className="flex justify-between items-center w-[800px]">
@@ -309,10 +324,12 @@ function DashboardCreatePageContent() {
     const [duration, setDuration] = useState(3);
     const [style, setStyle] = useState("Minimalist Vector");
     const [topics, setTopics] = useState<Topic[]>([]);
-    const [title, setTitle] = useState("New Course"); // NEW: Title State
-    const [learningObjective, setLearningObjective] = useState(""); // NEW: LO State
+    const [title, setTitle] = useState(""); // Default to empty, will be set by SetupForm
+    const [learningObjective, setLearningObjective] = useState("");
     const [courseId, setCourseId] = useState<string | null>(null);
     const [country, setCountry] = useState<"USA" | "UK">("USA");
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
+    const [logoCrop, setLogoCrop] = useState<any>(null);
     const [accentColor, setAccentColor] = useState("#14b8a6"); // Default teal
     const [colorName, setColorName] = useState("teal");
 
@@ -398,13 +415,28 @@ function DashboardCreatePageContent() {
 
 
     // --- STEP 1: UPLOAD & PARSE ---
-    const handleStartPlanning = async (file: File, d: number, s: string, accent: string, colorN: string) => {
+    const handleStartPlanning = async (t: string, file: File, d: number, s: string, accent: string, colorN: string) => {
         setIsLoading(true);
         setIsProcessing(true);
+        setTitle(t);
         setDuration(d);
         setStyle(s);
         setAccentColor(accent);
         setColorName(colorN);
+
+        // Fetch user logo info for later use
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.user_metadata?.logo_url) {
+            setLogoUrl(user.user_metadata.logo_url);
+            setLogoCrop(user.user_metadata.logo_crop);
+        }
+
+        // Persist visual preference for future sessions
+        if (user) {
+            await supabase.auth.updateUser({
+                data: { visual_preference: s }
+            });
+        }
 
         // 1. Upload & Extract Text
         const formData = new FormData();
@@ -415,7 +447,7 @@ function DashboardCreatePageContent() {
             const data = await res.json();
             if (data.text) {
                 setPolicyText(data.text);
-                await generateTopics(data.text, d, s, accent, colorN);
+                await generateTopics(data.text, d, s, accent, colorN, t, user?.user_metadata?.logo_url, user?.user_metadata?.logo_crop);
             }
         } catch (e) {
             console.error("Upload error", e);
@@ -424,7 +456,7 @@ function DashboardCreatePageContent() {
     };
 
     // --- STEP 2: GENERATE TOPICS (Async) ---
-    const generateTopics = async (text: string, d: number, s: string, accent: string, colorN: string) => {
+    const generateTopics = async (text: string, d: number, s: string, accent: string, colorN: string, t: string, logo: string | null, crop: any) => {
         try {
             const res = await fetch("http://127.0.0.1:8000/generate-topics", {
                 method: "POST",
@@ -438,7 +470,10 @@ function DashboardCreatePageContent() {
                     country: country,
                     style: s,
                     accent_color: accent,
-                    color_name: colorN
+                    color_name: colorN,
+                    title: t,
+                    logo_url: logo,
+                    logo_crop: crop
                 })
             });
             const data = await res.json();
@@ -489,7 +524,9 @@ function DashboardCreatePageContent() {
                     country: country,
                     user_id: session.user.id, // Pass User ID
                     accent_color: accentColor, // Pass accent color hex
-                    color_name: colorName // Pass color name for style prompt
+                    color_name: colorName, // Pass color name for style prompt
+                    logo_url: logoUrl,
+                    logo_crop: logoCrop
                 })
             });
             const data = await res.json();
@@ -577,8 +614,13 @@ function DashboardCreatePageContent() {
 
                 {/* Designing view is handled by the modal - show empty placeholder */}
                 {view === "designing" && !isGenerating && (
-                    <div className="text-center text-slate-500 py-20">
-                        Processing complete. Redirecting to player...
+                    <div className="flex flex-col items-center gap-8 py-20">
+                        <SeamlessPlayer
+                            slides={activeGeneration?.slideData || []}
+                            onReset={() => setView("setup")}
+                            videoUrl={activeGeneration?.videoUrl || undefined}
+                            logoInfo={logoUrl ? { url: logoUrl, crop: logoCrop } : undefined}
+                        />
                     </div>
                 )}
             </div>
