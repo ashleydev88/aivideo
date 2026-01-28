@@ -86,7 +86,7 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
         supabase_admin.table("courses").update({
             "status": "processing_render",
             "progress_phase": "rendering",
-            "progress_current_step": 0
+            "progress": 0
         }).eq("id", course_id).execute()
     except Exception as e:
         print(f"⚠️ Failed to update status: {e}")
@@ -173,13 +173,13 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
         # Update progress in database
         try:
             supabase_admin.table("courses").update({
-                "progress_current_step": progress_pct
+                "progress": progress_pct
             }).eq("id", course_id).execute()
         except:
             pass
         
         print(f"   📊 Progress: {progress_pct}%")
-        
+
         # Check for fatal errors
         if fatal_error:
             raise Exception(f"Remotion render fatal error: {errors}")
@@ -207,7 +207,7 @@ def finalize_render(course_id: str, s3_url: str):
     supabase_admin.table("courses").update({
         "video_url": s3_url,
         "status": "completed",
-        "progress_current_step": 100
+        "progress": 100
     }).eq("id", course_id).execute()
 
 

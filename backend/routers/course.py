@@ -41,13 +41,15 @@ async def get_status(course_id: str, authorization: str = Header(None)):
     if not response.data:
         raise HTTPException(status_code=404, detail="Course not found or access denied")
     data = response.data[0]
+    # Map 'progress' column to 0-100 if present, default to 0
+    progress_val = data.get("progress", 0)
+    
     return {
         "status": data.get("status", "processing"), 
         "data": data.get("slide_data"), 
         "video_url": data.get("video_url"),
         "progress_phase": data.get("progress_phase"),
-        "progress_current_step": data.get("progress_current_step"),
-        "progress_total_steps": data.get("progress_total_steps")
+        "progress": progress_val
     }
 
 @router.post("/upload-policy")
@@ -80,8 +82,7 @@ async def generate_topics(request: PlanRequest, background_tasks: BackgroundTask
                 "custom_title": request.title
             },
             "progress_phase": "topics",
-            "progress_current_step": 0,
-            "progress_total_steps": 10
+            "progress": 0
         }).execute()
         course_id = response.data[0]['id']
     except Exception as e:
@@ -112,7 +113,7 @@ async def generate_structure(request: ScriptRequest, background_tasks: Backgroun
                     "name": request.title,
                     "user_id": user_id,
                     "progress_phase": "structure",
-                    "progress_current_step": 0
+                    "progress": 0
                 }).execute()
                  course_id = response.data[0]['id']
             except Exception as e:
@@ -121,7 +122,7 @@ async def generate_structure(request: ScriptRequest, background_tasks: Backgroun
             supabase_admin.table("courses").update({
                 "status": "generating_structure",
                 "progress_phase": "structure",
-                "progress_current_step": 0,
+                "progress": 0,
                 "name": request.title
             }).eq("id", course_id).execute()
 
@@ -259,8 +260,7 @@ async def copy_course(course_id: str, authorization: str = Header(None)):
         "name": new_name,
         "status": "reviewing_structure",
         "progress_phase": "structure_ready",
-        "progress_current_step": 100,
-        "progress_total_steps": 100,
+        "progress": 100,
         "slide_data": source_course.get("slide_data"),
         "metadata": source_course.get("metadata", {}),
         "video_url": None # Reset video url
