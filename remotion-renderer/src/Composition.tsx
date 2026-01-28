@@ -9,7 +9,9 @@ import './style.css';
 export const MainComposition: React.FC<{
     slide_data: any[];
     accent_color: string;
-}> = ({ slide_data, accent_color }) => {
+    logo_url?: string;
+    logo_crop?: any;
+}> = ({ slide_data, accent_color, logo_url, logo_crop }) => {
     let currentFrame = 0;
 
     return (
@@ -66,6 +68,7 @@ export const MainComposition: React.FC<{
                             <AbsoluteFill className="flex items-center justify-center p-8">
                                 <Chart
                                     data={slide.chart_data}
+                                    title={slide.visual_text}
                                     accent_color={accent_color}
                                     custom_bg_color={customBg}
                                     custom_text_color={customText}
@@ -102,7 +105,7 @@ export const MainComposition: React.FC<{
                         {isKineticOnly && hasText && (
                             <AbsoluteFill>
                                 <KineticText
-                                    text={slide.text || slide.visual_text}
+                                    text={slide.visual_text || slide.text}
                                     timestamps={slide.timestamps}
                                     accent_color={accent_color}
                                     fullScreen={true}
@@ -123,7 +126,7 @@ export const MainComposition: React.FC<{
                                 >
                                     {hasText && (
                                         <KineticText
-                                            text={slide.text || slide.visual_text}
+                                            text={slide.visual_text || slide.text}
                                             timestamps={slide.timestamps}
                                             accent_color={accent_color}
                                             fullScreen={false}
@@ -160,6 +163,54 @@ export const MainComposition: React.FC<{
                     </Sequence>
                 );
             })}
+
+            {/* Global Logo Overlay (only if logo_url is provided and it's a first/last slide) */}
+            {logo_url && (
+                <AbsoluteFill style={{ pointerEvents: 'none' }}>
+                    {slide_data.map((slide, i) => {
+                        const durationFrames = Math.floor((slide.duration || 5000) / 1000 * 30);
+                        const fromFrame = slide_data.slice(0, i).reduce((acc, s) => acc + Math.floor((s.duration || 5000) / 1000 * 30), 0);
+
+                        // Only show on first and last slide
+                        if (i !== 0 && i !== slide_data.length - 1) return null;
+
+                        return (
+                            <Sequence key={`logo-${i}`} from={fromFrame} durationInFrames={durationFrames}>
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: '40px',
+                                        left: '40px',
+                                        width: '120px',
+                                        height: '120px',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                        backdropFilter: 'blur(10px)',
+                                        borderRadius: '20px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        overflow: 'hidden',
+                                        padding: '10px',
+                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                        border: '1px solid rgba(255, 255, 255, 0.5)'
+                                    }}
+                                >
+                                    <Img
+                                        src={logo_url}
+                                        style={{
+                                            maxWidth: '100%',
+                                            maxHeight: '100%',
+                                            objectFit: 'contain',
+                                            transform: logo_crop ? `scale(${logo_crop.zoom || 1})` : 'none',
+                                            transformOrigin: 'center'
+                                        }}
+                                    />
+                                </div>
+                            </Sequence>
+                        );
+                    })}
+                </AbsoluteFill>
+            )}
         </AbsoluteFill>
     );
 };

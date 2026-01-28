@@ -216,7 +216,7 @@ export const KineticText: React.FC<{
                         key={i}
                         className={`${textSize} font-bold transition-all duration-200`}
                         style={{
-                            color: isActive ? (accent_color || '#14b8a6') : (isPast ? '#334155' : '#94a3b8'),
+                            color: isActive ? (accent_color || '#14b8a6') : (isPast ? (custom_text_color || '#334155') : (custom_text_color ? `${custom_text_color}66` : '#94a3b8')),
                             transform: isActive ? 'scale(1.1) translateY(-5px)' : 'scale(1)',
                             opacity: isActive ? 1 : (isPast ? 0.9 : 0.4),
                             textShadow: isActive ? '0 4px 20px rgba(0,0,0,0.1)' : 'none',

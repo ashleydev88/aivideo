@@ -163,7 +163,7 @@ CRITICAL:
              print(f"     ⚠️ Chart Gen Failed: {e}")
              return None
 
-    def generate_kinetic_text(self, narration: str, word_timestamps: list, visual_type: str, slide_duration_ms: int) -> list:
+    def generate_kinetic_text(self, narration: str, word_timestamps: list, visual_type: str, slide_duration_ms: int, visual_text: str = "") -> list:
         """
         Kinetic Text Agent: Generates timed on-screen text moments.
         Returns a list of kinetic_events with timing anchored to trigger words.
@@ -173,11 +173,12 @@ CRITICAL:
             word_timestamps: List of {"word": str, "start_ms": int, "end_ms": int}
             visual_type: The slide's visual type (hybrid, kinetic_text, image, chart)
             slide_duration_ms: Total slide duration in milliseconds
+            visual_text: The user-edited on-screen text (markdown supported)
         
         Returns:
             List of kinetic_event dicts with text, trigger_word, start_ms, style
         """
-        print("     ✍️ Generating Kinetic Text...")
+        print(f"     ✍️ Generating Kinetic Text (using manual text: {bool(visual_text)})...")
         
         # Determine content type guidance based on visual_type
         if visual_type == "kinetic_text":
@@ -206,6 +207,9 @@ SLIDE CONTEXT:
 NARRATION:
 "{narration}"
 
+USER-EDITED ON-SCREEN TEXT (PRIORITIZE THIS):
+"{visual_text}"
+
 AVAILABLE WORDS (use these exact words as trigger_word):
 {', '.join(word_list[:50])}
 
@@ -215,7 +219,8 @@ RULES:
 3. Think: "What would someone screenshot to remember?"
 4. Text should be SHORT (max 5-7 words) and PUNCHY
 5. Maximum {max_events} events for this slide type
-6. Return empty array if no text is needed
+RULE: If USER-EDITED ON-SCREEN TEXT is provided, you MUST use that text or a subset of it for your kinetic events. Do not invent new text if the user has provided specific text.
+7. Return empty array if no text is needed
 
 TEXT STYLES:
 - "header": Large title text (e.g., "Lock Your Screen")

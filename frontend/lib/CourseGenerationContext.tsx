@@ -12,6 +12,7 @@ export interface GenerationProgress {
     totalSteps: number;
     error: string | null;
     videoUrl: string | null;
+    slideData: any[] | null;
 }
 
 interface CourseGenerationContextType {
@@ -108,6 +109,7 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
                             currentStep: newData.progress_current_step || prev.currentStep,
                             totalSteps: newData.progress_total_steps || prev.totalSteps,
                             videoUrl: newData.video_url || prev.videoUrl,
+                            slideData: newData.slide_data || prev.slideData,
                             error: (newData.status === "failed" || newData.status === "error")
                                 ? "Generation failed"
                                 : null
@@ -128,6 +130,7 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
                     currentStep: data.progress_current_step,
                     totalSteps: data.progress_total_steps,
                     videoUrl: data.video_url,
+                    slideData: data.slide_data,
                     error: (data.status === "failed" || data.status === "error") ? "Generation failed" : null
                 }));
             }
@@ -148,7 +151,8 @@ export function CourseGenerationProvider({ children }: { children: React.ReactNo
             currentStep: 0,
             totalSteps: 0,
             error: null,
-            videoUrl: null
+            videoUrl: null,
+            slideData: null
         });
     }, []);
 

@@ -74,7 +74,10 @@ async def generate_topics(request: PlanRequest, background_tasks: BackgroundTask
                 "country": request.country,
                 "style": request.style,
                 "accent_color": request.accent_color,
-                "color_name": request.color_name
+                "color_name": request.color_name,
+                "logo_url": request.logo_url,
+                "logo_crop": request.logo_crop,
+                "custom_title": request.title
             },
             "progress_phase": "topics",
             "progress_current_step": 0,
@@ -86,7 +89,7 @@ async def generate_topics(request: PlanRequest, background_tasks: BackgroundTask
         raise HTTPException(status_code=500, detail="Failed to create course record")
 
     # 2. Start Background Task
-    background_tasks.add_task(generate_topics_task, course_id, request.policy_text, request.duration, request.country)
+    background_tasks.add_task(generate_topics_task, course_id, request.policy_text, request.duration, request.country, request.title)
 
     return {"status": "started", "course_id": course_id}
 
@@ -145,7 +148,9 @@ async def generate_structure(request: ScriptRequest, background_tasks: Backgroun
             "style": request.style,
             "target_slides": target_slides,
             "accent_color": request.accent_color,
-            "color_name": request.color_name
+            "color_name": request.color_name,
+            "logo_url": request.logo_url,
+            "logo_crop": request.logo_crop
         }
         supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
 
