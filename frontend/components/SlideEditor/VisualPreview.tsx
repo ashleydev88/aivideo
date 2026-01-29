@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import parse from 'html-react-parser';
 import Image from 'next/image';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -311,22 +312,41 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
 
     // 2. KINETIC TEXT RENDERER
     if (visual_type === 'kinetic_text') {
+        const isHtml = /<[a-z][\s\S]*>/i.test(slide.visual_text || slide.text || "");
+
         return (
             <div
-                className="w-full h-full flex flex-col justify-center items-start p-16 rounded-lg"
+                className="w-full h-full flex flex-col justify-center items-center p-8 rounded-lg overflow-hidden"
                 style={{ backgroundColor: slide.background_color || '#0f172a' }}
             >
-                <div className="space-y-6 w-full">
-                    {(slide.visual_text || slide.text || "Motion Text").split('\n').map((line: string, i: number) => (
-                        <h1
-                            key={i}
-                            className="text-3xl font-black tracking-tight uppercase text-left leading-tight"
-                            style={{ color: slide.text_color || '#ffffff' }}
-                        >
-                            {line}
-                        </h1>
-                    ))}
-                </div>
+                {isHtml ? (
+                    <div
+                        className="prose prose-xl dark:prose-invert max-w-none text-center"
+                        style={{ color: slide.text_color || '#ffffff' }}
+                    >
+                        <style>{`
+                            h1 { font-size: 2.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                            h2 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5em; }
+                            p { font-size: 1.5rem; margin-bottom: 0.5em; }
+                            ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
+                            li { font-size: 1.5rem; margin-bottom: 0.5em; }
+                            strong { color: ${slide.accent_color || '#14b8a6'}; }
+                         `}</style>
+                        {parse(slide.visual_text || slide.text || "")}
+                    </div>
+                ) : (
+                    <div className="space-y-6 w-full">
+                        {(slide.visual_text || slide.text || "Motion Text").split('\n').map((line: string, i: number) => (
+                            <h1
+                                key={i}
+                                className="text-3xl font-black tracking-tight uppercase text-left leading-tight"
+                                style={{ color: slide.text_color || '#ffffff' }}
+                            >
+                                {line}
+                            </h1>
+                        ))}
+                    </div>
+                )}
             </div>
         )
     }
@@ -335,6 +355,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     if (visual_type === 'title_card') {
         const isThankYou = slide.text?.toLowerCase().includes("thank you");
         const defaultBg = isThankYou ? '#1e293b' : '#0d9488'; // slate-800 or teal-600
+        const isHtml = /<[a-z][\s\S]*>/i.test(slide.visual_text || slide.text || "");
 
         return (
             <div
@@ -344,24 +365,38 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                     color: slide.text_color || '#ffffff'
                 }}
             >
-                <h1 className="text-5xl font-bold tracking-tight mb-4">
-                    {slide.visual_text || slide.text || "Title Card"}
-                </h1>
-                <div
-                    className="h-1 w-20 rounded-full mx-auto"
-                    style={{ backgroundColor: slide.text_color ? `${slide.text_color}4D` : (slide.accent_color || 'rgba(255,255,255,0.3)') }}
-                />
+                {isHtml ? (
+                    <div className="prose prose-2xl dark:prose-invert max-w-none">
+                        <style>{`
+                            h1 { font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                            p { font-size: 1.5rem; opacity: 0.9; }
+                            strong { color: rgba(255,255,255,0.9); }
+                         `}</style>
+                        {parse(slide.visual_text || slide.text || "")}
+                    </div>
+                ) : (
+                    <>
+                        <h1 className="text-5xl font-bold tracking-tight mb-4">
+                            {slide.visual_text || slide.text || "Title Card"}
+                        </h1>
+                        <div
+                            className="h-1 w-20 rounded-full mx-auto"
+                            style={{ backgroundColor: slide.text_color ? `${slide.text_color}4D` : (slide.accent_color || 'rgba(255,255,255,0.3)') }}
+                        />
+                    </>
+                )}
 
             </div>
         )
     }
 
     // 4. HYBRID RENDERER (Text Left 50%, Image Right 50%)
-    // Also catch "image" types that have text, as we don't want the overlay layout
     const isHybrid = visual_type === 'hybrid' ||
         ((visual_type === 'image' || !visual_type) && !!slide.visual_text);
 
     if (isHybrid) {
+        const isHtml = /<[a-z][\s\S]*>/i.test(slide.visual_text || slide.text || "");
+
         return (
             <div className="w-full h-full flex flex-row bg-slate-900 overflow-hidden rounded-lg">
                 {/* Left: Text */}
@@ -369,17 +404,31 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                     className="w-1/2 h-full flex flex-col justify-center p-6 border-r border-slate-800"
                     style={{ backgroundColor: slide.background_color || '#0f172a' }}
                 >
-                    <div className="text-left space-y-4">
-                        {(slide.visual_text || slide.text || "Hybrid Slide Text").split('\n').map((line: string, i: number) => (
-                            <h2
-                                key={i}
-                                className="text-xl font-bold leading-tight"
-                                style={{ color: slide.text_color || '#ffffff' }}
-                            >
-                                {line}
-                            </h2>
-                        ))}
-                    </div>
+                    {isHtml ? (
+                        <div className="prose prose-lg dark:prose-invert max-w-none text-left" style={{ color: slide.text_color || '#ffffff' }}>
+                            <style>{`
+                                h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.4em; line-height: 1.1; }
+                                h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.4em; }
+                                p { font-size: 1.1rem; margin-bottom: 0.5em; line-height: 1.4; }
+                                ul { list-style-type: disc; padding-left: 1.2em; }
+                                li { font-size: 1.1rem; margin-bottom: 0.3em; }
+                                strong { color: ${slide.accent_color || '#14b8a6'}; }
+                             `}</style>
+                            {parse(slide.visual_text || slide.text || "")}
+                        </div>
+                    ) : (
+                        <div className="text-left space-y-4">
+                            {(slide.visual_text || slide.text || "Hybrid Slide Text").split('\n').map((line: string, i: number) => (
+                                <h2
+                                    key={i}
+                                    className="text-xl font-bold leading-tight"
+                                    style={{ color: slide.text_color || '#ffffff' }}
+                                >
+                                    {line}
+                                </h2>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Right: Image */}
@@ -397,8 +446,6 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                         </div>
                     )}
                 </div>
-
-
             </div>
         )
     }
@@ -423,13 +470,17 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
             {slide.visual_text && (
                 <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-sm p-4 rounded-md text-white">
                     <div className="font-mono text-xs opacity-70 mb-1">ON-SCREEN TEXT</div>
-                    <pre className="whitespace-pre-wrap font-sans text-sm font-semibold">
-                        {slide.visual_text}
-                    </pre>
+                    {/<[a-z][\s\S]*>/i.test(slide.visual_text) ? (
+                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                            {parse(slide.visual_text)}
+                        </div>
+                    ) : (
+                        <pre className="whitespace-pre-wrap font-sans text-sm font-semibold">
+                            {slide.visual_text}
+                        </pre>
+                    )}
                 </div>
             )}
-
-
         </div>
     );
 }
