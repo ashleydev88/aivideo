@@ -101,7 +101,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
         },
         editorProps: {
             attributes: {
-                class: 'prose prose-sm max-w-none focus:outline-none min-h-[120px] p-3'
+                class: 'prose prose-xl max-w-none focus:outline-none min-h-[120px] p-3 prose-p:!leading-relaxed'
             }
         }
     })
@@ -132,6 +132,12 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
 
     return (
         <div className="border border-slate-200 rounded-md overflow-hidden bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-transparent transition-all">
+            {/* explicit style override to guarantee default size of 1.75rem for paragraphs/lists if no inline style is present */}
+            <style jsx global>{`
+                .ProseMirror p, .ProseMirror li {
+                    font-size: 1.75rem; 
+                }
+            `}</style>
             <div className="flex items-center gap-1 border-b border-slate-100 bg-slate-50/50 p-1 px-2 flex-wrap">
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleBold().run()}
@@ -163,11 +169,11 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
                         value={currentFontSize}
                     >
                         <option value="" disabled>SIZE</option>
+                        <option value="0.75rem">Extra Small</option>
                         <option value="1.25rem">Small</option>
-                        <option value="1.75rem">Medium</option>
-                        <option value="2.5rem">Large</option>
-                        <option value="3.5rem">X-Large</option>
-                        <option value="reset">Default</option>
+                        <option value="reset">Medium</option>
+                        <option value="2.25rem">Large</option>
+                        <option value="3.0rem">X-Large</option>
                     </select>
                 </div>
 

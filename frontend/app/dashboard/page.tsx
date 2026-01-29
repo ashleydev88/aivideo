@@ -62,6 +62,8 @@ interface Project {
         [key: string]: any;
     };
     video_url?: string;
+    progress?: number;
+    progress_phase?: string;
 }
 
 interface Profile {
@@ -426,9 +428,15 @@ export default function DashboardPage() {
 
                                                     {/* PROCESSING STATES */}
                                                     {!['completed', 'reviewing_topics', 'reviewing_structure', 'failed', 'error'].includes(project.status) && (
-                                                        <Button variant="ghost" size="sm" disabled className="text-slate-500">
+                                                        <Button variant="ghost" size="sm" disabled className="text-slate-500 min-w-[140px] justify-start">
                                                             <Loader2 className="h-4 w-4 mr-2 animate-spin text-teal-600" />
-                                                            Processing
+                                                            {project.status === 'queued' ? (
+                                                                "Queued"
+                                                            ) : project.status === 'rendering' ? (
+                                                                `Rendering ${Math.round(project.progress || 0)}%`
+                                                            ) : (
+                                                                "Processing"
+                                                            )}
                                                         </Button>
                                                     )}
 

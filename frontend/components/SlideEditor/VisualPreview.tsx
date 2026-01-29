@@ -16,6 +16,8 @@ import {
     RefreshCcw,
     CheckCircle2
 } from "lucide-react";
+import { ChartRenderer } from './ChartRenderer';
+import { AutoFitText } from './AutoFitText';
 
 interface VisualPreviewProps {
     slide: any; // We'll define a stricter type later or reuse the one from Editor
@@ -34,6 +36,40 @@ const IconMap: Record<string, any> = {
     "zap": Zap,
     "refresh-cw": RefreshCcw,
     "default": Box
+};
+
+const ScaleContainer = ({ children }: { children: React.ReactNode }) => {
+    const containerRef = React.useRef<HTMLDivElement>(null);
+    const [scale, setScale] = useState(1);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width } = entry.contentRect;
+                // Scale 1920px content to fit container width
+                setScale(width / 1920);
+            }
+        });
+        resizeObserver.observe(containerRef.current);
+        return () => resizeObserver.disconnect();
+    }, []);
+
+    return (
+        <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-slate-100 flex items-center justify-center">
+            <div
+                style={{
+                    width: 1920,
+                    height: 1080,
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'center center',
+                    flexShrink: 0,
+                }}
+            >
+                {children}
+            </div>
+        </div>
+    );
 };
 
 export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPreviewProps) {
@@ -97,216 +133,16 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
 
     // 1. CHART RENDERER
     if (visual_type === 'chart' && chart_data) {
-        // Helper for colors
-        const accentColor = slide.accent_color;
-        const getColor = (intent: string | undefined): string => {
-            const colors: Record<string, string> = {
-                'danger': '#ef4444',
-                'success': '#22c55e',
-                'warning': '#f59e0b',
-                'accent': '#8b5cf6',
-                'primary': '#3b82f6',
-                'secondary': '#64748b'
-            };
-            return colors[intent || ''] || accentColor || '#14b8a6';
-        };
-
-        const ChartIcon = ({ name, color, size = 20 }: any) => {
-            const Icon = IconMap[name] || IconMap.default;
-            return <Icon size={size} color={color} />;
-        };
-
         return (
-            <div
-                className="w-full h-full relative overflow-hidden flex flex-col items-center justify-start p-4 border-2 border-slate-200 rounded-lg"
-                style={{ backgroundColor: slide.background_color || '#f8fafc' }}
-            >
-                <h3
-                    className="text-lg font-black mb-4 text-center sticky top-0 py-1 w-full z-10 truncate px-4"
-                    style={{
-                        color: slide.text_color || '#1e293b',
-                        backgroundColor: slide.background_color || '#f8fafc'
-                    }}
-                >
-                    {slide.visual_text || chart_data.title || ""}
-                </h3>
-
-                <div className="w-full flex-1 min-h-0 flex items-center justify-center overflow-y-auto">
-
-                    {/* LIST */}
-                    {chart_data.type === 'list' && (
-                        <div className="w-full max-w-xl space-y-2 px-4">
-                            {chart_data.items?.map((item: any, i: number) => {
-                                const color = getColor(item.color_intent);
-                                return (
-                                    <div key={i} className="flex items-center gap-3 bg-white p-2.5 rounded-lg shadow-sm border-l-4" style={{ borderLeftColor: color }}>
-                                        <div className="w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ backgroundColor: color }}>
-                                            {i + 1}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="font-bold text-slate-700 text-sm truncate">{item.label}</div>
-                                            {item.description && <div className="text-xs text-slate-500 truncate">{item.description}</div>}
-                                        </div>
-                                        <ChartIcon name={item.icon} color={color} size={16} />
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* PROCESS */}
-                    {chart_data.type === 'process' && (
-                        <div className="w-full px-4 flex flex-row items-center justify-center gap-2">
-                            {chart_data.items?.map((item: any, i: number) => {
-                                const color = getColor(item.color_intent);
-                                return (
-                                    <React.Fragment key={i}>
-                                        {i > 0 && <div className="text-slate-300 flex-shrink-0">→</div>}
-                                        <div
-                                            className="flex-1 min-w-0 bg-white p-2 rounded-xl shadow-sm border-b-4 flex flex-col items-center text-center"
-                                            style={{ borderColor: color }}
-                                        >
-                                            <div className="mb-1 p-1 rounded-full bg-slate-50">
-                                                <ChartIcon name={item.icon || 'box'} color={color} size={18} />
-                                            </div>
-                                            <div className="font-bold text-slate-800 text-[10px] sm:text-xs leading-tight mb-0.5 w-full truncate">{item.label}</div>
-                                        </div>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* STATISTICS */}
-                    {chart_data.type === 'statistic' && (
-                        <div className="flex flex-wrap justify-center gap-3 w-full px-4">
-                            {chart_data.items?.map((item: any, i: number) => {
-                                const color = getColor(item.color_intent);
-                                return (
-                                    <div
-                                        key={i}
-                                        className="bg-white/80 p-3 rounded-2xl shadow-sm text-center flex-1 min-w-[100px] max-w-[160px] border-t-4"
-                                        style={{ borderTopColor: color }}
-                                    >
-                                        <div className="text-2xl sm:text-3xl font-black mb-1 tracking-tighter" style={{ color }}>
-                                            {item.label}
-                                        </div>
-                                        <div className="text-[10px] sm:text-xs font-bold text-slate-700 leading-tight line-clamp-2">
-                                            {item.description}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* COMPARISON */}
-                    {chart_data.type === 'comparison' && (
-                        <div className="flex flex-row items-stretch justify-center gap-2 w-full px-6">
-                            {chart_data.items?.slice(0, 2).map((item: any, i: number) => {
-                                const color = getColor(item.color_intent) || (i === 0 ? '#3b82f6' : '#ef4444');
-                                return (
-                                    <React.Fragment key={i}>
-                                        {i === 1 && (
-                                            <div className="flex items-center justify-center -mx-3 z-10">
-                                                <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shadow-md border-2 border-white">
-                                                    VS
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div
-                                            className="flex-1 bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center text-center border-t-4 min-w-0"
-                                            style={{ borderTopColor: color }}
-                                        >
-                                            <div className="mb-2">
-                                                <ChartIcon name={item.icon || (i === 0 ? 'check-circle' : 'x-circle')} color={color} size={24} />
-                                            </div>
-                                            <h3 className="text-sm font-black text-slate-800 mb-1 w-full truncate">{item.label}</h3>
-                                            <p className="text-[10px] text-slate-500 font-medium leading-tight line-clamp-3">{item.description}</p>
-                                        </div>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* GRID */}
-                    {['grid'].includes(chart_data.type) && (
-                        <div className="grid grid-cols-2 gap-3 w-full px-6">
-                            {chart_data.items?.map((item: any, i: number) => {
-                                const color = getColor(item.color_intent);
-                                return (
-                                    <div
-                                        key={i}
-                                        className="bg-white p-3 rounded-xl shadow-sm flex items-start gap-3 border-l-4 overflow-hidden"
-                                        style={{ borderLeftColor: color }}
-                                    >
-                                        <div className="mt-0.5 flex-shrink-0">
-                                            <ChartIcon name={item.icon || 'layers'} color={color} size={16} />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="font-bold text-slate-800 text-xs mb-0.5 truncate">{item.label}</div>
-                                            <div className="text-[10px] text-slate-500 leading-tight line-clamp-2">{item.description}</div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* PYRAMID */}
-                    {chart_data.type === 'pyramid' && (
-                        <div className="flex flex-col items-center justify-center w-full px-4 gap-1.5">
-                            {chart_data.items?.map((item: any, i: number) => {
-                                const width = 100 - (i * 15);
-                                const color = getColor(item.color_intent);
-                                return (
-                                    <div
-                                        key={i}
-                                        className="h-10 flex items-center justify-center bg-white shadow-sm rounded-lg border-l-4 overflow-hidden relative"
-                                        style={{ width: `${Math.max(width, 40)}%`, borderLeftColor: color }}
-                                    >
-                                        <div className="px-2 text-center min-w-0 w-full">
-                                            <div className="text-xs font-bold text-slate-800 truncate">{item.label}</div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* CYCLE */}
-                    {chart_data.type === 'cycle' && (
-                        <div className="relative w-64 h-64 flex items-center justify-center flex-shrink-0 scale-75 sm:scale-90">
-                            <div className="absolute inset-0 rounded-full border-2 border-dashed border-slate-200" />
-                            {chart_data.items?.map((item: any, i: number) => {
-                                const count = chart_data.items.length;
-                                const angle = (i / count) * 2 * Math.PI - (Math.PI / 2); // Start at top
-                                const radius = 100; // px
-                                const x = Math.cos(angle) * radius;
-                                const y = Math.sin(angle) * radius;
-                                const color = getColor(item.color_intent);
-
-                                return (
-                                    <div
-                                        key={i}
-                                        className="absolute bg-white p-2 rounded-lg shadow-sm border text-center w-24 flex flex-col items-center"
-                                        style={{
-                                            left: `calc(50% + ${x}px)`,
-                                            top: `calc(50% + ${y}px)`,
-                                            transform: 'translate(-50%, -50%)',
-                                            borderColor: color
-                                        }}
-                                    >
-                                        <ChartIcon name={item.icon || 'refresh-cw'} color={color} size={16} />
-                                        <span className="mt-1 font-bold text-slate-800 text-[10px] leading-tight line-clamp-2">{item.label}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            </div>
+            <ScaleContainer>
+                <ChartRenderer
+                    data={chart_data}
+                    title={slide.visual_text}
+                    accent_color={slide.accent_color}
+                    custom_bg_color={slide.background_color}
+                    custom_text_color={slide.text_color}
+                />
+            </ScaleContainer>
         );
     }
 
@@ -314,44 +150,44 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     if (visual_type === 'kinetic_text') {
         const textContent = slide.visual_text || slide.text || "";
         const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
-        const scale = getScaleFactor(textContent);
 
         return (
             <div
-                className="slide-preview-content w-full h-full flex flex-col justify-center items-center p-8 rounded-lg overflow-hidden"
+                className="slide-preview-content w-full h-full p-8 rounded-lg overflow-hidden"
                 style={{ backgroundColor: slide.background_color || '#0f172a' }}
             >
-                {isHtml ? (
-                    <div
-                        className="prose prose-xl dark:prose-invert max-w-none text-center"
-                        style={{ color: slide.text_color || '#ffffff' }}
-                    >
-                        <style>{`
-                            .slide-preview-content h1 { font-size: ${2.5 * scale}rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                            .slide-preview-content h2 { font-size: ${2 * scale}rem; font-weight: 700; margin-bottom: 0.5em; }
-                            .slide-preview-content p { font-size: ${1.5 * scale}rem; margin-bottom: 0.5em; }
-                            .slide-preview-content ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
-                            .slide-preview-content li { font-size: ${1.5 * scale}rem; margin-bottom: 0.5em; }
-                            .slide-preview-content strong { color: ${slide.accent_color || '#14b8a6'}; }
-                         `}</style>
-                        {parse(textContent)}
-                    </div>
-                ) : (
-                    <div className="space-y-6 w-full">
-                        {textContent.split('\n').map((line: string, i: number) => (
-                            <h1
-                                key={i}
-                                className="font-black tracking-tight uppercase text-left leading-tight"
-                                style={{
-                                    color: slide.text_color || '#ffffff',
-                                    fontSize: `${3 * scale}rem`
-                                }}
-                            >
-                                {line}
-                            </h1>
-                        ))}
-                    </div>
-                )}
+                <AutoFitText className="items-center justify-center origin-center">
+                    {isHtml ? (
+                        <div
+                            className="prose prose-xl dark:prose-invert max-w-none text-center"
+                            style={{ color: slide.text_color || '#ffffff' }}
+                        >
+                            <style>{`
+                                .slide-preview-content h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                                .slide-preview-content h2 { font-weight: 700; margin-bottom: 0.5em; }
+                                .slide-preview-content p { margin-bottom: 0.5em; }
+                                .slide-preview-content ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
+                                .slide-preview-content li { margin-bottom: 0.5em; }
+                                .slide-preview-content strong { color: ${slide.accent_color || '#14b8a6'}; }
+                             `}</style>
+                            {parse(textContent)}
+                        </div>
+                    ) : (
+                        <div className="space-y-6 w-full text-center">
+                            {textContent.split('\n').map((line: string, i: number) => (
+                                <h1
+                                    key={i}
+                                    className="font-black tracking-tight uppercase leading-tight text-5xl"
+                                    style={{
+                                        color: slide.text_color || '#ffffff',
+                                    }}
+                                >
+                                    {line}
+                                </h1>
+                            ))}
+                        </div>
+                    )}
+                </AutoFitText>
             </div>
         )
     }
@@ -362,39 +198,39 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
         const isThankYou = slide.text?.toLowerCase().includes("thank you");
         const defaultBg = isThankYou ? '#1e293b' : '#0d9488'; // slate-800 or teal-600
         const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
-        const scale = getScaleFactor(textContent);
 
         return (
             <div
-                className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg"
+                className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg overflow-hidden"
                 style={{
                     backgroundColor: slide.background_color || defaultBg,
                     color: slide.text_color || '#ffffff'
                 }}
             >
-                {isHtml ? (
-                    <div className="prose prose-2xl dark:prose-invert max-w-none">
-                        <style>{`
-                            .slide-preview-content h1 { font-size: ${3.5 * scale}rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                            .slide-preview-content p { font-size: ${1.5 * scale}rem; opacity: 0.9; }
-                            .slide-preview-content strong { color: rgba(255,255,255,0.9); }
-                         `}</style>
-                        {parse(textContent)}
-                    </div>
-                ) : (
-                    <>
-                        <h1
-                            className="font-bold tracking-tight mb-4"
-                            style={{ fontSize: `${3 * scale}rem` }}
-                        >
-                            {textContent || "Title Card"}
-                        </h1>
-                        <div
-                            className="h-1 w-20 rounded-full mx-auto"
-                            style={{ backgroundColor: slide.text_color ? `${slide.text_color}4D` : (slide.accent_color || 'rgba(255,255,255,0.3)') }}
-                        />
-                    </>
-                )}
+                <AutoFitText className="items-center justify-center origin-center">
+                    {isHtml ? (
+                        <div className="prose prose-2xl dark:prose-invert max-w-none">
+                            <style>{`
+                                .slide-preview-content h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                                .slide-preview-content p { opacity: 0.9; }
+                                .slide-preview-content strong { color: rgba(255,255,255,0.9); }
+                             `}</style>
+                            {parse(textContent)}
+                        </div>
+                    ) : (
+                        <>
+                            <h1
+                                className="font-bold tracking-tight mb-4 text-6xl"
+                            >
+                                {textContent || "Title Card"}
+                            </h1>
+                            <div
+                                className="h-1 w-20 rounded-full mx-auto"
+                                style={{ backgroundColor: slide.text_color ? `${slide.text_color}4D` : (slide.accent_color || 'rgba(255,255,255,0.3)') }}
+                            />
+                        </>
+                    )}
+                </AutoFitText>
 
             </div>
         )
@@ -407,43 +243,44 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     if (isHybrid) {
         const textContent = slide.visual_text || slide.text || "";
         const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
-        const scale = getScaleFactor(textContent);
 
         return (
             <div className="w-full h-full flex flex-row bg-slate-900 overflow-hidden rounded-lg">
                 {/* Left: Text */}
                 <div
-                    className="slide-preview-content w-1/2 h-full flex flex-col justify-center p-6 border-r border-slate-800"
+                    className="slide-preview-content w-1/2 h-full flex flex-col p-6 border-r border-slate-800 overflow-hidden"
                     style={{ backgroundColor: slide.background_color || '#0f172a' }}
                 >
-                    {isHtml ? (
-                        <div className="prose prose-lg dark:prose-invert max-w-none text-left" style={{ color: slide.text_color || '#ffffff' }}>
-                            <style>{`
-                                .slide-preview-content h1 { font-size: ${3.5 * scale}rem; font-weight: 800; margin-bottom: 0.4em; line-height: 1.1; }
-                                .slide-preview-content h2 { font-size: ${2.5 * scale}rem; font-weight: 700; margin-bottom: 0.4em; }
-                                .slide-preview-content p { font-size: ${1.75 * scale}rem; margin-bottom: 0.5em; line-height: 1.4; }
-                                .slide-preview-content ul { list-style-type: disc; padding-left: 1.2em; }
-                                .slide-preview-content li { font-size: ${1.75 * scale}rem; margin-bottom: 0.3em; }
-                                .slide-preview-content strong { color: ${slide.accent_color || '#14b8a6'}; }
-                             `}</style>
-                            {parse(textContent)}
-                        </div>
-                    ) : (
-                        <div className="text-left space-y-4">
-                            {(textContent || "Hybrid Slide Text").split('\n').map((line: string, i: number) => (
-                                <h2
-                                    key={i}
-                                    className="font-bold leading-tight"
-                                    style={{
-                                        color: slide.text_color || '#ffffff',
-                                        fontSize: `${1.25 * scale}rem`
-                                    }}
-                                >
-                                    {line}
-                                </h2>
-                            ))}
-                        </div>
-                    )}
+                    <AutoFitText className="items-start justify-center origin-left">
+                        {isHtml ? (
+                            <div className="prose prose-lg dark:prose-invert max-w-none text-left" style={{ color: slide.text_color || '#ffffff' }}>
+                                <style>{`
+                                    .slide-preview-content h1 { font-weight: 800; margin-bottom: 0.4em; line-height: 1.1; }
+                                    .slide-preview-content h2 { font-weight: 700; margin-bottom: 0.4em; }
+                                    .slide-preview-content p { margin-bottom: 0.5em; line-height: 1.4; }
+                                    .slide-preview-content ul { list-style-type: disc; padding-left: 1.2em; }
+                                    .slide-preview-content li { margin-bottom: 0.3em; }
+                                    .slide-preview-content strong { color: ${slide.accent_color || '#14b8a6'}; }
+                                 `}</style>
+                                {parse(textContent)}
+                            </div>
+                        ) : (
+                            <div className="text-left space-y-4">
+                                {(textContent || "Hybrid Slide Text").split('\n').map((line: string, i: number) => (
+                                    <h2
+                                        key={i}
+                                        className="font-bold leading-tight"
+                                        style={{
+                                            color: slide.text_color || '#ffffff',
+                                            fontSize: `2.5rem`
+                                        }}
+                                    >
+                                        {line}
+                                    </h2>
+                                ))}
+                            </div>
+                        )}
+                    </AutoFitText>
                 </div>
 
                 {/* Right: Image */}
@@ -500,16 +337,4 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     );
 }
 
-// Helper: Calculate Font Scale Factor
-const getScaleFactor = (htmlOrText: string) => {
-    if (!htmlOrText) return 1;
-    const text = htmlOrText.replace(/<[^>]*>/g, ''); // Strip tags
-    const len = text.length;
 
-    if (len < 50) return 1;
-    if (len < 100) return 0.75;
-    if (len < 150) return 0.6;
-    if (len < 250) return 0.5;
-    if (len < 350) return 0.4;
-    return 0.35;
-};
