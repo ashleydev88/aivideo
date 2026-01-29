@@ -19,6 +19,7 @@ import {
     ImageIcon
 } from "lucide-react";
 import VisualPreview from "./VisualPreview";
+import RichTextEditor from "./RichTextEditor";
 import { createClient } from "@/lib/supabase/client";
 
 interface Slide {
@@ -343,15 +344,14 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                             isOpen={openSections.onScreenText}
                             onToggle={() => toggleSection('onScreenText')}
                         >
-                            <Textarea
+                            <RichTextEditor
                                 value={currentSlide.visual_text}
-                                onChange={(e) => handleUpdateSlide("visual_text", e.target.value)}
-                                className={commonTextAreaClass}
-                                placeholder="# Header&#10;- Bullet point"
+                                onChange={(val) => handleUpdateSlide("visual_text", val)}
+                                placeholder="Enter text..."
                             />
-                            <p className="text-[10px] text-slate-400 pl-1">
-                                Markdown supported. Use # for headers, - for bullets.
-                            </p>
+                            {/* <p className="text-[10px] text-slate-400 pl-1">
+                                Text formatting (Bold, Italic, Headers) is now supported.
+                            </p> */}
                         </SidebarSection>
 
 

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+import parse from 'html-react-parser';
 
 interface Alignment {
     characters: string[];
@@ -52,39 +53,19 @@ const processAlignment = (alignment: Alignment): Word[] => {
 };
 
 // Style mapping for kinetic events
-const getEventStyle = (style: KineticEvent['style'], accent_color: string) => {
+const getEventStyle = (style: KineticEvent['style'], accent: string, custom_text: string | undefined) => {
+    const baseColor = custom_text || '#1e293b';
     switch (style) {
         case 'header':
-            return {
-                fontSize: '4rem',
-                fontWeight: 'bold',
-                color: '#1e293b',
-            };
+            return { fontSize: '4rem', fontWeight: 'bold', color: baseColor };
         case 'bullet':
-            return {
-                fontSize: '2.5rem',
-                fontWeight: 'normal',
-                color: '#334155',
-            };
+            return { fontSize: '2.5rem', fontWeight: 'normal', color: custom_text || '#334155' };
         case 'emphasis':
-            return {
-                fontSize: '3rem',
-                fontWeight: 'bold',
-                color: accent_color,
-                textTransform: 'uppercase' as const,
-            };
+            return { fontSize: '3rem', fontWeight: 'bold', color: accent, textTransform: 'uppercase' as const };
         case 'stat':
-            return {
-                fontSize: '5rem',
-                fontWeight: 'bold',
-                color: accent_color,
-            };
+            return { fontSize: '5rem', fontWeight: 'bold', color: accent };
         default:
-            return {
-                fontSize: '3rem',
-                fontWeight: 'bold',
-                color: '#1e293b',
-            };
+            return { fontSize: '3rem', fontWeight: 'bold', color: baseColor };
     }
 };
 
@@ -100,34 +81,50 @@ export const KineticText: React.FC<{
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
     const currentTime = frame / fps;
-    const currentTimeMs = frame / fps * 1000;
 
-    // Use custom background if provided, otherwise transparent/default handled by parent or fallback
-    // Actually Composition handles BG usually, but KineticText fullScreen might have its own opinion?
-    // Composition uses <Background/> then overlay.
-    // If we want to override BG here, we can.
-    // However, KineticText is often transparent overlaid on something. 
-    // BUT the user asked for SLIDE COLOR. In Composition for kinetic_only, it's AbsoluteFill.
-    // Let's assume standard kinetic text is on a dark BG.
+    // Detect HTML Content
+    const isHtml = /<[a-z][\s\S]*>/i.test(text);
 
-    // Style mapping for kinetic events - UPDATED FOR CUSTOM COLORS
-    const getEventStyle = (style: KineticEvent['style'], accent: string) => {
-        const baseColor = custom_text_color || '#1e293b';
-        switch (style) {
-            case 'header':
-                return { fontSize: '4rem', fontWeight: 'bold', color: baseColor };
-            case 'bullet':
-                return { fontSize: '2.5rem', fontWeight: 'normal', color: custom_text_color || '#334155' };
-            case 'emphasis':
-                return { fontSize: '3rem', fontWeight: 'bold', color: accent, textTransform: 'uppercase' as const };
-            case 'stat':
-                return { fontSize: '5rem', fontWeight: 'bold', color: accent };
-            default:
-                return { fontSize: '3rem', fontWeight: 'bold', color: baseColor };
-        }
-    };
+    // HTML RENDERER (Rich Text)
+    if (isHtml) {
+        const containerClass = fullScreen
+            ? "absolute inset-0 flex flex-col items-center justify-center p-16 overflow-hidden"
+            : "w-full h-full flex flex-col items-center justify-center p-8 overflow-hidden";
 
-    // If we have kinetic_events, use the new rendering mode
+        // Simple Fade In / Slide Up
+        const opacity = Math.min(1, frame / 15);
+        const translateY = interpolate(frame, [0, 15], [20, 0], { extrapolateRight: 'clamp' });
+
+        return (
+            <div
+                className={containerClass}
+                style={{
+                    backgroundColor: fullScreen && custom_bg_color ? custom_bg_color : undefined,
+                    opacity,
+                    transform: `translateY(${translateY}px)`
+                }}
+            >
+                <div
+                    className="prose prose-xl max-w-none text-center"
+                    style={{ color: custom_text_color || '#1e293b' }}
+                >
+                    {/* We apply basic styles to overrides, but Tiptap output should be standard HTML elements */}
+                    {/* You might need a global CSS to style h1, ul, li etc if Tailwind prose isn't enough or installed */}
+                    <style>{`
+                        h1 { font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                        h2 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5em; }
+                        p { font-size: 1.8rem; margin-bottom: 0.5em; }
+                        ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
+                        li { font-size: 1.8rem; margin-bottom: 0.5em; }
+                        strong { color: ${accent_color}; }
+                     `}</style>
+                    {parse(text)}
+                </div>
+            </div>
+        );
+    }
+
+    // EVENT-BASED KINETIC TEXT (Legacy AI Generated)
     if (kinetic_events && kinetic_events.length > 0) {
         const containerClass = fullScreen
             ? "absolute inset-0 flex flex-col items-center justify-center p-16 gap-6"
@@ -156,7 +153,7 @@ export const KineticText: React.FC<{
                     const scale = isVisible ? interpolate(popProgress, [0, 1], [0.5, 1]) : 0;
                     const opacity = isVisible ? interpolate(popProgress, [0, 1], [0, 1]) : 0;
 
-                    const styleConfig = getEventStyle(event.style, accent_color);
+                    const styleConfig = getEventStyle(event.style, accent_color, custom_text_color);
 
                     return (
                         <div
@@ -179,14 +176,10 @@ export const KineticText: React.FC<{
     }
 
     // LEGACY MODE: Word-by-word highlighting (fallback)
-    // Safety check - if no text, render nothing
-    if (!text) {
-        return null;
-    }
+    if (!text) return null;
 
     const words = useMemo(() => {
         if (timestamps) return processAlignment(timestamps);
-        // Fallback: Split text evenly if no timestamps
         return text.split(" ").map((w, i) => ({
             text: w,
             start: i * 0.5,
@@ -194,10 +187,7 @@ export const KineticText: React.FC<{
         }));
     }, [timestamps, text]);
 
-    // If no words to render, return null
-    if (words.length === 0) {
-        return null;
-    }
+    if (words.length === 0) return null;
 
     const containerClass = fullScreen
         ? "absolute inset-0 flex flex-wrap content-center justify-center p-16 gap-3"

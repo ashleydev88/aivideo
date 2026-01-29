@@ -463,7 +463,11 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
             kinetic_events = []
             visual_type = slide.get("visual_type", "image")
             
-            if visual_type != "title_card" and alignment:
+            # Check for HTML content (Rich Text)
+            visual_text = slide.get("visual_text", "")
+            is_html = bool(visual_text and "<" in visual_text and ">" in visual_text)
+
+            if visual_type != "title_card" and alignment and not is_html:
                 word_timestamps = parse_alignment_to_words(alignment)
                 pipeline = PipelineManager()
                 kinetic_events = await asyncio.to_thread(
@@ -472,7 +476,7 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
                     word_timestamps=word_timestamps,
                     visual_type=visual_type,
                     slide_duration_ms=duration_ms,
-                    visual_text=slide.get("visual_text", "")
+                    visual_text=visual_text
                 )
 
             slide["audio"] = audio_url
