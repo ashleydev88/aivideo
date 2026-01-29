@@ -7,7 +7,7 @@ class CourseRequest(BaseModel):
 class PlanRequest(BaseModel):
     policy_text: str
     duration: int # Minutes
-    country: str = "USA" # Default to USA
+    country: str = "UK" # Default to UK
     style: str = "Minimalist Vector" 
     accent_color: str = "#14b8a6" 
     color_name: str = "teal"
@@ -31,10 +31,13 @@ class ScriptRequest(BaseModel):
     title: str = "Untitled Course"
     policy_text: str # Added for context
     learning_objective: str # Added for context
-    country: str = "USA" # Default to USA
+    country: str = "UK" # Default to UK
     user_id: str  # Required: User's UUID for storage paths
     accent_color: Optional[str] = None  # Optional: User-selected accent color hex (e.g., "#14b8a6")
     color_name: Optional[str] = None  # Optional: Color name for style prompt (e.g., "teal")
     course_id: Optional[str] = None # Added for Async Flow linking
     logo_url: Optional[str] = None
     logo_crop: Optional[dict] = None
+
+class RenameCourseRequest(BaseModel):
+    name: str

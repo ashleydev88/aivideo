@@ -44,7 +44,55 @@ interface SlideEditorProps {
     onFinalize: () => void;
 }
 
+const commonTextAreaClass = "min-h-[120px] w-full p-3 rounded-md border border-slate-200 text-base text-slate-800 leading-relaxed shadow-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:border-transparent transition-all resize-y";
+
+// Reusable Collapsible Section Component
+const SidebarSection = ({
+    title,
+    icon: Icon,
+    iconColor,
+    isOpen,
+    onToggle,
+    children,
+    rightElement
+}: {
+    title: string,
+    icon: any,
+    iconColor: string,
+    isOpen: boolean,
+    onToggle: () => void,
+    children: React.ReactNode,
+    rightElement?: React.ReactNode
+}) => (
+    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm transition-all duration-200">
+        <div
+            className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none bg-slate-50/50 hover:bg-slate-50 transition-colors ${isOpen ? 'border-b border-slate-100' : ''}`}
+            onClick={onToggle}
+        >
+            <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-md bg-white border shadow-sm ${isOpen ? '' : 'opacity-70'}`}>
+                    <Icon className={`h-4 w-4 ${iconColor}`} />
+                </div>
+                <span className="font-semibold text-sm text-slate-700">{title}</span>
+            </div>
+            <div className="flex items-center gap-3">
+                {rightElement}
+                {isOpen ? <ChevronLeft className="h-4 w-4 text-slate-400 rotate-[-90deg] transition-transform" /> : <ChevronLeft className="h-4 w-4 text-slate-400 rotate-0 transition-transform" />}
+            </div>
+        </div>
+
+        <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}
+        >
+            <div className="p-4 space-y-3">
+                {children}
+            </div>
+        </div>
+    </div>
+);
+
 export default function SlideEditor({ courseId, initialSlides, onFinalize }: SlideEditorProps) {
+
     const [slides, setSlides] = useState<Slide[]>(initialSlides);
     const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
@@ -202,53 +250,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    // Reusable Collapsible Section Component
-    const SidebarSection = ({
-        title,
-        icon: Icon,
-        iconColor,
-        isOpen,
-        onToggle,
-        children,
-        rightElement
-    }: {
-        title: string,
-        icon: any,
-        iconColor: string,
-        isOpen: boolean,
-        onToggle: () => void,
-        children: React.ReactNode,
-        rightElement?: React.ReactNode
-    }) => (
-        <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm transition-all duration-200">
-            <div
-                className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none bg-slate-50/50 hover:bg-slate-50 transition-colors ${isOpen ? 'border-b border-slate-100' : ''}`}
-                onClick={onToggle}
-            >
-                <div className="flex items-center gap-2">
-                    <div className={`p-1.5 rounded-md bg-white border shadow-sm ${isOpen ? '' : 'opacity-70'}`}>
-                        <Icon className={`h-4 w-4 ${iconColor}`} />
-                    </div>
-                    <span className="font-semibold text-sm text-slate-700">{title}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                    {rightElement}
-                    {isOpen ? <ChevronLeft className="h-4 w-4 text-slate-400 rotate-[-90deg] transition-transform" /> : <ChevronLeft className="h-4 w-4 text-slate-400 rotate-0 transition-transform" />}
-                </div>
-            </div>
-
-            <div
-                className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}
-            >
-                <div className="p-4 space-y-3">
-                    {children}
-                </div>
-            </div>
-        </div>
-    );
-
-    const commonTextAreaClass = "min-h-[120px] w-full p-3 rounded-md border border-slate-200 text-base text-slate-800 leading-relaxed shadow-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:border-transparent transition-all resize-y";
-
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] max-h-[900px] bg-white rounded-xl shadow-sm border overflow-hidden">
             {/* Toolbar */}
@@ -345,6 +346,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                             onToggle={() => toggleSection('onScreenText')}
                         >
                             <RichTextEditor
+                                key={currentSlideIndex} // Force remount when switching slides to reset editor state specific to that slide
                                 value={currentSlide.visual_text}
                                 onChange={(val) => handleUpdateSlide("visual_text", val)}
                                 placeholder="Enter text..."

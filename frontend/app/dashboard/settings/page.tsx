@@ -21,7 +21,7 @@ export default function SettingsPage() {
 
     // Form States
     const [fullName, setFullName] = useState("");
-    const [location, setLocation] = useState<"USA" | "UK">("USA");
+    const [location, setLocation] = useState<"USA" | "UK">("UK");
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [logoCrop, setLogoCrop] = useState<any>(null);
     const [logoZoom, setLogoZoom] = useState(1);
@@ -41,7 +41,7 @@ export default function SettingsPage() {
 
                 // Set initial form state from metadata
                 setFullName(user.user_metadata?.full_name || "");
-                setLocation(user.user_metadata?.location_preference || "USA");
+                setLocation(user.user_metadata?.location_preference || "UK");
                 setLogoUrl(user.user_metadata?.logo_url || null);
                 setLogoCrop(user.user_metadata?.logo_crop || null);
 
@@ -292,7 +292,7 @@ export default function SettingsPage() {
                             <Globe className="w-5 h-5 text-teal-600" />
                             <CardTitle>Preferences</CardTitle>
                         </div>
-                        <CardDescription>Customize your AI generation defaults.</CardDescription>
+                        <CardDescription>Customise your AI generation defaults.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-3">

@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Header, Request, 
 from fastapi.responses import JSONResponse
 from backend.db import supabase, supabase_admin
 from backend.dependencies import get_user_id_from_token
-from backend.schemas import CourseRequest, PlanRequest, ScriptRequest
+from backend.schemas import CourseRequest, PlanRequest, ScriptRequest, RenameCourseRequest
 from backend.services.course_generator import (
     generate_topics_task, 
     generate_structure_task, 
@@ -231,6 +231,20 @@ async def delete_course(course_id: str, authorization: str = Header(None)):
 
     supabase_admin.table("courses").delete().eq("id", course_id).execute()
     return {"status": "deleted"}
+
+@router.patch("/course/{course_id}")
+async def rename_course(course_id: str, request: RenameCourseRequest, authorization: str = Header(None)):
+    user_id = get_user_id_from_token(authorization)
+    
+    # Verify ownership
+    res = supabase_admin.table("courses").select("user_id").eq("id", course_id).execute()
+    if not res.data or res.data[0]['user_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this course")
+
+    # Update name
+    supabase_admin.table("courses").update({"name": request.name}).eq("id", course_id).execute()
+    
+    return {"status": "updated", "data": {"name": request.name}}
 
 @router.post("/copy-course/{course_id}")
 async def copy_course(course_id: str, authorization: str = Header(None)):

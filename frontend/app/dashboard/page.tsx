@@ -22,6 +22,16 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
     Video,
     Plus,
     Download,
@@ -33,6 +43,7 @@ import {
     Trash2,
     PlayCircle,
     AlertCircle,
+    Edit,
 } from "lucide-react";
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useCourseGeneration } from "@/lib/CourseGenerationContext";
@@ -68,6 +79,12 @@ export default function DashboardPage() {
     const [profile, setProfile] = useState<Profile | null>(null);
     const [showGenerationModal, setShowGenerationModal] = useState(false);
     const { activeGeneration, clearGeneration } = useCourseGeneration();
+
+    // Rename state
+    const [isRenameOpen, setIsRenameOpen] = useState(false);
+    const [courseToRename, setCourseToRename] = useState<Project | null>(null);
+    const [newName, setNewName] = useState("");
+    const [isRenaming, setIsRenaming] = useState(false);
 
     // Check if a project is currently being generated
 
@@ -205,6 +222,45 @@ export default function DashboardPage() {
         } catch (error) {
             console.error("Error editing course:", error);
             alert("Failed to start editing course.");
+        }
+    };
+
+    const openRenameDialog = (project: Project) => {
+        setCourseToRename(project);
+        setNewName(project.name);
+        setIsRenameOpen(true);
+    };
+
+    const handleRename = async () => {
+        if (!courseToRename || !newName.trim()) return;
+
+        setIsRenaming(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const res = await fetch(`http://127.0.0.1:8000/course/${courseToRename.id}`, {
+                method: "PATCH",
+                headers: {
+                    "Authorization": `Bearer ${session.access_token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ name: newName })
+            });
+
+            if (!res.ok) throw new Error("Failed to rename course");
+
+            // Optimistic update
+            setProjects(prev => prev.map(p =>
+                p.id === courseToRename.id ? { ...p, name: newName } : p
+            ));
+
+            setIsRenameOpen(false);
+        } catch (error) {
+            console.error("Error renaming course:", error);
+            alert("Failed to rename course");
+        } finally {
+            setIsRenaming(false);
         }
     };
 
@@ -402,6 +458,10 @@ export default function DashboardPage() {
                                                                     <span>Copy & Edit</span>
                                                                 </DropdownMenuItem>
                                                             )}
+                                                            <DropdownMenuItem onClick={() => openRenameDialog(project)}>
+                                                                <Edit className="mr-2 h-4 w-4" />
+                                                                <span>Rename</span>
+                                                            </DropdownMenuItem>
                                                             <DropdownMenuItem
                                                                 onClick={() => handleDelete(project.id)}
                                                                 className="text-red-600 focus:text-red-600"
@@ -423,6 +483,48 @@ export default function DashboardPage() {
             </div>
 
             {/* Course Generation Modal - opened from dashboard when clicking on in-progress course */}
+
+            <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Rename Course</DialogTitle>
+                        <DialogDescription>
+                            Enter a new name for your course.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="name">Name</Label>
+                            <Input
+                                id="name"
+                                value={newName}
+                                onChange={(e) => setNewName(e.target.value)}
+                                placeholder="Course Name"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        handleRename();
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsRenameOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleRename} disabled={isRenaming}>
+                            {isRenaming ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                "Save Changes"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
         </div >
     );

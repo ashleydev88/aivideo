@@ -95,6 +95,8 @@ export const KineticText: React.FC<{
         const opacity = Math.min(1, frame / 15);
         const translateY = interpolate(frame, [0, 15], [20, 0], { extrapolateRight: 'clamp' });
 
+        const scale = getScaleFactor(text);
+
         return (
             <div
                 className={containerClass}
@@ -111,11 +113,11 @@ export const KineticText: React.FC<{
                     {/* We apply basic styles to overrides, but Tiptap output should be standard HTML elements */}
                     {/* You might need a global CSS to style h1, ul, li etc if Tailwind prose isn't enough or installed */}
                     <style>{`
-                        h1 { font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                        h2 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5em; }
-                        p { font-size: 1.8rem; margin-bottom: 0.5em; }
+                        h1 { font-size: ${3.5 * scale}rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                        h2 { font-size: ${2.5 * scale}rem; font-weight: 700; margin-bottom: 0.5em; }
+                        p { font-size: ${1.75 * scale}rem; margin-bottom: 0.5em; }
                         ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
-                        li { font-size: 1.8rem; margin-bottom: 0.5em; }
+                        li { font-size: ${1.75 * scale}rem; margin-bottom: 0.5em; }
                         strong { color: ${accent_color}; }
                      `}</style>
                     {parse(text)}
@@ -218,4 +220,18 @@ export const KineticText: React.FC<{
             })}
         </div>
     );
+};
+
+// Helper: Calculate Font Scale Factor
+const getScaleFactor = (htmlOrText: string) => {
+    if (!htmlOrText) return 1;
+    const text = htmlOrText.replace(/<[^>]*>/g, ''); // Strip tags
+    const len = text.length;
+
+    if (len < 50) return 1;
+    if (len < 100) return 0.75;
+    if (len < 150) return 0.6;
+    if (len < 250) return 0.5;
+    if (len < 350) return 0.4;
+    return 0.35;
 };
