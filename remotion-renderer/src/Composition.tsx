@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, Sequence, Audio, Img } from 'remotion';
+import parse from 'html-react-parser';
 import { Background } from './components/Background';
 import { KineticText } from './components/KineticText';
 import { Chart } from './components/Chart';
@@ -94,9 +95,20 @@ export const MainComposition: React.FC<{
                                 {slide.visual_text && (
                                     <div className="absolute bottom-12 left-12 right-12 bg-black/60 backdrop-blur-md p-8 rounded-2xl text-white">
                                         <div className="font-mono text-xl opacity-70 mb-2 font-bold tracking-wider">ON-SCREEN TEXT</div>
-                                        <div className="font-sans text-3xl font-bold leading-relaxed whitespace-pre-wrap">
-                                            {slide.visual_text}
-                                        </div>
+                                        {/<[a-z][\s\S]*>/i.test(slide.visual_text) ? (
+                                            <div className="prose prose-xl prose-invert max-w-none">
+                                                <style>{`
+                                                    h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                                                    p { margin-bottom: 0.5em; }
+                                                    strong { color: ${accent_color}; }
+                                                `}</style>
+                                                {parse(slide.visual_text)}
+                                            </div>
+                                        ) : (
+                                            <div className="font-sans text-3xl font-bold leading-relaxed whitespace-pre-wrap">
+                                                {slide.visual_text}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </AbsoluteFill>
