@@ -227,7 +227,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, logoInfo }:
         <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500">
             <div className="relative w-[800px] h-[450px] bg-slate-50 overflow-hidden border border-slate-200 rounded-xl shadow-2xl group flex ring-1 ring-slate-900/5">
 
-                {/* TEXT SIDE (Or Full Center) */}
+                {/* TEXT SIDE (Or Full Centre) */}
                 {showText && (
                     <div className={`
                 flex flex-col justify-center p-12 transition-all duration-500 h-full z-10
@@ -327,7 +327,7 @@ function DashboardCreatePageContent() {
     const [title, setTitle] = useState(""); // Default to empty, will be set by SetupForm
     const [learningObjective, setLearningObjective] = useState("");
     const [courseId, setCourseId] = useState<string | null>(null);
-    const [country, setCountry] = useState<"USA" | "UK">("USA");
+    const [country, setCountry] = useState<"USA" | "UK">("UK");
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [logoCrop, setLogoCrop] = useState<any>(null);
     const [accentColor, setAccentColor] = useState("#14b8a6"); // Default teal
@@ -523,7 +523,7 @@ function DashboardCreatePageContent() {
                     learning_objective: learningObjective, // Send LO
                     country: country,
                     user_id: session.user.id, // Pass User ID
-                    accent_color: accentColor, // Pass accent color hex
+                    accent_color: accentColor, // Pass accent colour hex
                     color_name: colorName, // Pass color name for style prompt
                     logo_url: logoUrl,
                     logo_crop: logoCrop

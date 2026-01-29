@@ -312,11 +312,13 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
 
     // 2. KINETIC TEXT RENDERER
     if (visual_type === 'kinetic_text') {
-        const isHtml = /<[a-z][\s\S]*>/i.test(slide.visual_text || slide.text || "");
+        const textContent = slide.visual_text || slide.text || "";
+        const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
+        const scale = getScaleFactor(textContent);
 
         return (
             <div
-                className="w-full h-full flex flex-col justify-center items-center p-8 rounded-lg overflow-hidden"
+                className="slide-preview-content w-full h-full flex flex-col justify-center items-center p-8 rounded-lg overflow-hidden"
                 style={{ backgroundColor: slide.background_color || '#0f172a' }}
             >
                 {isHtml ? (
@@ -325,22 +327,25 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                         style={{ color: slide.text_color || '#ffffff' }}
                     >
                         <style>{`
-                            h1 { font-size: 2.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                            h2 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5em; }
-                            p { font-size: 1.5rem; margin-bottom: 0.5em; }
-                            ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
-                            li { font-size: 1.5rem; margin-bottom: 0.5em; }
-                            strong { color: ${slide.accent_color || '#14b8a6'}; }
+                            .slide-preview-content h1 { font-size: ${2.5 * scale}rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                            .slide-preview-content h2 { font-size: ${2 * scale}rem; font-weight: 700; margin-bottom: 0.5em; }
+                            .slide-preview-content p { font-size: ${1.5 * scale}rem; margin-bottom: 0.5em; }
+                            .slide-preview-content ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
+                            .slide-preview-content li { font-size: ${1.5 * scale}rem; margin-bottom: 0.5em; }
+                            .slide-preview-content strong { color: ${slide.accent_color || '#14b8a6'}; }
                          `}</style>
-                        {parse(slide.visual_text || slide.text || "")}
+                        {parse(textContent)}
                     </div>
                 ) : (
                     <div className="space-y-6 w-full">
-                        {(slide.visual_text || slide.text || "Motion Text").split('\n').map((line: string, i: number) => (
+                        {textContent.split('\n').map((line: string, i: number) => (
                             <h1
                                 key={i}
-                                className="text-3xl font-black tracking-tight uppercase text-left leading-tight"
-                                style={{ color: slide.text_color || '#ffffff' }}
+                                className="font-black tracking-tight uppercase text-left leading-tight"
+                                style={{
+                                    color: slide.text_color || '#ffffff',
+                                    fontSize: `${3 * scale}rem`
+                                }}
                             >
                                 {line}
                             </h1>
@@ -353,13 +358,15 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
 
     // 3. TITLE CARD RENDERER
     if (visual_type === 'title_card') {
+        const textContent = slide.visual_text || slide.text || "";
         const isThankYou = slide.text?.toLowerCase().includes("thank you");
         const defaultBg = isThankYou ? '#1e293b' : '#0d9488'; // slate-800 or teal-600
-        const isHtml = /<[a-z][\s\S]*>/i.test(slide.visual_text || slide.text || "");
+        const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
+        const scale = getScaleFactor(textContent);
 
         return (
             <div
-                className="w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg"
+                className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg"
                 style={{
                     backgroundColor: slide.background_color || defaultBg,
                     color: slide.text_color || '#ffffff'
@@ -368,16 +375,19 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                 {isHtml ? (
                     <div className="prose prose-2xl dark:prose-invert max-w-none">
                         <style>{`
-                            h1 { font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                            p { font-size: 1.5rem; opacity: 0.9; }
-                            strong { color: rgba(255,255,255,0.9); }
+                            .slide-preview-content h1 { font-size: ${3.5 * scale}rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                            .slide-preview-content p { font-size: ${1.5 * scale}rem; opacity: 0.9; }
+                            .slide-preview-content strong { color: rgba(255,255,255,0.9); }
                          `}</style>
-                        {parse(slide.visual_text || slide.text || "")}
+                        {parse(textContent)}
                     </div>
                 ) : (
                     <>
-                        <h1 className="text-5xl font-bold tracking-tight mb-4">
-                            {slide.visual_text || slide.text || "Title Card"}
+                        <h1
+                            className="font-bold tracking-tight mb-4"
+                            style={{ fontSize: `${3 * scale}rem` }}
+                        >
+                            {textContent || "Title Card"}
                         </h1>
                         <div
                             className="h-1 w-20 rounded-full mx-auto"
@@ -395,34 +405,39 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
         ((visual_type === 'image' || !visual_type) && !!slide.visual_text);
 
     if (isHybrid) {
-        const isHtml = /<[a-z][\s\S]*>/i.test(slide.visual_text || slide.text || "");
+        const textContent = slide.visual_text || slide.text || "";
+        const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
+        const scale = getScaleFactor(textContent);
 
         return (
             <div className="w-full h-full flex flex-row bg-slate-900 overflow-hidden rounded-lg">
                 {/* Left: Text */}
                 <div
-                    className="w-1/2 h-full flex flex-col justify-center p-6 border-r border-slate-800"
+                    className="slide-preview-content w-1/2 h-full flex flex-col justify-center p-6 border-r border-slate-800"
                     style={{ backgroundColor: slide.background_color || '#0f172a' }}
                 >
                     {isHtml ? (
                         <div className="prose prose-lg dark:prose-invert max-w-none text-left" style={{ color: slide.text_color || '#ffffff' }}>
                             <style>{`
-                                h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.4em; line-height: 1.1; }
-                                h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.4em; }
-                                p { font-size: 1.1rem; margin-bottom: 0.5em; line-height: 1.4; }
-                                ul { list-style-type: disc; padding-left: 1.2em; }
-                                li { font-size: 1.1rem; margin-bottom: 0.3em; }
-                                strong { color: ${slide.accent_color || '#14b8a6'}; }
+                                .slide-preview-content h1 { font-size: ${3.5 * scale}rem; font-weight: 800; margin-bottom: 0.4em; line-height: 1.1; }
+                                .slide-preview-content h2 { font-size: ${2.5 * scale}rem; font-weight: 700; margin-bottom: 0.4em; }
+                                .slide-preview-content p { font-size: ${1.75 * scale}rem; margin-bottom: 0.5em; line-height: 1.4; }
+                                .slide-preview-content ul { list-style-type: disc; padding-left: 1.2em; }
+                                .slide-preview-content li { font-size: ${1.75 * scale}rem; margin-bottom: 0.3em; }
+                                .slide-preview-content strong { color: ${slide.accent_color || '#14b8a6'}; }
                              `}</style>
-                            {parse(slide.visual_text || slide.text || "")}
+                            {parse(textContent)}
                         </div>
                     ) : (
                         <div className="text-left space-y-4">
-                            {(slide.visual_text || slide.text || "Hybrid Slide Text").split('\n').map((line: string, i: number) => (
+                            {(textContent || "Hybrid Slide Text").split('\n').map((line: string, i: number) => (
                                 <h2
                                     key={i}
-                                    className="text-xl font-bold leading-tight"
-                                    style={{ color: slide.text_color || '#ffffff' }}
+                                    className="font-bold leading-tight"
+                                    style={{
+                                        color: slide.text_color || '#ffffff',
+                                        fontSize: `${1.25 * scale}rem`
+                                    }}
                                 >
                                     {line}
                                 </h2>
@@ -484,3 +499,17 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
         </div>
     );
 }
+
+// Helper: Calculate Font Scale Factor
+const getScaleFactor = (htmlOrText: string) => {
+    if (!htmlOrText) return 1;
+    const text = htmlOrText.replace(/<[^>]*>/g, ''); // Strip tags
+    const len = text.length;
+
+    if (len < 50) return 1;
+    if (len < 100) return 0.75;
+    if (len < 150) return 0.6;
+    if (len < 250) return 0.5;
+    if (len < 350) return 0.4;
+    return 0.35;
+};

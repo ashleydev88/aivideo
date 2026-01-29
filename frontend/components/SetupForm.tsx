@@ -258,7 +258,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (title: str
                                         <span className="font-bold text-white text-xs">
                                             {s.name}
                                         </span>
-                                        {/* Color indicator */}
+                                        {/* Colour indicator */}
                                         <div
                                             className="w-4 h-4 rounded-full border-2 border-white/50 shadow-sm"
                                             style={{ backgroundColor: selectedColors[s.name]?.hex || '#14b8a6' }}
@@ -273,7 +273,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (title: str
                                     )}
                                 </button>
 
-                                {/* Color Picker Button */}
+                                {/* Colour Picker Button */}
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -281,18 +281,18 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (title: str
                                     }}
                                     className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all hover:scale-110 z-10"
                                     style={{ backgroundColor: selectedColors[s.name]?.hex || '#14b8a6' }}
-                                    title="Choose accent color"
+                                    title="Choose accent colour"
                                 >
                                     <Paintbrush size={14} className="text-white" />
                                 </button>
 
-                                {/* Color Picker Popover */}
+                                {/* Colour Picker Popover */}
                                 {colorPickerOpen === s.name && (
                                     <div
                                         ref={colorPickerRef}
                                         className="absolute top-10 right-0 z-20 bg-white rounded-lg shadow-xl border border-slate-200 p-3 animate-in fade-in zoom-in-95 duration-200"
                                     >
-                                        <div className="text-xs font-medium text-slate-500 mb-2">Accent Color</div>
+                                        <div className="text-xs font-medium text-slate-500 mb-2">Accent Colour</div>
                                         <div className="grid grid-cols-4 gap-2">
                                             {COLOR_PALETTE.map(color => (
                                                 <button
@@ -339,7 +339,7 @@ export default function SetupForm({ onStart, isLoading }: { onStart: (title: str
                         disabled={isLoading}
                         className="flex items-center gap-4 bg-teal-700 hover:bg-teal-800 text-white px-12 py-5 rounded-full font-bold text-2xl shadow-xl hover:shadow-2xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >
-                        {isLoading ? "Analyzing Policy..." : "Start Planning"}
+                        {isLoading ? "Analysing Policy..." : "Start Planning"}
                         {!isLoading && <Play fill="currentColor" size={24} />}
                     </button>
                 </div>
