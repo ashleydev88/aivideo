@@ -27,7 +27,12 @@ class MotionEdge(BaseModel):
 
 class MotionGraph(BaseModel):
     id: str
-    archetype: Literal['process', 'cycle', 'hierarchy', 'comparison', 'statistic', 'grid']
+    archetype: Literal[
+        'process', 'cycle', 'hierarchy', 'comparison', 'statistic', 'grid', 
+        'timeline', 'funnel', 'pyramid', 'mindmap', 
+        'code', 'math', 'architecture',
+        'matrix', 'metaphor', 'anatomy'
+    ]
     nodes: List[MotionNode]
     edges: List[MotionEdge]
     metadata: dict = Field(default_factory=dict)
@@ -59,36 +64,57 @@ class LogicExtractor:
             return self._get_mock_data()
 
         system_prompt = """
-        You are a Logic Extraction Agent for a video visualization engine.
-        Your goal is to turn the User's text into a structured "Motion Graph" for visualization.
+        You are a Logic Extraction Agent for an advanced video visualization engine (X-Pilot Level).
+        Your goal is to parse text and map it to the **perfect semantic visualization structure**.
         
-        ARCHETYPES:
-        - "process": Linear steps (A -> B -> C)
-        - "cycle": A loop (A -> B -> C -> A)
-        - "comparison": Side-by-side (Pros vs Cons, A vs B)
-        - "hierarchy": Tree structure (Parent -> Children)
-        - "grid": A collection of items without strict order
+        CRITICAL: You must choose the specific ARCHETYPE that best fits the logic of the information.
         
-        OUTPUT FORMAT:
-        Return ONLY valid JSON matching this schema:
+        ### 1. ESSENTIAL TIER (Basic Structure)
+        - **"process"**: Sequential steps where order matters (A -> B -> C). Use for recipes, workflows, or instructions.
+        - **"cycle"**: A repeating loop (A -> B -> C -> A). Use for feedback loops, natural cycles, or circular economies.
+        - **"comparison"**: Side-by-side analysis (Pros vs Cons, Before vs After). Use for contrasting two distinct entities.
+        - **"hierarchy"**: Standard tree chart (Parent -> Children). Use for organizational charts or folder structures.
+        - **"grid"**: A collection of equal items. Use for feature lists, photo galleries, or item catalogs.
+        - **"statistic"**: Focus on a single key number.
+        
+        ### 2. BUSINESS TIER (Strategic Logic)
+        - **"timeline"**: Chronological events. Use ONLY for history, roadmaps, or time-based sequences (Year 1, Year 2...).
+        - **"funnel"**: Tapering process. Use for "Sales Funnels", "Hiring Pipelines", or filtering many items down to a few.
+        - **"pyramid"**: Hierarchical importance. Use for "Maslow's Hierarchy", "Bloom's Taxonomy", or foundational levels (Base > Peak).
+        - **"mindmap"**: Radial connections. Use for brainstorming, "Key Concepts", or a central idea with non-linear branches.
+        
+        ### 3. TECHNICAL TIER (Data & Systems)
+        - **"code"**: Programming logic. Use if the text contains code snippets, SQL queries, or terminal commands.
+            - *NOTE*: Put the code content in the node's `description` field.
+        - **"math"**: Mathematical relationships. Use for physics equations or financial formulas.
+            - *NOTE*: Put the LaTeX formula in the node's `description` field.
+        - **"architecture"**: System diagrams. Use for "Client-Server", "Microservices", "Data Pipelines", or IT infrastructure.
+        
+        ### 4. PEDAGOGICAL TIER (Deep Understanding)
+        - **"matrix"**: 2x2 Quadrants. Use for "SWOT Analysis", "Risk vs Reward", or "Urgent vs Important" matrices.
+        - **"metaphor"**: The "Iceberg" model. Use for "Surface vs Deep" or "Visible vs Hidden" concepts.
+        - **"anatomy"**: Labeling parts. Use for explaining a diagram where specific parts need labels (e.g., "Parts of a URL", "Anatomy of a Team").
+        
+        ### OUTPUT FORMAT (JSON ONLY):
         {
             "id": "uuid",
-            "archetype": "process" | "cycle" | "comparison" | "hierarchy" | "grid",
+            "archetype": "one of the above strings",
             "metadata": { "title": "...", "description": "..." },
             "nodes": [
                 {
                     "id": "short-id",
                     "type": "motion-card" | "motion-stat",
                     "data": {
-                        "label": "Short Title",
-                        "subLabel": "Optional subtitle",
-                        "icon": "Lucide icon name (kebab-case)",
-                        "variant": "neutral" | "primary" | "positive" | "negative" | "accent"
+                        "label": "Title",
+                        "subLabel": "Subtitle/Type",
+                        "description": "Long text / Code / Latex / Matrix quadrant",
+                        "icon": "Lucide icon (kebab-case)",
+                        "variant": "neutral"| "primary" | "secondary" | "accent" | "positive" | "negative" | "warning"
                     }
                 }
             ],
             "edges": [
-                { "id": "e1", "source": "n1", "target": "n2", "label": "optional vertex label" }
+                { "id": "e1", "source": "n1", "target": "n2", "label": "connection label" }
             ]
         }
         """

@@ -1,4 +1,8 @@
-export type MotionArchetype = 'process' | 'cycle' | 'hierarchy' | 'comparison' | 'statistic' | 'grid';
+export type MotionArchetype =
+    | 'process' | 'cycle' | 'hierarchy' | 'comparison' | 'statistic' | 'grid' // Original
+    | 'timeline' | 'funnel' | 'pyramid' | 'mindmap' // Business
+    | 'code' | 'math' | 'architecture' // Technical
+    | 'matrix' | 'metaphor' | 'anatomy'; // Pedagogical
 
 export interface MotionNodeData {
     label: string;
