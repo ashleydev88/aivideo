@@ -9,3 +9,4 @@ python-dotenv
 moviepy<2.0
 Pillow
 boto3
+openai

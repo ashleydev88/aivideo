@@ -1,0 +1,45 @@
+{
+  "id": "sample-growth-loop",
+  "archetype": "cycle",
+  "metadata": {
+    "title": "The Growth Flywheel",
+    "description": "How traffic fuels sales"
+  },
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "motion-card",
+      "data": {
+        "label": "Traffic",
+        "subLabel": "Inbound Visitors",
+        "icon": "users",
+        "variant": "primary"
+      }
+    },
+    {
+      "id": "n2",
+      "type": "motion-card",
+      "data": {
+        "label": "Leads",
+        "subLabel": "Captured Interest",
+        "icon": "user-plus",
+        "variant": "accent"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "motion-card",
+      "data": {
+        "label": "Sales",
+        "subLabel": "Revenue Generation",
+        "icon": "dollar-sign",
+        "variant": "positive"
+      }
+    }
+  ],
+  "edges": [
+    { "id": "e1-2", "source": "n1", "target": "n2", "label": "converts to" },
+    { "id": "e2-3", "source": "n2", "target": "n3", "label": "closes" },
+    { "id": "e3-1", "source": "n3", "target": "n1", "label": "reinvests in" }
+  ]
+}
