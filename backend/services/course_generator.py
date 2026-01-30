@@ -22,6 +22,7 @@ from backend.services.storage import upload_asset_throttled, handle_failure, get
 from backend.services.sqs_producer import send_render_job_async
 from backend.utils.helpers import extract_json_from_response, parse_alignment_to_words
 from backend.schemas import ScriptRequest
+from backend.services.logic_extraction import logic_extractor
 
 # Helpers / Shared Logic
 
@@ -99,10 +100,14 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
             chart_data = slide.get("chart_data")
             
             # Generate Chart Data
+            # Generate Chart Data (Logic Extraction)
             if visual_type == "chart" and not chart_data:
-                pipeline = PipelineManager()
-                chart_data = await asyncio.to_thread(pipeline.generate_chart_data, slide["text"], slide.get("visual_text", ""))
-                if not chart_data:
+                try:
+                    text_context = f"{slide.get('visual_text', '')}\n{slide['text']}"
+                    graph_model = await logic_extractor.extract_from_text(text_context)
+                    chart_data = graph_model.model_dump()
+                except Exception as e:
+                     print(f"⚠️ Logic Extraction Failed: {e}")
                      visual_type = "kinetic_text" # Fallback
             
             # Generate Image (Replicate)

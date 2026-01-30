@@ -103,65 +103,7 @@ OUTPUT (JSON):
                 slide["visual_type"] = "image"
             return script_data
 
-    def generate_chart_data(self, slide_text: str, visual_note: str) -> dict:
-        """
-        Chart Generator Agent: Extracts structured data for Recharts/Remotion.
-        """
-        print("     📊 Generating Chart Data...")
-        prompt = f"""
-You are a Data Visualization Specialist designing a slide for a high-end corporate video.
-Extract structured data from the narration to build a professional, animated chart or diagram.
 
-CONTEXT:
-Narration: {slide_text}
-Visual Note: {visual_note}
-
-TASK:
-Return a JSON object that perfectly represents this content visually.
-
-AVAILABLE CHART TYPES:
-- "process": Sequential steps (1 -> 2 -> 3).
-- "list": Unordered items or bullet points.
-- "grid": A 2x2 or 3x2 grid of related concepts.
-- "comparison": Side-by-side vs. comparison.
-- "statistic": A big key number with a label (best for 1-2 items).
-- "pyramid": Hierarchical structures (base -> peak).
-- "cycle": Circular or repeating processes.
-
-OUTPUT (JSON):
-{{
-  "title": "Short title (Max 4 words)",
-  "type": "process|list|grid|comparison|statistic|pyramid|cycle",
-  "items": [
-    {{ 
-      "label": "Step/Item Name", 
-      "description": "Short description (max 8 words)",
-      "icon": "box|user|zap|shield|trending-up|activity|target|layers|refresh-cw", 
-      "color_intent": "primary|secondary|accent|danger|success|warning"
-    }}
-  ]
-}}
-
-CRITICAL:
-- Title MUST be extremely short (1-4 words max). Example: "Key Principles", "Growth Strategy".
-- Keep text labels SHORT (1-5 words) for clean UI.
-- Max 6 items for readability.
-- Choose icons from the list provided that best match the item.
-- Use color_intent to signal meaning (e.g., 'danger' for risks, 'success' for benefits).
-- Do NOT generate unnecessary words. Conciseness saves tokens.
-"""
-        try:
-            res_text = replicate_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=1000
-            )
-            print(f"     📊 Chart Generator Raw: {res_text[:300]}...")
-            chart_data = extract_json_from_response(res_text)
-            print(f"     📊 Chart Data Parsed: type={chart_data.get('type')}, title={chart_data.get('title')}, items={len(chart_data.get('items', []))}")
-            return chart_data
-        except Exception as e:
-             print(f"     ⚠️ Chart Gen Failed: {e}")
-             return None
 
     def generate_kinetic_text(self, narration: str, word_timestamps: list, visual_type: str, slide_duration_ms: int, visual_text: str = "") -> list:
         """

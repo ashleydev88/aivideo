@@ -12,7 +12,8 @@ The backend is built with **FastAPI** and handles all API requests, AI orchestra
 - **Framework**: FastAPI with uvicorn server
 - **Database**: Supabase (PostgreSQL) for course data, user management, and storage
 - **AI Services**:
-  - **DeepSeek V3** (via Replicate) for content generation (topic extraction, script writing, visual planning, kinetic text)
+  - **DeepSeek V3** (via OpenAI Client) for Logic Extraction (semantic graph generation) and broad content generation
+  - **Replicate** (Flux) for AI image generation
   - **ElevenLabs** for text-to-speech narration with word-level timestamps
   - **Replicate** for AI image generation using Flux models
 - **Queue System**: AWS SQS for video render job buffering
@@ -31,7 +32,10 @@ The frontend is a modern React application providing the user interface for cour
 The video composition engine that assembles all assets into the final video.
 
 - **Framework**: Remotion 4 for programmatic video composition
-- **Components**: Slide renderer, kinetic text overlays, chart animations, transitions
+- **Modules**:
+  - **Motion Boxes**: High-fidelity, animated components for Process, Cycles, Comparison, Hierarchy, and Grids
+  - **Headless Layout**: `elkjs` based automatic graph layout
+  - **Kinetic Text**: Dynamic text overlays synchronized with audio
 - **Deployment**: AWS Lambda for serverless rendering
 - **Output**: MP4 videos stored in S3
 
@@ -49,8 +53,8 @@ A containerized Lambda function that processes video render jobs from the SQS qu
 The system follows a multi-stage pipeline architecture:
 
 ```
-User Upload → Topic Generation → Script Writing → Visual Planning → 
-Media Generation (Audio/Images) → User Review → Final Render → Delivery
+User Upload → Topic Generation → Script Writing → Logic Extraction (Graphs) → 
+Visual Planning → Media Generation → User Review → Final Render
 ```
 
 ### Data Flow
@@ -59,7 +63,8 @@ Media Generation (Audio/Images) → User Review → Final Render → Delivery
 2. **Topic Extraction**: AI analyzes the document and suggests training topics
 3. **User Review**: User approves or modifies topics
 4. **Script Generation**: AI creates a slide-by-slide script with narration
-5. **Visual Planning**: AI assigns visual types (images, charts, kinetic text) to each slide
+5. **Logic Extraction**: Deepseek analyzes structural content to generate "Motion Graph" JSON (Processes, Cycles, Trees)
+6. **Visual Planning**: AI assigns visual types (images, motion charts, kinetic text)
 6. **Draft Visuals**: System generates preview images and charts
 7. **User Review**: User can edit slides, regenerate visuals, adjust colors
 8. **Finalization**: System generates audio narration with timestamps and kinetic text
@@ -216,6 +221,16 @@ npm start
    - Generates preview images using Replicate Flux models
    - Creates chart configurations for Recharts/Remotion
    - Runs in parallel for efficiency
+
+3b. **Logic Extraction** (`logic_extraction.py`)
+    - **Agent**: Deepseek V3
+    - **Function**: Parses text into Semantic JSON Graphs (`MotionGraph`)
+    - **Outputs**:
+      - `Process`: Linear or cyclic flows
+      - `Comparison`: Side-by-side vs
+      - `Hierarchy`: Tree structures
+      - `Grid`: Uniform collections
+    - **Fallback**: Gracefully degrades to Kinetic Text on failure
 
 4. **Asset Finalization** (`finalize_course_assets`)
    - Generates ElevenLabs audio with word timestamps
