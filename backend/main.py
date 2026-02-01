@@ -27,7 +27,7 @@ app.add_middleware(
 )
 
 # --- ROUTERS ---
-app.include_router(course.router) # We can prefix if we want, e.g. /api
+app.include_router(course.router, prefix="/api/course") # We can prefix if we want, e.g. /api
 
 @app.get("/")
 def health_check():

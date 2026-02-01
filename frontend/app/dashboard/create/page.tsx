@@ -430,7 +430,7 @@ function DashboardCreatePageContent() {
         }
 
         try {
-            const res = await fetch("http://127.0.0.1:8000/start-intake", {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/course/start-intake`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -462,7 +462,7 @@ function DashboardCreatePageContent() {
                 // We should update the course with this text if it exists.
 
                 if (wizardState.documentText) {
-                    await fetch(`http://127.0.0.1:8000/course/${data.course_id}/source-documents`, {
+                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/course/course/${data.course_id}/source-documents`, {
                         method: "PATCH",
                         headers: {
                             "Content-Type": "application/json",
