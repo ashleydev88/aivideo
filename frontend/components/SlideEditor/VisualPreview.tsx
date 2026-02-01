@@ -22,6 +22,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
+import { cn, isLightColor } from "@/lib/utils";
 import { MotionGraphPreview } from './MotionGraphPreview';
 import { AutoFitText } from './AutoFitText';
 import RichTextEditor from './RichTextEditor';
@@ -137,6 +138,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
     // Helper for background edit trigger - renders a floating palette button that doesn't interfere with text selection
     const BackgroundEditTrigger = ({ children, className }: { children: React.ReactNode, className?: string }) => {
         if (!onBackgroundChange) return <>{children}</>;
+        const isLightBg = isLightColor(slide.background_color);
 
         return (
             <div
@@ -150,10 +152,18 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     <Popover>
                         <PopoverTrigger asChild>
                             <button
-                                className="bg-white/10 backdrop-blur-md border border-white/20 p-2 rounded-full shadow-sm hover:bg-white/20 transition-colors cursor-pointer"
+                                className={cn(
+                                    "backdrop-blur-md border p-2 rounded-full shadow-sm transition-colors cursor-pointer",
+                                    isLightBg
+                                        ? "bg-black/5 border-black/10 hover:bg-black/10"
+                                        : "bg-white/10 border-white/20 hover:bg-white/20"
+                                )}
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <Palette className="w-4 h-4 text-white drop-shadow-md" />
+                                <Palette className={cn(
+                                    "w-4 h-4 drop-shadow-md",
+                                    isLightBg ? "text-slate-900" : "text-white"
+                                )} />
                             </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-64 p-3" align="end" side="bottom">
@@ -212,7 +222,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         return (
             <BackgroundEditTrigger className="w-full h-full">
                 <div
-                    className="slide-preview-content w-full h-full p-8 rounded-lg overflow-hidden"
+                    className="slide-preview-content w-full h-full p-8 rounded-lg"
                     style={{ backgroundColor: slide.background_color || '#0f172a', color: slide.text_color || '#ffffff' }}
                 >
                     <AutoFitText className="items-center justify-center origin-center">
@@ -252,7 +262,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         return (
             <BackgroundEditTrigger className="w-full h-full">
                 <div
-                    className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg overflow-hidden"
+                    className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg"
                     style={{
                         backgroundColor: slide.background_color || defaultBg,
                         color: slide.text_color || '#ffffff'
@@ -293,11 +303,11 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         const textContent = slide.visual_text || slide.text || "";
 
         return (
-            <div className="w-full h-full flex flex-row bg-slate-900 overflow-hidden rounded-lg">
+            <div className="w-full h-full flex flex-row bg-slate-900 rounded-lg">
                 {/* Left: Text - Adjustable Background */}
                 <BackgroundEditTrigger className="w-1/2 h-full">
                     <div
-                        className="slide-preview-content w-full h-full flex flex-col p-6 border-r border-slate-800 overflow-hidden"
+                        className="slide-preview-content w-full h-full flex flex-col p-6 border-r border-slate-800"
                         style={{ backgroundColor: slide.background_color || '#0f172a', color: slide.text_color || '#ffffff' }}
                     >
                         <AutoFitText className="items-start justify-center origin-left">
