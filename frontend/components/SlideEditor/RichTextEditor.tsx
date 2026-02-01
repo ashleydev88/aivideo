@@ -278,10 +278,18 @@ export default function RichTextEditor({ value, onChange, placeholder, variant =
                          margin-top: 0;
                          margin-bottom: 0.5em;
                     }
+                    /* Ensure bubble menu appears above all other elements */
+                    [data-tippy-root], .tippy-box, .tippy-content {
+                        z-index: 99999 !important;
+                    }
                 `}</style>
 
                 {editor && (
-                    <BubbleMenu editor={editor}>
+                    <BubbleMenu
+                        editor={editor}
+                        appendTo={() => document.body}
+                        className="z-[99999]"
+                    >
                         <div className="flex items-center gap-1 border border-slate-200 bg-white shadow-lg rounded-full p-1.5 px-3 animate-in fade-in zoom-in duration-200">
                             <ToolbarContent />
                         </div>
