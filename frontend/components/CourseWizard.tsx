@@ -294,18 +294,21 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
                                 title="Minimalist Vector"
                                 desc="Clean, modern, flat illustrations"
                                 isSelected={state.style === "Minimalist Vector"}
+                                imageUrl="https://ctkhjhfmwttpjtmtqjdh.supabase.co/storage/v1/object/sign/global-assets/Minimalist%20sample.webp?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV80ZjM2ZjBlYi1hYjBiLTQ5NjQtOGE0My1hMmEyZGUzOGM4NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJnbG9iYWwtYXNzZXRzL01pbmltYWxpc3Qgc2FtcGxlLndlYnAiLCJpYXQiOjE3Njk5Mzk5ODgsImV4cCI6MzMzMDU5Mzk5ODh9.5MV0t6uw2O4FLks1rQSVFFw3QXmExl7GPJ1s6YjPFws"
                                 onClick={() => handleStyleSelect("Minimalist Vector", "#14b8a6", "teal")}
                             />
                             <StyleOption
                                 title="Photo Realistic"
                                 desc="Cinematic, professional photography"
                                 isSelected={state.style === "Photo Realistic"}
+                                imageUrl="https://ctkhjhfmwttpjtmtqjdh.supabase.co/storage/v1/object/sign/global-assets/Photo%20realistic%20sample.webp?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV80ZjM2ZjBlYi1hYjBiLTQ5NjQtOGE0My1hMmEyZGUzOGM4NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJnbG9iYWwtYXNzZXRzL1Bob3RvIHJlYWxpc3RpYyBzYW1wbGUud2VicCIsImlhdCI6MTc2OTk0MDAxMywiZXhwIjozMzMwNTk0MDAxM30.UwiS-B335Drv7MkFHaHPiBUww9sUXg-GbzMupqAedMI"
                                 onClick={() => handleStyleSelect("Photo Realistic", "#3b82f6", "blue")}
                             />
                             <StyleOption
                                 title="Sophisticated Watercolour"
                                 desc="Artistic, hand-drawn aesthetic"
                                 isSelected={state.style === "Sophisticated Watercolour"}
+                                imageUrl="https://ctkhjhfmwttpjtmtqjdh.supabase.co/storage/v1/object/sign/global-assets/Tech%20isometric%20sample.webp?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV80ZjM2ZjBlYi1hYjBiLTQ5NjQtOGE0My1hMmEyZGUzOGM4NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJnbG9iYWwtYXNzZXRzL1RlY2ggaXNvbWV0cmljIHNhbXBsZS53ZWJwIiwiaWF0IjoxNzY5OTQwMDQwLCJleHAiOjMzMzA1OTQwMDQwfQ.6LZ74_pla-2TdLCdxo1FAf0HdeJKv1YfdTTVoXLqXhk"
                                 onClick={() => handleStyleSelect("Sophisticated Watercolour", "#0ea5e9", "sky blue")}
                             />
                         </div>
@@ -465,7 +468,7 @@ function OptionCard({ icon, title, desc, onClick }: { icon: React.ReactNode, tit
     );
 }
 
-function StyleOption({ title, desc, isSelected, onClick }: { title: string, desc: string, isSelected: boolean, onClick: () => void }) {
+function StyleOption({ title, desc, isSelected, imageUrl, onClick }: { title: string, desc: string, isSelected: boolean, imageUrl: string, onClick: () => void }) {
     return (
         <div
             onClick={onClick}
@@ -474,12 +477,8 @@ function StyleOption({ title, desc, isSelected, onClick }: { title: string, desc
                 isSelected ? "border-teal-500 bg-teal-50 ring-1 ring-teal-500" : "hover:border-teal-500"
             )}
         >
-            <div className="w-12 h-12 bg-slate-200 rounded-lg overflow-hidden flex-shrink-0">
-                {/* Placeholder for style preview */}
-                <div className={cn("w-full h-full opacity-50",
-                    title.includes("Vector") ? "bg-teal-200" :
-                        title.includes("Valid") ? "bg-blue-200" : "bg-sky-200"
-                )} />
+            <div className="w-16 h-16 bg-slate-200 rounded-lg overflow-hidden flex-shrink-0 border border-slate-100">
+                <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
             </div>
             <div>
                 <div className="font-medium text-sm">{title}</div>
