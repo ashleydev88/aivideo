@@ -16,7 +16,7 @@ import {
     RefreshCcw,
     CheckCircle2
 } from "lucide-react";
-import { ChartRenderer } from './ChartRenderer';
+import { MotionGraphPreview } from './MotionGraphPreview';
 import { AutoFitText } from './AutoFitText';
 
 interface VisualPreviewProps {
@@ -131,16 +131,15 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
         );
     }
 
-    // 1. CHART RENDERER
+    // 1. CHART RENDERER (MotionGraph)
     if (visual_type === 'chart' && chart_data) {
         return (
             <ScaleContainer>
-                <ChartRenderer
+                <MotionGraphPreview
                     data={chart_data}
-                    title={slide.visual_text}
-                    accent_color={slide.accent_color}
-                    custom_bg_color={slide.background_color}
-                    custom_text_color={slide.text_color}
+                    accentColor={slide.accent_color}
+                    backgroundColor={slide.background_color}
+                    textColor={slide.text_color}
                 />
             </ScaleContainer>
         );
