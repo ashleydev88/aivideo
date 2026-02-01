@@ -135,3 +135,102 @@ DURATION_STRATEGIES = {
         "content_priorities": ["Exhaustive policy coverage", "Rare and complex scenarios", "Legal and regulatory details", "Cross-policy interactions", "Advanced decision-making", "Change management"]
     }
 }
+
+# --- INSTRUCTIONAL STRATEGIES BY COURSE PURPOSE ---
+# These drive how the AI structures content and selects examples based on the course intent
+
+INSTRUCTIONAL_STRATEGIES = {
+    "onboarding": {
+        "tone": "welcoming, encouraging, supportive",
+        "structure": "progressive disclosure - start simple, build complexity",
+        "emphasis": ["company culture and values", "essential day-to-day processes", "key contacts and resources", "common first-week questions"],
+        "example_types": "first-week scenarios, new employee situations",
+        "narrative_style": "You're joining a supportive team. Here's what you need to know to succeed.",
+        "call_to_action": "Ask questions, reach out to your team, explore resources"
+    },
+    "compliance_training": {
+        "tone": "authoritative, clear, serious but not intimidating",
+        "structure": "rule-consequence-procedure - state requirement, explain why, show how to comply",
+        "emphasis": ["legal and regulatory requirements", "consequences of non-compliance", "reporting procedures", "documentation requirements"],
+        "example_types": "violation scenarios with outcomes, audit situations, real-world consequences",
+        "narrative_style": "This is required. Here's why it matters and exactly what you must do.",
+        "call_to_action": "Report concerns, document everything, escalate when unsure"
+    },
+    "leadership_development": {
+        "tone": "empowering, reflective, challenging",
+        "structure": "challenge-framework-application - present dilemma, provide model, practice applying",
+        "emphasis": ["decision-making frameworks", "team dynamics and motivation", "strategic thinking", "difficult conversations"],
+        "example_types": "leadership dilemmas, team conflict scenarios, strategic choices",
+        "narrative_style": "Great leaders aren't born—they're developed. Let's build your capabilities.",
+        "call_to_action": "Reflect on your style, practice with your team, seek feedback"
+    },
+    "business_case": {
+        "tone": "persuasive, data-driven, confident",
+        "structure": "problem-solution-benefits - pain point, proposed solution, measurable outcomes",
+        "emphasis": ["ROI and financial impact", "competitive advantage", "risk mitigation", "implementation timeline"],
+        "example_types": "success metrics, case studies, before/after comparisons",
+        "narrative_style": "Here's the opportunity and exactly why we should act now.",
+        "call_to_action": "Approve the investment, support the initiative, champion the change"
+    },
+    "custom": {
+        "tone": "professional, clear, engaging",
+        "structure": "flexible - adapt to content",
+        "emphasis": ["key concepts", "practical application", "next steps"],
+        "example_types": "relevant scenarios based on content",
+        "narrative_style": "Let's explore this topic together.",
+        "call_to_action": "Apply what you've learned"
+    }
+}
+
+# --- AUDIENCE ADAPTATIONS ---
+# These modify language level, jargon, and focus based on who is watching
+
+AUDIENCE_ADAPTATIONS = {
+    "employees": {
+        "language_level": "accessible, everyday language",
+        "jargon": "minimal - explain any technical terms",
+        "focus": "practical application, what to do day-to-day",
+        "assumed_knowledge": "general workplace awareness",
+        "examples": "frontline scenarios, individual contributor situations"
+    },
+    "line_managers": {
+        "language_level": "professional, managerial vocabulary",
+        "jargon": "moderate - standard business terms acceptable",
+        "focus": "team implementation, oversight responsibilities, escalation procedures",
+        "assumed_knowledge": "people management basics, company structure",
+        "examples": "team situations, performance conversations, delegation scenarios"
+    },
+    "senior_leadership": {
+        "language_level": "executive, strategic vocabulary",
+        "jargon": "industry-standard terminology expected",
+        "focus": "strategic implications, governance, organizational impact",
+        "assumed_knowledge": "business operations, market dynamics, regulatory landscape",
+        "examples": "board-level decisions, cross-functional initiatives, stakeholder management"
+    },
+    "executives": {
+        "language_level": "C-suite, investor-ready",
+        "jargon": "full business fluency assumed",
+        "focus": "shareholder value, competitive positioning, risk exposure",
+        "assumed_knowledge": "deep business acumen, industry expertise",
+        "examples": "market-moving decisions, M&A scenarios, investor communications"
+    },
+    "mixed": {
+        "language_level": "clear and accessible, with depth for those who want it",
+        "jargon": "explain on first use, then use naturally",
+        "focus": "balanced - principles for all, specifics for specialists",
+        "assumed_knowledge": "varied - layer content appropriately",
+        "examples": "range of scenarios from individual to organizational"
+    }
+}
+
+# --- UPLOAD LIMITS ---
+# Constraints for document uploads during intake
+
+UPLOAD_LIMITS = {
+    "max_files": 5,
+    "max_file_size_mb": 10,
+    "max_total_size_mb": 25,
+    "allowed_extensions": [".pdf", ".docx", ".txt"],
+    "max_text_chars": 100000  # ~40-50 pages of text
+}
+

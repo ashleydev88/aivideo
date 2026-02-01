@@ -141,39 +141,118 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
         return script_plan
 
 
-async def generate_topics_task(course_id: str, policy_text: str, duration: int, country: str, user_provided_title: str = None):
+async def generate_topics_task(
+    course_id: str, 
+    policy_text: str, 
+    duration: int, 
+    country: str, 
+    user_provided_title: str = None,
+    course_purpose: str = "compliance_training",
+    target_audience: str = "employees"
+):
     """
     Background worker to generate topics and update DB.
+    Now supports enhanced context from course_purpose and target_audience.
     """
-    print(f"   🏗️ Worker: Generating topics for {course_id}...")
+    print(f"   🏗️ Worker: Generating topics for {course_id} (purpose={course_purpose}, audience={target_audience})...")
+    
     try:
-        # Pre-process policy
-        processed_policy = await asyncio.to_thread(extract_policy_essence, policy_text)
+        # Import strategies here to avoid circular imports
+        from backend.config import INSTRUCTIONAL_STRATEGIES, AUDIENCE_ADAPTATIONS
+        
+        # If no policy text provided, try to load from DB
+        if not policy_text:
+            res = supabase_admin.table("courses").select("source_document_text").eq("id", course_id).execute()
+            if res.data and res.data[0].get("source_document_text"):
+                policy_text = res.data[0]["source_document_text"]
+        
+        # Get instructional strategy and audience adaptation
+        strategy = INSTRUCTIONAL_STRATEGIES.get(course_purpose, INSTRUCTIONAL_STRATEGIES["custom"])
+        audience = AUDIENCE_ADAPTATIONS.get(target_audience, AUDIENCE_ADAPTATIONS["employees"])
+        duration_config = DURATION_STRATEGIES.get(duration, DURATION_STRATEGIES[5])
+        
+        # Pre-process policy if available
+        processed_policy = ""
+        if policy_text:
+            processed_policy = await asyncio.to_thread(extract_policy_essence, policy_text)
 
-        # Select strategy
-        strategy = DURATION_STRATEGIES.get(duration, DURATION_STRATEGIES[5])
-
-        # Context Prompt
+        # Build jurisdiction context
         jurisdiction_prompt = ""
         if country.upper() == "UK":
             jurisdiction_prompt = "Reference UK laws (Equality Act 2010, GDPR, HSE)."
         else:
             jurisdiction_prompt = "Reference US laws (Title VII, OSHA, ADA)."
 
-        prompt = (
-            f"You are an expert instructional designer.\n"
-            f"CONTEXT: Policy Duration: {duration} mins. Region: {country}.\n"
-            f"POLICY TEXT: {processed_policy[:15000]}\n"
-            f"{jurisdiction_prompt}\n\n"
-            f"TASK: Generate a course plan.\n"
-            f"OUTPUT JSON:\n"
-            f"{{\n"
-            f"  \"title\": \"Course Title\",\n"
-            f"  \"learning_objective\": \"Objective\",\n"
-            f"  \"topics\": [ {{ \"id\": 1, \"title\": \"Topic\", \"purpose\": \"...\", \"key_points\": [\"...\"], \"estimated_slides\": 3 }} ]\n"
-            f"}}\n"
-            f"Follow strategy: {strategy['purpose']}, {strategy['topic_count']} topics."
-        )
+        # Build dynamic prompt based on purpose and audience
+        if processed_policy:
+            # Document-based generation
+            content_source = f"SOURCE DOCUMENTATION:\n{processed_policy[:15000]}"
+        else:
+            # AI-generated content (no source docs)
+            content_source = (
+                f"GENERATE ORIGINAL CONTENT:\n"
+                f"Create best-practice training content for the topic. "
+                f"Draw from industry standards, common procedures, and expert knowledge."
+            )
+
+        prompt = f"""You are an expert instructional designer specializing in creating engaging corporate training.
+
+COURSE CONTEXT:
+- Purpose: {course_purpose.replace('_', ' ').title()}
+- Target Audience: {target_audience.replace('_', ' ').title()}
+- Duration: {duration} minutes
+- Region: {country}
+
+INSTRUCTIONAL STRATEGY:
+- Tone: {strategy['tone']}
+- Structure: {strategy['structure']}
+- Key Emphasis: {', '.join(strategy['emphasis'])}
+- Example Types: {strategy['example_types']}
+- Narrative Style: "{strategy['narrative_style']}"
+- Call to Action: {strategy['call_to_action']}
+
+AUDIENCE ADAPTATION:
+- Language Level: {audience['language_level']}
+- Jargon Usage: {audience['jargon']}
+- Content Focus: {audience['focus']}
+- Assumed Knowledge: {audience['assumed_knowledge']}
+- Example Style: {audience['examples']}
+
+DURATION STRATEGY:
+- Purpose: {duration_config['purpose']}
+- Topic Count: {duration_config['topic_count']}
+- Depth Level: {duration_config['depth_level']}
+- Content Priorities: {', '.join(duration_config['content_priorities'])}
+
+{content_source}
+
+{jurisdiction_prompt}
+
+TASK: Generate a comprehensive course plan that aligns with the instructional strategy and audience needs.
+
+OUTPUT FORMAT (JSON):
+{{
+  "title": "Engaging Course Title",
+  "learning_objective": "Clear, measurable learning outcome",
+  "topics": [
+    {{
+      "id": 1,
+      "title": "Topic Title",
+      "purpose": "What learners will understand/be able to do",
+      "key_points": ["Point 1", "Point 2", "Point 3"],
+      "estimated_slides": 3,
+      "complexity": "simple|moderate|complex"
+    }}
+  ]
+}}
+
+REQUIREMENTS:
+- Follow the {duration_config['topic_count']} topic guideline
+- Ensure topics progress logically
+- Match depth to the {duration_config['depth_level']} requirement
+- Adapt language and examples for {target_audience.replace('_', ' ')} audience
+- Focus on: {', '.join(duration_config['content_priorities'][:3])}
+"""
 
         res_text = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000)
         data = extract_json_from_response(res_text)
@@ -185,14 +264,18 @@ async def generate_topics_task(course_id: str, policy_text: str, duration: int, 
         existing_res = supabase_admin.table("courses").select("metadata").eq("id", course_id).execute()
         existing_metadata = existing_res.data[0].get("metadata", {}) if existing_res.data else {}
 
-        # Update metadata
+        # Update metadata with enhanced context
         new_metadata = {
             **existing_metadata,
             "duration": duration,
             "country": country,
             "topics": data.get("topics", []),
             "learning_objective": data.get("learning_objective", ""),
-            "processed_policy": processed_policy
+            "processed_policy": processed_policy if processed_policy else None,
+            # Store the strategies used for later reference
+            "instructional_strategy": strategy,
+            "audience_adaptation": audience,
+            "duration_strategy": duration_config
         }
 
         # Update DB
