@@ -215,7 +215,7 @@ async def start_intake(
     
     return {"status": "started", "course_id": course_id}
 
-@router.patch("/course/{course_id}/source-documents")
+@router.patch("/{course_id}/source-documents")
 async def update_source_documents(
     course_id: str,
     request: Request,
