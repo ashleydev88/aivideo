@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { CheckCircle2, PlayCircle } from 'lucide-react';
-import SetupForm from '@/components/SetupForm';
+import CourseWizard from '@/components/CourseWizard';
 import PlanningEditor from '@/components/PlanningEditor';
 
 import { createClient } from '@/lib/supabase/client';
@@ -414,83 +414,77 @@ function DashboardCreatePageContent() {
 
 
 
-    // --- STEP 1: UPLOAD & PARSE ---
-    const handleStartPlanning = async (t: string, file: File, d: number, s: string, accent: string, colorN: string) => {
+    // --- STEP 1: WIZARD COMPLETION ---
+    const handleWizardComplete = async (wizardState: any) => {
         setIsLoading(true);
         setIsProcessing(true);
-        setTitle(t);
-        setDuration(d);
-        setStyle(s);
-        setAccentColor(accent);
-        setColorName(colorN);
 
-        // Fetch user logo info for later use
+        // Fetch user logo info
         const { data: { user } } = await supabase.auth.getUser();
-        if (user?.user_metadata?.logo_url) {
-            setLogoUrl(user.user_metadata.logo_url);
-            setLogoCrop(user.user_metadata.logo_crop);
-        }
 
-        // Persist visual preference for future sessions
-        if (user) {
+        // Persist visual preference
+        if (user && wizardState.style) {
             await supabase.auth.updateUser({
-                data: { visual_preference: s }
+                data: { visual_preference: wizardState.style }
             });
         }
 
-        // 1. Upload & Extract Text
-        const formData = new FormData();
-        formData.append("file", file);
         try {
-            // Note: We might want to authenticate this later, but currently it's just parsing text
-            const res = await fetch("http://127.0.0.1:8000/upload-policy", { method: "POST", body: formData });
-            const data = await res.json();
-            if (data.text) {
-                setPolicyText(data.text);
-                await generateTopics(data.text, d, s, accent, colorN, t, user?.user_metadata?.logo_url, user?.user_metadata?.logo_crop);
-            }
-        } catch (e) {
-            console.error("Upload error", e);
-            setIsLoading(false);
-        }
-    };
-
-    // --- STEP 2: GENERATE TOPICS (Async) ---
-    const generateTopics = async (text: string, d: number, s: string, accent: string, colorN: string, t: string, logo: string | null, crop: any) => {
-        try {
-            const res = await fetch("http://127.0.0.1:8000/generate-topics", {
+            const res = await fetch("http://127.0.0.1:8000/start-intake", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify({
-                    policy_text: text,
-                    duration: d,
+                    course_purpose: wizardState.purpose,
+                    target_audience: wizardState.audience,
+                    has_source_documents: wizardState.hasDocuments,
+                    duration: wizardState.duration,
+                    title: wizardState.title,
+                    style: wizardState.style,
+                    accent_color: wizardState.accentColor,
+                    color_name: wizardState.colorName,
                     country: country,
-                    style: s,
-                    accent_color: accent,
-                    color_name: colorN,
-                    title: t,
-                    logo_url: logo,
-                    logo_crop: crop
+                    logo_url: user?.user_metadata?.logo_url,
+                    logo_crop: user?.user_metadata?.logo_crop,
+                    conversation_history: [] // We could pass the chat history here if we wanted to store it
                 })
             });
+
             const data = await res.json();
 
             if (data.status === "started") {
-                // Redirect to dashboard immediately
+                // If text was extracted locally in wizard, we might need to send it separately 
+                // OR we rely on the backend to have it if we used the upload endpoint.
+                // If the wizard uploaded files, the backend has the text? 
+                // The wizard's FileUploader component creates a combined text string.
+                // We should update the course with this text if it exists.
+
+                if (wizardState.documentText) {
+                    await fetch(`http://127.0.0.1:8000/course/${data.course_id}/source-documents`, {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${session?.access_token}`
+                        },
+                        body: JSON.stringify({
+                            source_document_text: wizardState.documentText
+                        })
+                    });
+                }
+
                 router.push('/dashboard');
             } else {
-                console.error("Failed to start topic generation");
-                alert("Failed to start topic generation");
+                console.error("Failed to start intake");
+                alert("Failed to start generation");
                 setIsLoading(false);
                 setIsProcessing(false);
             }
         } catch (e) {
-            console.error(e);
-            setIsProcessing(false);
+            console.error("Intake error", e);
             setIsLoading(false);
+            setIsProcessing(false);
         }
     };
 
@@ -605,9 +599,18 @@ function DashboardCreatePageContent() {
 
 
             <div className="flex flex-col items-center justify-center w-full max-w-6xl mx-auto pt-10 pb-20">
-                {/* View Switching Logic */}
                 {view === "setup" && (
-                    <SetupForm onStart={handleStartPlanning} isLoading={isLoading} />
+                    <div className="w-full max-w-4xl animate-in fade-in slide-in-from-bottom-8 duration-700">
+                        <div className="text-center mb-10 space-y-4">
+                            <h1 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">
+                                Create Your Course
+                            </h1>
+                            <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+                                Let's build a high-impact video course together. Just answer a few questions to get started.
+                            </p>
+                        </div>
+                        <CourseWizard onComplete={handleWizardComplete} isLoading={isLoading} />
+                    </div>
                 )}
 
 
