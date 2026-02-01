@@ -280,7 +280,12 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                 {/* LEFT: VISUAL PREVIEW (60%) */}
                 <div className="md:w-3/5 bg-slate-100 p-8 flex flex-col items-center justify-center relative border-r border-slate-200/50">
                     <div className="w-full max-w-[800px] aspect-video bg-white shadow-xl rounded-lg overflow-hidden border-4 border-white ring-1 ring-black/5 relative">
-                        <VisualPreview slide={currentSlide} />
+                        <VisualPreview
+                            slide={currentSlide}
+                            onChartUpdate={(newData: any) => handleUpdateSlide("chart_data", newData)}
+                            onTextChange={(val: string) => handleUpdateSlide("visual_text", val)}
+                            onBackgroundChange={(val: string) => handleUpdateSlide("background_color", val)}
+                        />
                     </div>
 
                     {/* Navigation Arrows Floating */}
@@ -339,24 +344,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                             />
                         </SidebarSection>
 
-                        {/* 2. ON-SCREEN TEXT */}
-                        <SidebarSection
-                            title="On-Screen Text"
-                            icon={MonitorPlay}
-                            iconColor="text-blue-500"
-                            isOpen={openSections.onScreenText}
-                            onToggle={() => toggleSection('onScreenText')}
-                        >
-                            <RichTextEditor
-                                key={currentSlideIndex} // Force remount when switching slides to reset editor state specific to that slide
-                                value={currentSlide.visual_text}
-                                onChange={(val) => handleUpdateSlide("visual_text", val)}
-                                placeholder="Enter text..."
-                            />
-                            {/* <p className="text-[10px] text-slate-400 pl-1">
-                                Text formatting (Bold, Italic, Headers) is now supported.
-                            </p> */}
-                        </SidebarSection>
+
 
 
                         {/* 3. VISUAL PROMPT / CHART CONFIG */}
@@ -389,58 +377,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                             </SidebarSection>
                         )}
 
-                        {currentSlide.visual_type === 'chart' && (
-                            <SidebarSection
-                                title="Chart Config"
-                                icon={RefreshCcw}
-                                iconColor="text-amber-500"
-                                isOpen={openSections.visualPrompt} // Reusing visualPrompt state for chart config as they are mutually exclusive visual slots
-                                onToggle={() => toggleSection('visualPrompt')}
-                            >
-                                <div className="p-4 bg-amber-50 border border-amber-100 rounded-md text-amber-800 text-sm">
-                                    <p className="opacity-90 leading-relaxed">
-                                        Chart data is automatically generated. <br />
-                                        Edit the <strong>Narration Script</strong> above and regenerate to update the chart.
-                                    </p>
-                                </div>
-                            </SidebarSection>
-                        )}
-
-                        {/* 4. SLIDE STYLING */}
-                        <SidebarSection
-                            title="Slide Styling"
-                            icon={RefreshCcw} // Using generic icon or could import Palette
-                            iconColor="text-teal-500"
-                            isOpen={openSections.styling}
-                            onToggle={() => toggleSection('styling')}
-                        >
-                            <div className="grid grid-cols-2 gap-4 pt-2">
-                                <div>
-                                    <label className="text-xs font-medium text-slate-500 mb-1.5 block">Background</label>
-                                    <div className="flex items-center gap-2 p-1.5 rounded-md border border-slate-100 bg-slate-50">
-                                        <input
-                                            type="color"
-                                            value={currentSlide.background_color || defaults.bg}
-                                            onChange={(e) => handleUpdateSlide("background_color", e.target.value)}
-                                            className="w-6 h-6 rounded cursor-pointer border-0 p-0"
-                                        />
-                                        <span className="text-xs font-mono text-slate-600 uppercase flex-1">{currentSlide.background_color || defaults.bg}</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-medium text-slate-500 mb-1.5 block">Text Color</label>
-                                    <div className="flex items-center gap-2 p-1.5 rounded-md border border-slate-100 bg-slate-50">
-                                        <input
-                                            type="color"
-                                            value={currentSlide.text_color || defaults.text}
-                                            onChange={(e) => handleUpdateSlide("text_color", e.target.value)}
-                                            className="w-6 h-6 rounded cursor-pointer border-0 p-0"
-                                        />
-                                        <span className="text-xs font-mono text-slate-600 uppercase flex-1">{currentSlide.text_color || defaults.text}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </SidebarSection>
+                        {/* Slide Styling Section Removed: Now handled inline */}
 
                     </div>
                 </div>
