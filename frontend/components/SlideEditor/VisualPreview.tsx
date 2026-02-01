@@ -14,14 +14,24 @@ import {
     User,
     Zap,
     RefreshCcw,
-    CheckCircle2
+    CheckCircle2,
+    Palette
 } from "lucide-react";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
 import { MotionGraphPreview } from './MotionGraphPreview';
 import { AutoFitText } from './AutoFitText';
+import RichTextEditor from './RichTextEditor';
 
 interface VisualPreviewProps {
     slide: any; // We'll define a stricter type later or reuse the one from Editor
     aspectRatio?: string;
+    onChartUpdate?: (newData: any) => void;
+    onTextChange?: (newText: string) => void;
+    onBackgroundChange?: (newColor: string) => void;
 }
 
 // Icon mapper for charts
@@ -72,9 +82,10 @@ const ScaleContainer = ({ children }: { children: React.ReactNode }) => {
     );
 };
 
-export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPreviewProps) {
+export default function VisualPreview({ slide, aspectRatio = "video", onChartUpdate, onTextChange, onBackgroundChange }: VisualPreviewProps) {
     const { visual_type, layout, image, chart_data } = slide;
     const [resolvedImage, setResolvedImage] = useState<string | null>(null);
+    const [isHovering, setIsHovering] = useState(false);
 
     // Resolve Image URL (Path -> Signed URL)
     useEffect(() => {
@@ -91,7 +102,7 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
                 return;
             }
 
-            // It's a path, fetch signed URL
+            // It's likely a path, fetch signed URL
             try {
                 const supabase = createClient();
                 const { data: { session } } = await supabase.auth.getSession();
@@ -123,6 +134,50 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     }, [image]);
 
 
+    // Helper for background edit trigger - renders a floating palette button that doesn't interfere with text selection
+    const BackgroundEditTrigger = ({ children, className }: { children: React.ReactNode, className?: string }) => {
+        if (!onBackgroundChange) return <>{children}</>;
+
+        return (
+            <div
+                className={`relative group/bg ${className}`}
+                onMouseEnter={() => setIsHovering(true)}
+                onMouseLeave={() => setIsHovering(false)}
+            >
+                {children}
+                {/* Floating Palette Button - positioned in corner, clickable */}
+                <div className="absolute top-4 right-4 z-50 opacity-0 group-hover/bg:opacity-100 transition-opacity">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                className="bg-white/10 backdrop-blur-md border border-white/20 p-2 rounded-full shadow-sm hover:bg-white/20 transition-colors cursor-pointer"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <Palette className="w-4 h-4 text-white drop-shadow-md" />
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-3" align="end" side="bottom">
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold text-slate-500">Background Color</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={slide.background_color || '#000000'}
+                                        onChange={(e) => onBackgroundChange(e.target.value)}
+                                        className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                                    />
+                                    <span className="text-xs font-mono text-slate-600 uppercase bg-slate-100 px-2 py-1 rounded">
+                                        {slide.background_color || 'Default'}
+                                    </span>
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+            </div>
+        )
+    }
+
     // Fallback if no visual yet
     if (!image && !chart_data && visual_type !== 'kinetic_text' && visual_type !== 'title_card') {
         return (
@@ -136,12 +191,16 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     if (visual_type === 'chart' && chart_data) {
         return (
             <ScaleContainer>
-                <MotionGraphPreview
-                    data={chart_data}
-                    accentColor={slide.accent_color}
-                    backgroundColor={slide.background_color}
-                    textColor={slide.text_color}
-                />
+                {/* Background editing for Chart might be complex due to canvas, putting wrapper around */}
+                <BackgroundEditTrigger className="w-full h-full">
+                    <MotionGraphPreview
+                        data={chart_data}
+                        accentColor={slide.accent_color}
+                        backgroundColor={slide.background_color}
+                        textColor={slide.text_color}
+                        onUpdate={onChartUpdate}
+                    />
+                </BackgroundEditTrigger>
             </ScaleContainer>
         );
     }
@@ -149,46 +208,38 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
     // 2. KINETIC TEXT RENDERER
     if (visual_type === 'kinetic_text') {
         const textContent = slide.visual_text || slide.text || "";
-        const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
 
         return (
-            <div
-                className="slide-preview-content w-full h-full p-8 rounded-lg overflow-hidden"
-                style={{ backgroundColor: slide.background_color || '#0f172a' }}
-            >
-                <AutoFitText className="items-center justify-center origin-center">
-                    {isHtml ? (
-                        <div
-                            className="prose prose-xl dark:prose-invert max-w-none text-center"
-                            style={{ color: slide.text_color || '#ffffff' }}
-                        >
+            <BackgroundEditTrigger className="w-full h-full">
+                <div
+                    className="slide-preview-content w-full h-full p-8 rounded-lg overflow-hidden"
+                    style={{ backgroundColor: slide.background_color || '#0f172a', color: slide.text_color || '#ffffff' }}
+                >
+                    <AutoFitText className="items-center justify-center origin-center">
+                        <div className="w-full text-center">
                             <style>{`
-                                .slide-preview-content h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                                .slide-preview-content h2 { font-weight: 700; margin-bottom: 0.5em; }
-                                .slide-preview-content p { margin-bottom: 0.5em; }
-                                .slide-preview-content ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
-                                .slide-preview-content li { margin-bottom: 0.5em; }
-                                .slide-preview-content strong { color: ${slide.accent_color || '#14b8a6'}; }
+                                .ProseMirror h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                                .ProseMirror h2 { font-weight: 700; margin-bottom: 0.5em; }
+                                .ProseMirror p { margin-bottom: 0.5em; }
+                                .ProseMirror ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
+                                .ProseMirror li { margin-bottom: 0.5em; }
+                                .ProseMirror strong { color: ${slide.accent_color || '#14b8a6'} !important; }
                              `}</style>
-                            {parse(textContent)}
+                            {onTextChange ? (
+                                <RichTextEditor
+                                    value={textContent}
+                                    onChange={onTextChange}
+                                    variant="minimal"
+                                />
+                            ) : (
+                                <div className="prose prose-xl dark:prose-invert max-w-none">
+                                    {parse(textContent)}
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <div className="space-y-6 w-full text-center">
-                            {textContent.split('\n').map((line: string, i: number) => (
-                                <h1
-                                    key={i}
-                                    className="font-black tracking-tight uppercase leading-tight text-5xl"
-                                    style={{
-                                        color: slide.text_color || '#ffffff',
-                                    }}
-                                >
-                                    {line}
-                                </h1>
-                            ))}
-                        </div>
-                    )}
-                </AutoFitText>
-            </div>
+                    </AutoFitText>
+                </div>
+            </BackgroundEditTrigger>
         )
     }
 
@@ -197,42 +248,40 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
         const textContent = slide.visual_text || slide.text || "";
         const isThankYou = slide.text?.toLowerCase().includes("thank you");
         const defaultBg = isThankYou ? '#1e293b' : '#0d9488'; // slate-800 or teal-600
-        const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
 
         return (
-            <div
-                className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg overflow-hidden"
-                style={{
-                    backgroundColor: slide.background_color || defaultBg,
-                    color: slide.text_color || '#ffffff'
-                }}
-            >
-                <AutoFitText className="items-center justify-center origin-center">
-                    {isHtml ? (
-                        <div className="prose prose-2xl dark:prose-invert max-w-none">
+            <BackgroundEditTrigger className="w-full h-full">
+                <div
+                    className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg overflow-hidden"
+                    style={{
+                        backgroundColor: slide.background_color || defaultBg,
+                        color: slide.text_color || '#ffffff'
+                    }}
+                >
+                    <AutoFitText className="items-center justify-center origin-center">
+                        <div className="w-full text-center">
                             <style>{`
-                                .slide-preview-content h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                                .slide-preview-content p { opacity: 0.9; }
-                                .slide-preview-content strong { color: rgba(255,255,255,0.9); }
-                             `}</style>
-                            {parse(textContent)}
+                                    .ProseMirror h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
+                                    .ProseMirror p { opacity: 0.9; }
+                                    .ProseMirror strong { color: rgba(255,255,255,0.9); }
+                                 `}</style>
+                            {onTextChange ? (
+                                <RichTextEditor
+                                    value={textContent}
+                                    onChange={onTextChange}
+                                    variant="minimal"
+                                />
+                            ) : (
+                                // Fallback read-only using same styles roughly
+                                <div className="prose prose-2xl dark:prose-invert max-w-none">
+                                    {parse(textContent)}
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <>
-                            <h1
-                                className="font-bold tracking-tight mb-4 text-6xl"
-                            >
-                                {textContent || "Title Card"}
-                            </h1>
-                            <div
-                                className="h-1 w-20 rounded-full mx-auto"
-                                style={{ backgroundColor: slide.text_color ? `${slide.text_color}4D` : (slide.accent_color || 'rgba(255,255,255,0.3)') }}
-                            />
-                        </>
-                    )}
-                </AutoFitText>
+                    </AutoFitText>
 
-            </div>
+                </div>
+            </BackgroundEditTrigger>
         )
     }
 
@@ -242,46 +291,40 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
 
     if (isHybrid) {
         const textContent = slide.visual_text || slide.text || "";
-        const isHtml = /<[a-z][\s\S]*>/i.test(textContent);
 
         return (
             <div className="w-full h-full flex flex-row bg-slate-900 overflow-hidden rounded-lg">
-                {/* Left: Text */}
-                <div
-                    className="slide-preview-content w-1/2 h-full flex flex-col p-6 border-r border-slate-800 overflow-hidden"
-                    style={{ backgroundColor: slide.background_color || '#0f172a' }}
-                >
-                    <AutoFitText className="items-start justify-center origin-left">
-                        {isHtml ? (
-                            <div className="prose prose-lg dark:prose-invert max-w-none text-left" style={{ color: slide.text_color || '#ffffff' }}>
+                {/* Left: Text - Adjustable Background */}
+                <BackgroundEditTrigger className="w-1/2 h-full">
+                    <div
+                        className="slide-preview-content w-full h-full flex flex-col p-6 border-r border-slate-800 overflow-hidden"
+                        style={{ backgroundColor: slide.background_color || '#0f172a', color: slide.text_color || '#ffffff' }}
+                    >
+                        <AutoFitText className="items-start justify-center origin-left">
+                            <div className="w-full text-left">
                                 <style>{`
-                                    .slide-preview-content h1 { font-weight: 800; margin-bottom: 0.4em; line-height: 1.1; }
-                                    .slide-preview-content h2 { font-weight: 700; margin-bottom: 0.4em; }
-                                    .slide-preview-content p { margin-bottom: 0.5em; line-height: 1.4; }
-                                    .slide-preview-content ul { list-style-type: disc; padding-left: 1.2em; }
-                                    .slide-preview-content li { margin-bottom: 0.3em; }
-                                    .slide-preview-content strong { color: ${slide.accent_color || '#14b8a6'}; }
-                                 `}</style>
-                                {parse(textContent)}
+                                        .ProseMirror h1 { font-weight: 800; margin-bottom: 0.4em; line-height: 1.1; }
+                                        .ProseMirror h2 { font-weight: 700; margin-bottom: 0.4em; }
+                                        .ProseMirror p { margin-bottom: 0.5em; line-height: 1.4; }
+                                        .ProseMirror ul { list-style-type: disc; padding-left: 1.2em; }
+                                        .ProseMirror li { margin-bottom: 0.3em; }
+                                        .ProseMirror strong { color: ${slide.accent_color || '#14b8a6'} !important; }
+                                     `}</style>
+                                {onTextChange ? (
+                                    <RichTextEditor
+                                        value={textContent}
+                                        onChange={onTextChange}
+                                        variant="minimal"
+                                    />
+                                ) : (
+                                    <div className="prose prose-lg dark:prose-invert max-w-none">
+                                        {parse(textContent)}
+                                    </div>
+                                )}
                             </div>
-                        ) : (
-                            <div className="text-left space-y-4">
-                                {(textContent || "Hybrid Slide Text").split('\n').map((line: string, i: number) => (
-                                    <h2
-                                        key={i}
-                                        className="font-bold leading-tight"
-                                        style={{
-                                            color: slide.text_color || '#ffffff',
-                                            fontSize: `2.5rem`
-                                        }}
-                                    >
-                                        {line}
-                                    </h2>
-                                ))}
-                            </div>
-                        )}
-                    </AutoFitText>
-                </div>
+                        </AutoFitText>
+                    </div>
+                </BackgroundEditTrigger>
 
                 {/* Right: Image */}
                 <div className="w-1/2 h-full relative bg-slate-100">
@@ -322,19 +365,25 @@ export default function VisualPreview({ slide, aspectRatio = "video" }: VisualPr
             {slide.visual_text && (
                 <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-sm p-4 rounded-md text-white">
                     <div className="font-mono text-xs opacity-70 mb-1">ON-SCREEN TEXT</div>
-                    {/<[a-z][\s\S]*>/i.test(slide.visual_text) ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                            {parse(slide.visual_text)}
-                        </div>
-                    ) : (
-                        <pre className="whitespace-pre-wrap font-sans text-sm font-semibold">
-                            {slide.visual_text}
-                        </pre>
-                    )}
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                        {/* Does the overlay text need to be editable? Probably not, usually people use hybrid/cards for heavy text. 
+                             But if they want, we could make it editable. 
+                             For now, let's keep it read-only or minimal editable if specifically requested.
+                             User asked "edit on screen text directly".
+                             I'll assume this overlay is also on-screen text.
+                         */}
+                        {onTextChange ? (
+                            <RichTextEditor
+                                value={slide.visual_text}
+                                onChange={onTextChange}
+                                variant="minimal"
+                            />
+                        ) : (
+                            parse(slide.visual_text)
+                        )}
+                    </div>
                 </div>
             )}
         </div>
     );
 }
-
-

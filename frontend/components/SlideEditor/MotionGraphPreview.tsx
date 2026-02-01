@@ -16,6 +16,7 @@ interface MotionGraphPreviewProps {
     accentColor?: string;
     backgroundColor?: string;
     textColor?: string;
+    onUpdate?: (newData: MotionGraph) => void;
 }
 
 // Get icon component from kebab-case name
@@ -33,6 +34,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     accentColor = '#14b8a6',
     backgroundColor = '#f8fafc',
     textColor = '#0f172a',
+    onUpdate,
 }) => {
     if (!data || !data.nodes || data.nodes.length === 0) {
         return (
@@ -51,21 +53,49 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const isHtml = /<[a-z][\s\S]*>/i.test(title);
 
         return (
-            <div
-                className="text-5xl font-black mb-12 tracking-tight uppercase text-center max-w-4xl mx-auto"
-                style={{ color: textColor }}
-            >
-                {isHtml ? (
-                    <div className="prose prose-xl max-w-none dark:prose-invert">
-                        <style>{`h1, h2, h3, p { margin: 0; font-size: inherit; font-weight: inherit; } strong { color: ${accentColor}; }`}</style>
-                        {parse(title)}
-                    </div>
+            <div className="w-full flex flex-col items-center justify-center mb-16">
+                {onUpdate ? (
+                    <textarea
+                        value={title}
+                        onChange={(e) => handleTitleUpdate(e.target.value)}
+                        className="text-7xl font-black tracking-tight uppercase text-center max-w-7xl mx-auto bg-transparent w-full resize-none outline-none focus:ring-2 focus:ring-teal-500 rounded p-2"
+                        rows={1}
+                        style={{ color: textColor, fieldSizing: 'content' } as any}
+                    />
                 ) : (
-                    title
+                    <div
+                        className="text-7xl font-black tracking-tight uppercase text-center max-w-7xl mx-auto"
+                        style={{ color: textColor }}
+                    >
+                        {isHtml ? (
+                            <div className="prose prose-2xl max-w-none dark:prose-invert">
+                                <style>{`h1, h2, h3, p { margin: 0; font-size: inherit; font-weight: inherit; } strong { color: ${accentColor}; }`}</style>
+                                {parse(title)}
+                            </div>
+                        ) : (
+                            title
+                        )}
+                    </div>
                 )}
-                <div className="h-2 w-24 mt-4 mx-auto rounded-full" style={{ backgroundColor: accentColor }} />
+                <div className="h-3 w-48 mt-6 mx-auto rounded-full" style={{ backgroundColor: accentColor }} />
             </div>
         );
+    };
+
+    // Update Handler
+    const handleNodeUpdate = (nodeId: string, field: string, value: string) => {
+        if (!onUpdate) return;
+        const newNodes = nodes.map(n =>
+            n.id === nodeId
+                ? { ...n, data: { ...n.data, [field]: value } }
+                : n
+        );
+        onUpdate({ ...data, nodes: newNodes });
+    };
+
+    const handleTitleUpdate = (newTitle: string) => {
+        if (!onUpdate) return;
+        onUpdate({ ...data, metadata: { ...data.metadata, title: newTitle } });
     };
 
     // Render nodes based on archetype
@@ -104,12 +134,12 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
     // Horizontal flow (process, cycle, timeline)
     const renderHorizontalFlow = () => (
-        <div className="flex flex-row items-center justify-center gap-4 w-full px-8 flex-wrap">
+        <div className="flex flex-row items-center justify-center gap-8 w-full px-12 flex-wrap">
             {nodes.map((node, i) => (
                 <React.Fragment key={node.id}>
                     {i > 0 && (
                         <div className="flex-shrink-0">
-                            <Lucide.ArrowRight size={32} color={textColor + 'aa'} strokeWidth={3} />
+                            <Lucide.ArrowRight size={48} color={textColor + 'aa'} strokeWidth={3} />
                         </div>
                     )}
                     <PreviewMotionBox
@@ -117,12 +147,14 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         subLabel={node.data.subLabel}
                         icon={node.data.icon}
                         variant={node.data.variant}
+                        isEditable={!!onUpdate}
+                        onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
                     />
                 </React.Fragment>
             ))}
             {archetype === 'cycle' && nodes.length > 1 && (
                 <div className="flex-shrink-0">
-                    <Lucide.RotateCcw size={32} color={accentColor} strokeWidth={3} />
+                    <Lucide.RotateCcw size={48} color={accentColor} strokeWidth={3} />
                 </div>
             )}
         </div>
@@ -133,7 +165,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const isFunnelOrPyramid = archetype === 'funnel' || archetype === 'pyramid';
 
         return (
-            <div className="flex flex-col items-center justify-center gap-3 w-full max-w-3xl">
+            <div className="flex flex-col items-center justify-center gap-6 w-full max-w-6xl">
                 {nodes.map((node, i) => {
                     const widthPercent = isFunnelOrPyramid
                         ? (archetype === 'funnel' ? 100 - (i * 12) : 100 - (i * 15))
@@ -143,19 +175,37 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     return (
                         <div
                             key={node.id}
-                            className="bg-white rounded-xl shadow-md p-4 flex items-center gap-4 border-l-4"
+                            className="bg-white rounded-2xl shadow-md p-8 flex items-center gap-8 border-l-8"
                             style={{
                                 width: `${widthPercent}%`,
                                 borderLeftColor: color
                             }}
                         >
-                            <div className="p-2 rounded-lg" style={{ backgroundColor: color + '20' }}>
-                                {React.createElement(getIcon(node.data.icon), { size: 24, color })}
+                            <div className="p-4 rounded-xl" style={{ backgroundColor: color + '20' }}>
+                                {React.createElement(getIcon(node.data.icon), { size: 40, color })}
                             </div>
-                            <div>
-                                <h4 className="font-bold text-slate-800">{node.data.label}</h4>
-                                {node.data.description && (
-                                    <p className="text-sm text-slate-500 line-clamp-1">{node.data.description}</p>
+                            <div className="w-full">
+                                {onUpdate ? (
+                                    <input
+                                        value={node.data.label}
+                                        onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                        className="font-bold text-slate-800 text-3xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                    />
+                                ) : (
+                                    <h4 className="font-bold text-slate-800 text-3xl">{node.data.label}</h4>
+                                )}
+
+                                {(node.data.description || onUpdate) && (
+                                    onUpdate ? (
+                                        <input
+                                            value={node.data.description || ''}
+                                            onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
+                                            className="text-xl text-slate-500 mt-1 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                            placeholder="Description"
+                                        />
+                                    ) : (
+                                        <p className="text-xl text-slate-500 line-clamp-2 mt-1">{node.data.description}</p>
+                                    )
                                 )}
                             </div>
                         </div>
@@ -167,22 +217,41 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
     // Grid layout (grid, comparison)
     const renderGrid = () => (
-        <div className="grid grid-cols-2 gap-6 w-full max-w-4xl px-6">
+        <div className="grid grid-cols-2 gap-12 w-full max-w-7xl px-6">
             {nodes.map((node) => {
                 const color = getVariantColor(node.data.variant, accentColor);
                 return (
                     <div
                         key={node.id}
-                        className="bg-white p-5 rounded-2xl shadow-lg flex items-start gap-4 border-l-4"
+                        className="bg-white p-8 rounded-3xl shadow-lg flex items-start gap-8 border-l-8"
                         style={{ borderLeftColor: color }}
                     >
-                        <div className="p-3 rounded-xl" style={{ backgroundColor: color + '15' }}>
-                            {React.createElement(getIcon(node.data.icon), { size: 28, color })}
+                        <div className="p-5 rounded-2xl" style={{ backgroundColor: color + '15' }}>
+                            {React.createElement(getIcon(node.data.icon), { size: 48, color })}
                         </div>
-                        <div>
-                            <h4 className="text-lg font-bold text-slate-800">{node.data.label}</h4>
-                            {node.data.description && (
-                                <p className="text-sm text-slate-500 mt-1">{node.data.description}</p>
+                        <div className="w-full">
+                            {onUpdate ? (
+                                <input
+                                    value={node.data.label}
+                                    onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                    className="text-3xl font-bold text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                />
+                            ) : (
+                                <h4 className="text-3xl font-bold text-slate-800">{node.data.label}</h4>
+                            )}
+
+                            {(node.data.description || onUpdate) && (
+                                onUpdate ? (
+                                    <textarea
+                                        value={node.data.description || ''}
+                                        onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
+                                        className="text-xl text-slate-500 mt-2 leading-relaxed bg-transparent w-full resize-none outline-none focus:bg-slate-50 rounded"
+                                        rows={2}
+                                        placeholder="Description"
+                                    />
+                                ) : (
+                                    <p className="text-xl text-slate-500 mt-2 leading-relaxed">{node.data.description}</p>
+                                )
                             )}
                         </div>
                     </div>
@@ -193,7 +262,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
     // Statistics display
     const renderStats = () => (
-        <div className="flex flex-row gap-8 justify-center w-full flex-wrap">
+        <div className="flex flex-row gap-16 justify-center w-full flex-wrap">
             {nodes.map((node) => (
                 <PreviewStatBox
                     key={node.id}
@@ -201,6 +270,8 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     description={node.data.description}
                     value={node.data.value}
                     variant={node.data.variant}
+                    isEditable={!!onUpdate}
+                    onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
                 />
             ))}
         </div>
@@ -212,36 +283,39 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const orbitNodes = nodes.slice(1);
 
         return (
-            <div className="relative w-[400px] h-[400px] flex items-center justify-center">
+            <div className="relative w-[1000px] h-[1000px] flex items-center justify-center">
                 {/* Center node */}
                 <div className="absolute z-10">
                     <PreviewMotionBox
                         label={centerNode.data.label}
                         icon={centerNode.data.icon}
                         variant={centerNode.data.variant || 'primary'}
+                        isEditable={!!onUpdate}
+                        onUpdate={(field, val) => handleNodeUpdate(centerNode.id, field, val)}
                     />
                 </div>
 
                 {/* Orbit nodes */}
                 {orbitNodes.map((node, i) => {
                     const angle = (i / orbitNodes.length) * 2 * Math.PI - Math.PI / 2;
-                    const x = Math.cos(angle) * 150;
-                    const y = Math.sin(angle) * 150;
+                    const x = Math.cos(angle) * 350;
+                    const y = Math.sin(angle) * 350;
 
                     return (
                         <div
                             key={node.id}
                             className="absolute"
                             style={{
-                                left: 200 + x - 70,
-                                top: 200 + y - 40,
+                                left: 500 + x - 160,
+                                top: 500 + y - 80,
                             }}
                         >
                             <PreviewMotionBox
                                 label={node.data.label}
                                 icon={node.data.icon}
                                 variant={node.data.variant}
-                                className="scale-75"
+                                isEditable={!!onUpdate}
+                                onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
                             />
                         </div>
                     );
@@ -252,16 +326,33 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
     // Code/Math display
     const renderCodeMath = () => (
-        <div className="w-full max-w-3xl space-y-4">
+        <div className="w-full max-w-6xl space-y-8">
             {nodes.map((node) => (
-                <div key={node.id} className="bg-slate-800 rounded-xl p-4 shadow-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Lucide.Code size={16} className="text-teal-400" />
-                        <span className="text-teal-400 text-sm font-mono">{node.data.label}</span>
+                <div key={node.id} className="bg-slate-800 rounded-3xl p-8 shadow-lg">
+                    <div className="flex items-center gap-4 mb-4">
+                        <Lucide.Code size={32} className="text-teal-400" />
+                        {onUpdate ? (
+                            <input
+                                value={node.data.label}
+                                onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                className="text-teal-400 text-2xl font-mono bg-transparent w-full outline-none focus:ring-1 focus:ring-teal-500 rounded"
+                            />
+                        ) : (
+                            <span className="text-teal-400 text-2xl font-mono">{node.data.label}</span>
+                        )}
                     </div>
-                    <pre className="text-slate-100 font-mono text-sm overflow-x-auto">
-                        {node.data.description || '// code here'}
-                    </pre>
+                    {onUpdate ? (
+                        <textarea
+                            value={node.data.description || ''}
+                            onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
+                            className="text-slate-100 font-mono text-2xl w-full bg-transparent resize-none outline-none focus:ring-1 focus:ring-teal-500 rounded p-2"
+                            rows={4}
+                        />
+                    ) : (
+                        <pre className="text-slate-100 font-mono text-2xl overflow-x-auto p-2">
+                            {node.data.description || '// code here'}
+                        </pre>
+                    )}
                 </div>
             ))}
         </div>
@@ -269,22 +360,40 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
     // Architecture diagram
     const renderArchitecture = () => (
-        <div className="flex flex-col items-center gap-4 w-full max-w-4xl">
-            <div className="flex flex-row gap-4 flex-wrap justify-center">
+        <div className="flex flex-col items-center gap-8 w-full max-w-7xl">
+            <div className="flex flex-row gap-8 flex-wrap justify-center">
                 {nodes.map((node) => {
                     const color = getVariantColor(node.data.variant, accentColor);
                     return (
                         <div
                             key={node.id}
-                            className="bg-white rounded-xl shadow-lg p-4 border-2 min-w-[150px] text-center"
+                            className="bg-white rounded-3xl shadow-lg p-6 border-4 min-w-[280px] text-center"
                             style={{ borderColor: color }}
                         >
-                            <div className="flex justify-center mb-2">
-                                {React.createElement(getIcon(node.data.icon), { size: 28, color })}
+                            <div className="flex justify-center mb-4">
+                                {React.createElement(getIcon(node.data.icon), { size: 56, color })}
                             </div>
-                            <h4 className="font-bold text-slate-800 text-sm">{node.data.label}</h4>
-                            {node.data.subLabel && (
-                                <p className="text-xs text-slate-500">{node.data.subLabel}</p>
+                            {onUpdate ? (
+                                <input
+                                    value={node.data.label}
+                                    onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                    className="font-bold text-slate-800 text-2xl bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
+                                />
+                            ) : (
+                                <h4 className="font-bold text-slate-800 text-2xl">{node.data.label}</h4>
+                            )}
+
+                            {(node.data.subLabel || onUpdate) && (
+                                onUpdate ? (
+                                    <input
+                                        value={node.data.subLabel || ''}
+                                        onChange={(e) => handleNodeUpdate(node.id, 'subLabel', e.target.value)}
+                                        className="text-lg text-slate-500 mt-2 bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
+                                        placeholder="Sub-label"
+                                    />
+                                ) : (
+                                    <p className="text-lg text-slate-500 mt-2">{node.data.subLabel}</p>
+                                )
                             )}
                         </div>
                     );
@@ -295,18 +404,40 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
     // 2x2 Matrix
     const renderMatrix = () => (
-        <div className="grid grid-cols-2 gap-4 w-full max-w-2xl">
+        <div className="grid grid-cols-2 gap-8 w-full max-w-6xl">
             {nodes.slice(0, 4).map((node, i) => {
                 const color = getVariantColor(node.data.variant, accentColor);
                 return (
                     <div
                         key={node.id}
-                        className="bg-white rounded-xl shadow-lg p-5 text-center border-t-4"
+                        className="bg-white rounded-3xl shadow-lg p-10 text-center border-t-8"
                         style={{ borderTopColor: color }}
                     >
-                        <h4 className="font-bold text-slate-800">{node.data.label}</h4>
-                        {node.data.description && (
-                            <p className="text-sm text-slate-500 mt-1">{node.data.description}</p>
+                        <h4 className="font-bold text-slate-800 text-3xl">
+                            {onUpdate ? (
+                                <input
+                                    value={node.data.label}
+                                    onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                    className="bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
+                                />
+                            ) : (
+                                node.data.label
+                            )}
+                        </h4>
+                        {(node.data.description || onUpdate) && (
+                            <div className="text-xl text-slate-500 mt-4 leading-relaxed">
+                                {onUpdate ? (
+                                    <textarea
+                                        value={node.data.description || ''}
+                                        onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
+                                        className="bg-transparent w-full resize-none outline-none focus:bg-slate-50 rounded text-center"
+                                        rows={2}
+                                        placeholder="Description"
+                                    />
+                                ) : (
+                                    node.data.description
+                                )}
+                            </div>
                         )}
                     </div>
                 );
@@ -320,30 +451,46 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const deepNodes = nodes.slice(Math.ceil(nodes.length / 2));
 
         return (
-            <div className="w-full max-w-3xl space-y-6">
+            <div className="w-full max-w-6xl space-y-12">
                 {/* Surface level */}
-                <div className="bg-blue-50 rounded-xl p-4 border-l-4 border-blue-400">
-                    <h4 className="text-blue-600 font-bold mb-3 flex items-center gap-2">
-                        <Lucide.Eye size={16} /> Visible
+                <div className="bg-blue-50 rounded-3xl p-8 border-l-8 border-blue-400">
+                    <h4 className="text-blue-600 font-bold mb-6 flex items-center gap-4 text-3xl">
+                        <Lucide.Eye size={32} /> Visible
                     </h4>
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                         {surfaceNodes.map(node => (
-                            <div key={node.id} className="bg-white rounded-lg p-3 shadow-sm">
-                                <span className="font-medium text-slate-700">{node.data.label}</span>
+                            <div key={node.id} className="bg-white rounded-2xl p-6 shadow-sm">
+                                {onUpdate ? (
+                                    <input
+                                        value={node.data.label}
+                                        onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                        className="font-medium text-slate-700 text-2xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                    />
+                                ) : (
+                                    <span className="font-medium text-slate-700 text-2xl">{node.data.label}</span>
+                                )}
                             </div>
                         ))}
                     </div>
                 </div>
 
                 {/* Deep level */}
-                <div className="bg-slate-100 rounded-xl p-4 border-l-4 border-slate-500">
-                    <h4 className="text-slate-600 font-bold mb-3 flex items-center gap-2">
-                        <Lucide.EyeOff size={16} /> Hidden
+                <div className="bg-slate-100 rounded-3xl p-8 border-l-8 border-slate-500">
+                    <h4 className="text-slate-600 font-bold mb-6 flex items-center gap-4 text-3xl">
+                        <Lucide.EyeOff size={32} /> Hidden
                     </h4>
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                         {deepNodes.map(node => (
-                            <div key={node.id} className="bg-white rounded-lg p-3 shadow-sm">
-                                <span className="font-medium text-slate-700">{node.data.label}</span>
+                            <div key={node.id} className="bg-white rounded-2xl p-6 shadow-sm">
+                                {onUpdate ? (
+                                    <input
+                                        value={node.data.label}
+                                        onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                        className="font-medium text-slate-700 text-2xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                    />
+                                ) : (
+                                    <span className="font-medium text-slate-700 text-2xl">{node.data.label}</span>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -358,34 +505,49 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const labelNodes = nodes.slice(1);
 
         return (
-            <div className="relative w-[500px] h-[350px] flex items-center justify-center">
+            <div className="relative w-[1200px] h-[800px] flex items-center justify-center">
                 {/* Center subject */}
-                <div className="bg-white rounded-2xl shadow-xl p-6 z-10 text-center">
+                <div className="bg-white rounded-3xl shadow-xl p-12 z-10 text-center">
                     {React.createElement(getIcon(centerNode?.data.icon), {
-                        size: 48,
+                        size: 80,
                         color: accentColor,
-                        className: 'mx-auto mb-2'
+                        className: 'mx-auto mb-4'
                     })}
-                    <h3 className="font-bold text-slate-800 text-lg">{centerNode?.data.label}</h3>
+                    {onUpdate ? (
+                        <input
+                            value={centerNode?.data.label}
+                            onChange={(e) => handleNodeUpdate(centerNode.id, 'label', e.target.value)}
+                            className="font-bold text-slate-800 text-4xl bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
+                        />
+                    ) : (
+                        <h3 className="font-bold text-slate-800 text-4xl">{centerNode?.data.label}</h3>
+                    )}
                 </div>
 
                 {/* Label callouts */}
                 {labelNodes.map((node, i) => {
                     const positions = [
-                        { left: 20, top: 30 },
-                        { right: 20, top: 30 },
-                        { left: 20, bottom: 30 },
-                        { right: 20, bottom: 30 },
+                        { left: 40, top: 60 },
+                        { right: 40, top: 60 },
+                        { left: 40, bottom: 60 },
+                        { right: 40, bottom: 60 },
                     ];
                     const pos = positions[i % positions.length];
 
                     return (
                         <div
                             key={node.id}
-                            className="absolute bg-white rounded-lg shadow-md p-2 text-sm"
                             style={pos}
                         >
-                            <span className="font-medium text-slate-700">{node.data.label}</span>
+                            {onUpdate ? (
+                                <input
+                                    value={node.data.label}
+                                    onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                    className="font-medium text-slate-700 bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
+                                />
+                            ) : (
+                                <span className="font-medium text-slate-700">{node.data.label}</span>
+                            )}
                         </div>
                     );
                 })}
