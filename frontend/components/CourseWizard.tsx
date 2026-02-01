@@ -392,7 +392,7 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
             {/* Chat Area */}
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 min-h-[400px] max-h-[60vh]"
+                className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 min-h-[200px] max-h-[60vh]"
             >
                 {history.map((msg) => (
                     <motion.div
