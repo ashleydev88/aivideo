@@ -122,7 +122,8 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             const supabase = createClient();
             const { data: { session } } = await supabase.auth.getSession();
 
-            const res = await fetch(`http://127.0.0.1:8000/regenerate-slide-visual/${courseId}`, {
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const res = await fetch(`${API_BASE_URL}/api/course/regenerate-slide-visual/${courseId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -191,7 +192,8 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             const supabase = createClient();
             const { data: { session } } = await supabase.auth.getSession();
 
-            const res = await fetch(`http://127.0.0.1:8000/finalize-course?course_id=${courseId}`, {
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const res = await fetch(`${API_BASE_URL}/api/course/finalize-course?course_id=${courseId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

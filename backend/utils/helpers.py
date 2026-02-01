@@ -5,6 +5,8 @@ def extract_json_from_response(text_content):
     """
     Robustly extract JSON from a model response which may contain markdown code blocks or other text.
     """
+    import re
+
     try:
         # Try direct parsing first
         return json.loads(text_content)
@@ -23,6 +25,14 @@ def extract_json_from_response(text_content):
     try:
         return json.loads(cleaned_text)
     except json.JSONDecodeError:
+        # Fallback: Try to find the first '{' and the last '}'
+        try:
+            json_match = re.search(r'\{.*\}', text_content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(0))
+        except json.JSONDecodeError:
+            pass
+
         print(f"❌ JSON Parsing Failed. Raw content sample: {text_content[:200]}...")
         raise
 

@@ -75,6 +75,9 @@ STYLE_MAPPING = {
 DURATION_STRATEGIES = {
     # DEV ONLY - 1 minute option for quick testing
     1: {
+        "pedagogical_goal": "Technical Verification",
+        "structure_guide": "Intro -> single point -> Outro",
+        "prompt_constraint": "Keep it extremely brief.",
         "purpose": "DEV ONLY - Quick testing with minimal API calls",
         "topic_count": "1-2 topics maximum",
         "slide_range": "2-4 slides",
@@ -85,8 +88,11 @@ DURATION_STRATEGIES = {
         "content_priorities": ["Single key point", "Minimal API usage"]
     },
     3: {
-        "purpose": "Executive briefing - need to know NOW",
-        "topic_count": "3-4 essential topics",
+        "pedagogical_goal": "Awareness & Immediate Compliance",
+        "structure_guide": "The 'Warning Shot' -> The Rule -> The Action",
+        "prompt_constraint": "Do not include history or background. Start immediately with the 'Why'. Limit to one core learning objective.",
+        "purpose": "Micro-Burst - Executive briefing",
+        "topic_count": "1-2 essential topics",
         "slide_range": "8-12 slides",
         "avg_slide_duration": "18-22 seconds",
         "depth_level": "Surface - what, why, critical actions only",
@@ -95,8 +101,11 @@ DURATION_STRATEGIES = {
         "content_priorities": ["Must-know compliance requirements", "Immediate actions required", "Biggest consequences of non-compliance"]
     },
     5: {
-        "purpose": "Quick orientation - foundational understanding",
-        "topic_count": "4-5 core topics",
+        "pedagogical_goal": "Skill Application",
+        "structure_guide": "Context -> Step-by-Step Walkthrough -> Common Pitfalls",
+        "prompt_constraint": "Focus on chronology. Use 'First, Then, Finally' signposting. Allocate 30% of words to 'Common Pitfalls'.",
+        "purpose": "Procedural Flow - Foundational understanding",
+        "topic_count": "3-4 core topics",
         "slide_range": "13-18 slides",
         "avg_slide_duration": "18-24 seconds",
         "depth_level": "Foundational - what, why, basic how",
@@ -105,8 +114,11 @@ DURATION_STRATEGIES = {
         "content_priorities": ["Key policy principles", "Basic procedures", "Most common scenarios", "Where to get help"]
     },
     10: {
-        "purpose": "Comprehensive training - working knowledge",
-        "topic_count": "6-8 key topics",
+        "pedagogical_goal": "Judgment & Nuance",
+        "structure_guide": "Principle -> Realistic Scenario (Story) -> Analysis of Scenario -> Recap",
+        "prompt_constraint": "Generate a fictional workplace scenario involving two characters (Manager and Employee) to illustrate the gray areas of this policy.",
+        "purpose": "Scenario Analyst - Applied knowledge",
+        "topic_count": "5-6 key topics",
         "slide_range": "28-35 slides",
         "avg_slide_duration": "18-25 seconds",
         "depth_level": "Applied - what, why, how, with examples",
@@ -115,8 +127,11 @@ DURATION_STRATEGIES = {
         "content_priorities": ["Complete procedures step-by-step", "Real-world examples", "Common mistakes to avoid", "Decision-making frameworks"]
     },
     15: {
-        "purpose": "Deep dive - mastery level",
-        "topic_count": "8-11 detailed topics",
+        "pedagogical_goal": "Deep Understanding & Synthesis",
+        "structure_guide": "Intro -> Module 1 (Concepts) -> Module 2 (Process) -> Module 3 (Enforcement) -> Summary",
+        "prompt_constraint": "Ensure clear separation between modules. Summarize key takeaways at the end of each module.",
+        "purpose": "Modular Masterclass - Mastery level",
+        "topic_count": "8-10 detailed topics",
         "slide_range": "42-52 slides",
         "avg_slide_duration": "18-28 seconds",
         "depth_level": "Comprehensive - what, why, how, when, edge cases",
@@ -125,7 +140,10 @@ DURATION_STRATEGIES = {
         "content_priorities": ["All procedures in detail", "Edge cases and exceptions", "Complex scenarios", "Integration with other policies", "Legal/regulatory context"]
     },
     20: {
-        "purpose": "Expert certification - complete mastery",
+        "pedagogical_goal": "Complete Mastery",
+        "structure_guide": "Comprehensive deep dive into all aspects",
+        "prompt_constraint": "Exhaustive coverage required.",
+        "purpose": "Expert certification",
         "topic_count": "10-13 comprehensive topics",
         "slide_range": "55-68 slides",
         "avg_slide_duration": "18-30 seconds",
@@ -143,32 +161,32 @@ INSTRUCTIONAL_STRATEGIES = {
     "onboarding": {
         "tone": "welcoming, encouraging, supportive",
         "structure": "progressive disclosure - start simple, build complexity",
-        "emphasis": ["company culture and values", "essential day-to-day processes", "key contacts and resources", "common first-week questions"],
-        "example_types": "first-week scenarios, new employee situations",
+        "emphasis": ["relevance to the new role", "core principles", "where to get help", "support resources"],
+        "example_types": "new starter scenarios, first-time situations",
         "narrative_style": "You're joining a supportive team. Here's what you need to know to succeed.",
         "call_to_action": "Ask questions, reach out to your team, explore resources"
     },
     "compliance_training": {
         "tone": "authoritative, clear, serious but not intimidating",
         "structure": "rule-consequence-procedure - state requirement, explain why, show how to comply",
-        "emphasis": ["legal and regulatory requirements", "consequences of non-compliance", "reporting procedures", "documentation requirements"],
-        "example_types": "violation scenarios with outcomes, audit situations, real-world consequences",
+        "emphasis": ["non-negotiable requirements", "consequences of non-compliance", "reporting procedures", "correct actions"],
+        "example_types": "policy violation scenarios with outcomes, correct vs incorrect actions",
         "narrative_style": "This is required. Here's why it matters and exactly what you must do.",
         "call_to_action": "Report concerns, document everything, escalate when unsure"
     },
     "leadership_development": {
         "tone": "empowering, reflective, challenging",
         "structure": "challenge-framework-application - present dilemma, provide model, practice applying",
-        "emphasis": ["decision-making frameworks", "team dynamics and motivation", "strategic thinking", "difficult conversations"],
-        "example_types": "leadership dilemmas, team conflict scenarios, strategic choices",
+        "emphasis": ["strategic application", "decision-making frameworks", "impact on team/organization"],
+        "example_types": "leadership dilemmas, complex decision points, strategic choices",
         "narrative_style": "Great leaders aren't born—they're developed. Let's build your capabilities.",
         "call_to_action": "Reflect on your style, practice with your team, seek feedback"
     },
     "business_case": {
         "tone": "persuasive, data-driven, confident",
         "structure": "problem-solution-benefits - pain point, proposed solution, measurable outcomes",
-        "emphasis": ["ROI and financial impact", "competitive advantage", "risk mitigation", "implementation timeline"],
-        "example_types": "success metrics, case studies, before/after comparisons",
+        "emphasis": ["ROI and value", "competitive advantage", "risk mitigation", "implementation feasibility"],
+        "example_types": "success metrics, before/after comparisons, value propositions",
         "narrative_style": "Here's the opportunity and exactly why we should act now.",
         "call_to_action": "Approve the investment, support the initiative, champion the change"
     },

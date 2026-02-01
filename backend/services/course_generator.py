@@ -186,7 +186,8 @@ async def generate_topics_task(
         # Build dynamic prompt based on purpose and audience
         if processed_policy:
             # Document-based generation
-            content_source = f"SOURCE DOCUMENTATION:\n{processed_policy[:15000]}"
+            # REMOVED TRUNCATION: processed_policy is already distilled by extract_policy_essence
+            content_source = f"SOURCE DOCUMENTATION (THE ABSOLUTE TRUTH - DO NOT DEVIATE):\n{processed_policy}"
         else:
             # AI-generated content (no source docs)
             content_source = (
@@ -197,13 +198,18 @@ async def generate_topics_task(
 
         prompt = f"""You are an expert instructional designer specializing in creating engaging corporate training.
 
+HIERARCHY OF TRUTH (CRITICAL):
+1. SOURCE DOCUMENTATION: This is the primary source of truth. All topics, rules, and facts MUST come from here.
+2. INSTRUCTIONAL STRATEGY: Use this only for tone, structure, and formatting. DO NOT use it to invent topics not present in the source.
+3. MODEL KNOWLEDGE: Use only to explain concepts or fill minor gaps. NEVER override the source.
+
 COURSE CONTEXT:
 - Purpose: {course_purpose.replace('_', ' ').title()}
 - Target Audience: {target_audience.replace('_', ' ').title()}
 - Duration: {duration} minutes
 - Region: {country}
 
-INSTRUCTIONAL STRATEGY:
+INSTRUCTIONAL STRATEGY (Use for Tone/Structure ONLY):
 - Tone: {strategy['tone']}
 - Structure: {strategy['structure']}
 - Key Emphasis: {', '.join(strategy['emphasis'])}
@@ -214,21 +220,24 @@ INSTRUCTIONAL STRATEGY:
 AUDIENCE ADAPTATION:
 - Language Level: {audience['language_level']}
 - Jargon Usage: {audience['jargon']}
-- Content Focus: {audience['focus']}
+- Focus: {audience['focus']}
 - Assumed Knowledge: {audience['assumed_knowledge']}
 - Example Style: {audience['examples']}
 
 DURATION STRATEGY:
 - Purpose: {duration_config['purpose']}
+- Pedagogical Goal: {duration_config.get('pedagogical_goal', 'Effective Training')}
+- STRICT STRUCTURE: {duration_config.get('structure_guide', 'Logical progression')}
 - Topic Count: {duration_config['topic_count']}
 - Depth Level: {duration_config['depth_level']}
 - Content Priorities: {', '.join(duration_config['content_priorities'])}
+- STRICT CONSTRAINTS: {duration_config.get('prompt_constraint', 'None')}
 
 {content_source}
 
 {jurisdiction_prompt}
 
-TASK: Generate a comprehensive course plan that aligns with the instructional strategy and audience needs.
+TASK: Generate a comprehensive course plan that aligns with the instructional strategy and audience needs, BUT ADHERES STRICTLY TO THE SOURCE CONTENT TOPICS.
 
 OUTPUT FORMAT (JSON):
 {{
@@ -248,9 +257,10 @@ OUTPUT FORMAT (JSON):
 
 REQUIREMENTS:
 - Follow the {duration_config['topic_count']} topic guideline
-- Ensure topics progress logically
+- Ensure topics progress logically based on the SOURCE material (if provided)
 - Match depth to the {duration_config['depth_level']} requirement
 - Adapt language and examples for {target_audience.replace('_', ' ')} audience
+- CRITICAL: Do NOT invent topics (like 'generic company culture') if they are not present in or relevant to the Source Documentation.
 - Focus on: {', '.join(duration_config['content_priorities'][:3])}
 """
 
