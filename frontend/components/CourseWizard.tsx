@@ -374,7 +374,7 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
     };
 
     return (
-        <div className="w-full max-w-3xl mx-auto flex flex-col h-[700px] bg-white rounded-2xl shadow-xl border overflow-hidden">
+        <div className="w-full max-w-3xl mx-auto flex flex-col bg-white rounded-2xl shadow-xl border overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b bg-slate-50 flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold">
@@ -392,7 +392,7 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
             {/* Chat Area */}
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50"
+                className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 min-h-[400px] max-h-[60vh]"
             >
                 {history.map((msg) => (
                     <motion.div
