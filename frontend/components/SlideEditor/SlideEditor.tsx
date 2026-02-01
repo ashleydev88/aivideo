@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { cn } from "@/lib/utils";
 import {
     ChevronLeft,
     ChevronRight,
@@ -16,7 +17,9 @@ import {
     RefreshCcw,
     MonitorPlay,
     FileText,
-    ImageIcon
+    ImageIcon,
+    PanelRightOpen,
+    PanelRightClose
 } from "lucide-react";
 import VisualPreview from "./VisualPreview";
 import RichTextEditor from "./RichTextEditor";
@@ -98,6 +101,19 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     const [isSaving, setIsSaving] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [regeneratingSlideIndex, setRegeneratingSlideIndex] = useState<number | null>(null);
+    const narrationRef = useRef<HTMLTextAreaElement>(null);
+
+    const currentSlide = slides[currentSlideIndex];
+
+    // Auto-size narration textarea
+    useEffect(() => {
+        if (narrationRef.current) {
+            // Reset height to calculate scrollHeight correctly
+            narrationRef.current.style.height = 'auto';
+            // Set height to scrollHeight
+            narrationRef.current.style.height = `${narrationRef.current.scrollHeight}px`;
+        }
+    }, [currentSlide.text, currentSlideIndex]);
 
     // Auto-save timer
     useEffect(() => {
@@ -106,8 +122,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         }, 30000); // Auto-save every 30s
         return () => clearTimeout(timer);
     }, [slides]);
-
-    const currentSlide = slides[currentSlideIndex];
 
     const handleUpdateSlide = (field: keyof Slide, value: any) => {
         const newSlides = [...slides];
@@ -248,6 +262,8 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         styling: false
     });
 
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
     const toggleSection = (key: keyof typeof openSections) => {
         setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
     };
@@ -267,6 +283,16 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                         <span className="ml-2 hidden sm:inline text-slate-600">Save Draft</span>
                     </Button>
                     <div className="h-6 w-px bg-slate-200 mx-2" />
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="text-slate-600 hover:text-teal-600 hover:bg-teal-50"
+                    >
+                        {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                        <span className="ml-2 hidden sm:inline">{isSidebarOpen ? "Collapse Editor" : "Expand Editor"}</span>
+                    </Button>
+                    <div className="h-6 w-px bg-slate-200 mx-2" />
                     <Button onClick={handleGenerateVideo} disabled={isFinalizing} className="bg-teal-600 hover:bg-teal-700">
                         {isFinalizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlayCircle className="mr-2 h-4 w-4" />}
                         Generate Video
@@ -277,9 +303,15 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
 
-                {/* LEFT: VISUAL PREVIEW (60%) */}
-                <div className="md:w-3/5 bg-slate-100 p-8 flex flex-col items-center justify-center relative border-r border-slate-200/50">
-                    <div className="w-full max-w-[800px] aspect-video bg-white shadow-xl rounded-lg overflow-hidden border-4 border-white ring-1 ring-black/5 relative">
+                {/* LEFT: VISUAL PREVIEW */}
+                <div className={cn(
+                    "bg-slate-100 p-8 flex flex-col items-center justify-center relative border-r border-slate-200/50 transition-all duration-300 ease-in-out",
+                    isSidebarOpen ? "md:w-3/5" : "md:w-full"
+                )}>
+                    <div className={cn(
+                        "w-full aspect-video bg-white shadow-xl rounded-lg overflow-hidden border-4 border-white ring-1 ring-black/5 relative transition-all duration-300",
+                        isSidebarOpen ? "max-w-[800px]" : "max-w-[1000px]"
+                    )}>
                         <VisualPreview
                             slide={currentSlide}
                             onChartUpdate={(newData: any) => handleUpdateSlide("chart_data", newData)}
@@ -319,9 +351,12 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                     </div>
                 </div>
 
-                {/* RIGHT: EDITOR PANEL (40%) */}
-                <div className="md:w-2/5 p-6 overflow-y-auto bg-white/50 scrollbar-thin scrollbar-thumb-slate-200">
-                    <div className="space-y-4 max-w-lg mx-auto">
+                {/* RIGHT: EDITOR PANEL */}
+                <div className={cn(
+                    "overflow-hidden transition-all duration-300 ease-in-out bg-white/50 scrollbar-thin scrollbar-thumb-slate-200",
+                    isSidebarOpen ? "md:w-2/5 p-6 opacity-100 border-l" : "w-0 p-0 opacity-0 border-none"
+                )}>
+                    <div className="space-y-4 max-w-lg mx-auto min-w-[300px]">
 
                         {/* 1. NARRATION SCRIPT */}
                         <SidebarSection
@@ -337,9 +372,10 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                             }
                         >
                             <Textarea
+                                ref={narrationRef}
                                 value={currentSlide.text}
                                 onChange={(e) => handleUpdateSlide("text", e.target.value)}
-                                className={commonTextAreaClass}
+                                className={cn(commonTextAreaClass, "max-h-[40vh] overflow-y-auto")}
                                 placeholder="Enter the narration script for this slide..."
                             />
                         </SidebarSection>
