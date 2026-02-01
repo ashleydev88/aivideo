@@ -210,7 +210,8 @@ export default function DashboardPage() {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            const res = await fetch(`http://127.0.0.1:8000/copy-course/${courseId}`, {
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const res = await fetch(`${API_BASE_URL}/api/course/copy-course/${courseId}`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${session.access_token}`
@@ -241,7 +242,8 @@ export default function DashboardPage() {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            const res = await fetch(`http://127.0.0.1:8000/course/${courseToRename.id}`, {
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const res = await fetch(`${API_BASE_URL}/api/course/course/${courseToRename.id}`, {
                 method: "PATCH",
                 headers: {
                     "Authorization": `Bearer ${session.access_token}`,

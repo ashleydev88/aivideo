@@ -15,6 +15,16 @@ def handle_failure(course_id: str, user_id: str, error: Exception, metadata: dic
     """
     print(f"🔥 Handling Failure for {course_id}: {error}")
     
+    # 0. Correction: If user_id is 'system', try to look it up to satisfy UUID constraint
+    if user_id == "system":
+        try:
+            res = supabase_admin.table("courses").select("user_id").eq("id", course_id).execute()
+            if res.data and len(res.data) > 0:
+                user_id = res.data[0]['user_id']
+                print(f"   👤 Resolved 'system' to user_id: {user_id}")
+        except Exception as e:
+            print(f"   ⚠️ Could not resolve user_id for system failure: {e}")
+
     # 1. Attempt to Log Failure
     try:
         supabase_admin.table("course_failures").insert({

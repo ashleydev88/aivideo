@@ -36,7 +36,8 @@ function PlayerContent() {
             // For legacy URLs, still try to get a fresh one via backend
             // This handles the case where the stored URL is expired
             try {
-                const response = await fetch("http://localhost:8000/get-signed-url", {
+                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+                const response = await fetch(`${API_BASE_URL}/api/course/get-signed-url`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -57,7 +58,8 @@ function PlayerContent() {
 
         // New format: storage path - get fresh signed URL
         try {
-            const response = await fetch("http://localhost:8000/get-signed-url", {
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const response = await fetch(`${API_BASE_URL}/api/course/get-signed-url`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -128,7 +130,8 @@ function PlayerContent() {
                 if (!session) return;
 
                 try {
-                    await fetch(`http://localhost:8000/course/${id}/mark-viewed`, {
+                    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+                    await fetch(`${API_BASE_URL}/api/course/course/${id}/mark-viewed`, {
                         method: "POST",
                         headers: {
                             Authorization: `Bearer ${session.access_token}`,

@@ -101,7 +101,7 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
             hasInitialized.current = true;
             addBotMessage("Hi there! I'm your AI Instructional Designer.", "WELCOME");
             setTimeout(() => {
-                addBotMessage("I can help you build a high-impact video course. To get started, what is the primary purpose of this training?", "PURPOSE");
+                addBotMessage("I can help you build a high-impact video course. To get started, what is the primary purpose of video course?", "PURPOSE");
                 setCurrentStep("PURPOSE");
             }, 800);
         }

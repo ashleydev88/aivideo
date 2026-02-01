@@ -68,13 +68,14 @@ export default function CourseStructureEditor({ courseId, initialSlides, onFinal
             await supabase.from("courses").update({ slide_data: slides }).eq("id", courseId);
 
             // Call finalize endpoint
-            const res = await fetch("http://127.0.0.1:8000/finalize-course", {
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const res = await fetch(`${API_BASE_URL}/api/course/finalize-course?course_id=${courseId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
                 },
-                body: JSON.stringify({ slide_data: slides, course_id: courseId }), // course_id via query or body? Endpoint expects query but body has slide_data. 
+                body: JSON.stringify({ slide_data: slides }),
             });
             // Endpoint def: async def finalize_course(course_id: str...)
             // So URL should be /finalize-course?course_id=... or /finalize-course/{id} if I changed it?
@@ -116,7 +117,8 @@ export default function CourseStructureEditor({ courseId, initialSlides, onFinal
                         setIsFinalizing(true);
                         const supabase = createClient();
                         supabase.auth.getSession().then(({ data: { session } }) => {
-                            fetch(`http://127.0.0.1:8000/finalize-course?course_id=${courseId}`, {
+                            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+                            fetch(`${API_BASE_URL}/api/course/finalize-course?course_id=${courseId}`, {
                                 method: "POST",
                                 headers: {
                                     "Content-Type": "application/json",
