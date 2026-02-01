@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import React, { useState, useRef, useEffect } from "react";
 import {
     Send,
@@ -493,6 +494,8 @@ function FileUploader({ onUploadComplete }: { onUploadComplete: (files: File[], 
     const [files, setFiles] = useState<File[]>([]);
     const [isUploading, setIsUploading] = useState(false);
 
+
+
     const handleFiles = async (newFiles: File[]) => {
         const validFiles = newFiles.slice(0, 5); // Max 5
         setFiles(validFiles);
@@ -502,26 +505,33 @@ function FileUploader({ onUploadComplete }: { onUploadComplete: (files: File[], 
         validFiles.forEach(f => formData.append("files", f));
 
         try {
-            // In a real implementation, we'd use a prop or context for the token
-            // For now assuming we just verify size locally for immediate feedback
-            // The actual upload happens here to extract text preview logic
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) throw new Error("Authentication required");
+
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/course/upload-documents`, {
                 method: 'POST',
                 body: formData,
-                // Headers usually handled by interceptor, but here for demo:
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('supabase-auth-token') || ''}`
+                    'Authorization': `Bearer ${token}`
                 }
             });
 
-            if (!res.ok) throw new Error("Upload failed");
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.detail || "Upload failed");
+            }
+
             const data = await res.json();
             onUploadComplete(validFiles, data.text);
 
-        } catch (error) {
-            console.error(error);
-            // Even if backend fails (dev mode without server), we proceed for UI demo
-            onUploadComplete(validFiles, "Mock text content for dev mode");
+        } catch (error: any) {
+            console.error("Upload Error:", error);
+            // Show error to user? For now just log and potentially clear state
+            alert(`Upload failed: ${error.message}`);
+            setFiles([]); // Reset files
         } finally {
             setIsUploading(false);
         }
