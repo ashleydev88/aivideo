@@ -854,23 +854,28 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         );
     };
 
+    // Check for full-bleed archetypes
+    const isFullBleed = archetype === 'contextual-overlay';
+
     return (
         <div
-            className="flex flex-col items-center justify-center p-12 w-[1920px] h-[1080px] absolute inset-0"
+            className={`flex flex-col items-center justify-center w-[1920px] h-[1080px] absolute inset-0 ${isFullBleed ? 'p-0' : 'p-12'}`}
             style={{ backgroundColor }}
         >
-            {/* Subtle background grid */}
-            <div
-                className="absolute inset-0 opacity-10 pointer-events-none"
-                style={{
-                    backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)',
-                    backgroundSize: '20px 20px'
-                }}
-            />
+            {/* Subtle background grid - hide on full bleed */}
+            {!isFullBleed && (
+                <div
+                    className="absolute inset-0 opacity-10 pointer-events-none"
+                    style={{
+                        backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)',
+                        backgroundSize: '20px 20px'
+                    }}
+                />
+            )}
 
-            {renderTitle()}
+            {!isFullBleed && renderTitle()}
 
-            <div className="w-full flex justify-center items-center">
+            <div className={`w-full flex justify-center items-center ${isFullBleed ? 'h-full' : ''}`}>
                 {renderNodes()}
             </div>
         </div>
