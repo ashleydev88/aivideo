@@ -19,8 +19,8 @@ from backend.config import (
     STYLE_MAPPING, 
     MINIMALIST_PROMPT, 
     DURATION_STRATEGIES,
-    INSTRUCTIONAL_STRATEGIES,
-    AUDIENCE_ADAPTATIONS,
+    AUDIENCE_STRATEGIES,
+    AUDIENCE_LEGACY_MAP,
     UPLOAD_LIMITS
 )
 import time
@@ -150,13 +150,17 @@ async def start_intake(
     New primary entry point for course creation.
     Creates a course record with structured intake data and starts topic generation.
     """
-    print(f"🚀 Starting Intake Flow: purpose={request.course_purpose}, audience={request.target_audience}")
+    print(f"🚀 Starting Intake Flow: audience={request.target_audience}")
     
     user_id = get_user_id_from_token(authorization)
     
-    # Get instructional strategy for this purpose
-    strategy = INSTRUCTIONAL_STRATEGIES.get(request.course_purpose, INSTRUCTIONAL_STRATEGIES["custom"])
-    audience = AUDIENCE_ADAPTATIONS.get(request.target_audience, AUDIENCE_ADAPTATIONS["employees"])
+    # Map legacy audience values if needed
+    target_audience = request.target_audience
+    if target_audience in AUDIENCE_LEGACY_MAP:
+        target_audience = AUDIENCE_LEGACY_MAP[target_audience]
+    
+    # Get audience strategy (unified config)
+    audience_strategy = AUDIENCE_STRATEGIES.get(target_audience, AUDIENCE_STRATEGIES["all_employees"])
     duration_config = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
     
     # Build metadata with all the new structured data
@@ -169,9 +173,8 @@ async def start_intake(
         "logo_url": request.logo_url,
         "logo_crop": request.logo_crop,
         "custom_title": request.title,
-        # Instructional design context
-        "instructional_strategy": strategy,
-        "audience_adaptation": audience,
+        # Audience-based context
+        "audience_strategy": audience_strategy,
         "duration_strategy": duration_config
     }
     
@@ -186,9 +189,8 @@ async def start_intake(
             "name": request.title or "New Course",
             "user_id": user_id,
             "metadata": metadata,
-            # New structured columns
-            "course_purpose": request.course_purpose,
-            "target_audience": request.target_audience,
+            # Audience type
+            "target_audience": target_audience,
             "has_source_documents": request.has_source_documents,
             "intake_complete": True,
             "conversation_history": conversation_json,
@@ -209,8 +211,7 @@ async def start_intake(
         request.duration, 
         request.country, 
         request.title,
-        request.course_purpose,
-        request.target_audience
+        target_audience
     )
     
     return {"status": "started", "course_id": course_id}
@@ -269,9 +270,8 @@ async def generate_topics(request: PlanRequest, background_tasks: BackgroundTask
                 "logo_crop": request.logo_crop,
                 "custom_title": request.title
             },
-            # Default to compliance training for legacy flow
-            "course_purpose": "compliance_training",
-            "target_audience": "employees",
+            # Default audience for legacy flow (mapped to new system)
+            "target_audience": "all_employees",
             "has_source_documents": True,
             "source_document_text": request.policy_text,
             "intake_complete": True,
@@ -291,8 +291,7 @@ async def generate_topics(request: PlanRequest, background_tasks: BackgroundTask
         request.duration, 
         request.country, 
         request.title,
-        "compliance_training",  # Default for legacy
-        "employees"  # Default for legacy
+        "all_employees"  # Default for legacy
     )
 
     return {"status": "started", "course_id": course_id}

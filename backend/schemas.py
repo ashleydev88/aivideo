@@ -39,9 +39,8 @@ class ScriptRequest(BaseModel):
     course_id: Optional[str] = None # Added for Async Flow linking
     logo_url: Optional[str] = None
     logo_crop: Optional[dict] = None
-    # New fields from intake
-    course_purpose: Optional[str] = None
-    target_audience: Optional[str] = None
+    # Audience type (new simplified options)
+    target_audience: Optional[str] = None  # new_hires, all_employees, leadership
 
 class RenameCourseRequest(BaseModel):
     name: str
@@ -57,8 +56,7 @@ class ConversationMessage(BaseModel):
 
 class IntakeRequest(BaseModel):
     """Request to start or continue the intake conversation"""
-    course_purpose: str  # onboarding, compliance_training, leadership_development, business_case, custom
-    target_audience: str  # employees, line_managers, senior_leadership, executives, mixed
+    target_audience: str  # new_hires, all_employees, leadership
     has_source_documents: bool = False
     duration: int  # Minutes
     title: Optional[str] = None
