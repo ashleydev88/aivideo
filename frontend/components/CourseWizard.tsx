@@ -14,7 +14,11 @@ import {
     Palette,
     ChevronRight,
     Loader2,
-    Briefcase
+    Briefcase,
+    Sparkles,
+    Brain,
+    Plus,
+    Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,7 +29,13 @@ import { motion, AnimatePresence } from "framer-motion";
 type TargetAudience = "new_hires" | "all_employees" | "leadership";
 
 interface WizardState {
+    // Discovery fields
+    topic: string;
     audience: TargetAudience | null;
+    outcomes: string[];
+    additionalContext: string;
+
+    // Configuration fields
     hasDocuments: boolean | null;
     documents: File[];
     documentText: string;
@@ -46,13 +56,17 @@ interface Message {
 interface CourseWizardProps {
     onComplete: (data: WizardState) => void;
     isLoading?: boolean;
+    country?: "USA" | "UK";
 }
 
 const STEPS = [
     "WELCOME",
+    "TOPIC",
     "AUDIENCE",
+    "OUTCOMES",
     "DOCUMENTS_CHECK",
     "DOCUMENTS_UPLOAD",
+    "ADDITIONAL",
     "DURATION",
     "STYLE",
     "TITLE",
@@ -61,14 +75,22 @@ const STEPS = [
 
 type Step = typeof STEPS[number];
 
-export default function CourseWizard({ onComplete, isLoading = false }: CourseWizardProps) {
+export default function CourseWizard({ onComplete, isLoading = false, country = "UK" }: CourseWizardProps) {
     // --- State ---
     const [currentStep, setCurrentStep] = useState<Step>("WELCOME");
     const [history, setHistory] = useState<Message[]>([]);
     const [isTyping, setIsTyping] = useState(false);
 
+    // Data Loading States
+    const [isLoadingOutcomes, setIsLoadingOutcomes] = useState(false);
+    const [suggestedOutcomes, setSuggestedOutcomes] = useState<string[]>([]);
+    const [customOutcome, setCustomOutcome] = useState("");
+
     const [state, setState] = useState<WizardState>({
+        topic: "",
         audience: null,
+        outcomes: [],
+        additionalContext: "",
         hasDocuments: null,
         documents: [],
         documentText: "",
@@ -97,8 +119,8 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
             hasInitialized.current = true;
             addBotMessage("Hi there! I'm your AI Instructional Designer.", "WELCOME");
             setTimeout(() => {
-                addBotMessage("I can help you build a high-impact video course. Who is this training for?", "AUDIENCE");
-                setCurrentStep("AUDIENCE");
+                addBotMessage("I can help you build a high-impact video course. First, what topic should this training cover?", "TOPIC");
+                setCurrentStep("TOPIC");
             }, 800);
         }
     }, []);
@@ -127,47 +149,144 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
         }]);
     };
 
+    // --- Step Handlers ---
+
+    const handleTopicSubmit = (topic: string) => {
+        if (!topic.trim()) return;
+        addUserMessage(topic);
+        setState(prev => ({ ...prev, topic }));
+        setCurrentStep("AUDIENCE");
+        addBotMessage("Got it. Who is the primary audience for this training?", "AUDIENCE");
+    };
+
     const handleAudienceSelect = (audience: TargetAudience, label: string) => {
         addUserMessage(label);
         setState(prev => ({ ...prev, audience }));
+        setCurrentStep("OUTCOMES");
+
+        // Trigger AI suggestions
+        fetchOutcomeSuggestions(state.topic, audience);
+    };
+
+    const fetchOutcomeSuggestions = async (topic: string, audience: string) => {
+        addBotMessage("Analyzing your topic and audience to suggest learning outcomes...", "OUTCOMES");
+        setIsLoadingOutcomes(true);
+
+        try {
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/course/suggest-outcomes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ topic, audience, country })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setSuggestedOutcomes(data.suggestions || []);
+                // Select first 3 by default
+                const defaults = (data.suggestions || []).slice(0, 3);
+                setState(prev => ({ ...prev, outcomes: defaults }));
+
+                // Add follow up message after fetch
+                setTimeout(() => {
+                    addBotMessage("Here are some recommended learning outcomes. Select the ones you want to include, or add your own.", "OUTCOMES");
+                }, 500);
+            } else {
+                throw new Error("Failed to fetch");
+            }
+        } catch (err) {
+            console.error(err);
+            setSuggestedOutcomes([
+                `Understand key concepts of ${topic}`,
+                `Apply ${topic} best practices`,
+                `Identify common risks and issues`
+            ]);
+        } finally {
+            setIsLoadingOutcomes(false);
+        }
+    };
+
+    const toggleOutcome = (outcome: string) => {
+        setState(prev => {
+            const exists = prev.outcomes.includes(outcome);
+            if (exists) {
+                return { ...prev, outcomes: prev.outcomes.filter(o => o !== outcome) };
+            } else {
+                return { ...prev, outcomes: [...prev.outcomes, outcome] };
+            }
+        });
+    };
+
+    const handleAddCustomOutcome = () => {
+        if (customOutcome.trim()) {
+            if (!state.outcomes.includes(customOutcome.trim())) {
+                setState(prev => ({ ...prev, outcomes: [...prev.outcomes, customOutcome.trim()] }));
+                // Also add to suggestions list so it appears as a chip
+                setSuggestedOutcomes(prev => [...prev, customOutcome.trim()]);
+            }
+            setCustomOutcome("");
+        }
+    };
+
+    const handleOutcomesSubmit = () => {
+        const count = state.outcomes.length;
+        addUserMessage(`Selected ${count} outcome${count !== 1 ? 's' : ''}`);
         setCurrentStep("DOCUMENTS_CHECK");
-        addBotMessage("Great choice! Do you have existing source documents (PDFs, Policies) you'd like me to base the content on?", "DOCUMENTS_CHECK");
+        addBotMessage("Noted. Do you have any existing company policies or documents to include?", "DOCUMENTS_CHECK");
     };
 
     const handleDocumentCheck = (hasDocs: boolean) => {
-        addUserMessage(hasDocs ? "Yes, I have documents" : "No, generate from scratch");
+        addUserMessage(hasDocs ? "Yes, I have documents" : "No documents");
         setState(prev => ({ ...prev, hasDocuments: hasDocs }));
 
         if (hasDocs) {
             setCurrentStep("DOCUMENTS_UPLOAD");
-            addBotMessage("Great. Please upload your documents (PDF, DOCX, TXT). Max 5 files, 10MB each.", "DOCUMENTS_UPLOAD");
+            addBotMessage("Please upload them below (PDF, DOCX, TXT). I'll extract the relevant details.", "DOCUMENTS_UPLOAD");
         } else {
-            setCurrentStep("DURATION");
-            addBotMessage("No problem. I can generate best-practice content for you. How long should the video course be?", "DURATION");
+            setCurrentStep("ADDITIONAL");
+            addBotMessage("No problem. Is there any additional context or specific focus you'd like to mention?", "ADDITIONAL");
         }
+    };
+
+    const handleAdditionalContextSubmit = (text: string) => {
+        const msg = text.trim() ? text : "None";
+        addUserMessage(msg);
+        setState(prev => ({ ...prev, additionalContext: text }));
+        setCurrentStep("DURATION");
+        addBotMessage("Thanks. Now, how long should this video course be?", "DURATION");
     };
 
     const handleDurationSelect = (minutes: number) => {
         addUserMessage(`${minutes} minutes`);
         setState(prev => ({ ...prev, duration: minutes }));
         setCurrentStep("STYLE");
-        addBotMessage("Perfect. Now, choose a visual style for your video.", "STYLE");
+        addBotMessage("Perfect. Choose a visual style for the video.", "STYLE");
     };
 
     const handleStyleSelect = (style: string, color: string, colorName: string) => {
         addUserMessage(`${style} (${colorName})`);
         setState(prev => ({ ...prev, style, accentColor: color, colorName }));
         setCurrentStep("TITLE");
-        addBotMessage("Almost done! What should we name this course?", "TITLE");
+        addBotMessage("Almost done! What should `we name this course?", "TITLE"); // Typo in original fixed? No, adding new line.
+        // Wait, original had "What should we name this course?". I'll stick to that.
     };
 
     const handleTitleSubmit = (title: string) => {
-        if (!title.trim()) return;
-        addUserMessage(title);
-        const finalState = { ...state, title };
+        // Correcting the logic here slightly to ensure smooth flow
+        const courseTitle = title.trim() || state.topic; // Default to topic if empty? No, require input usually.
+        if (!courseTitle) return;
+
+        addUserMessage(courseTitle);
+        const finalState = { ...state, title: courseTitle };
         setState(finalState);
         setCurrentStep("REVIEW");
-        addBotMessage("Here's what we're building. Ready to generate the plan?", "REVIEW");
+        addBotMessage("Here's the plan. Ready to generate the course?", "REVIEW");
     };
 
     // --- Renderers ---
@@ -176,6 +295,27 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
         if (isTyping) return null;
 
         switch (currentStep) {
+            case "TOPIC":
+                return (
+                    <div className="flex gap-2 animate-in fade-in slide-in-from-bottom-4">
+                        <input
+                            type="text"
+                            className="flex-1 border rounded-lg px-4 py-2 focus:ring-2 focus:ring-teal-500 outline-none"
+                            placeholder="e.g., Cyber Security Awareness"
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") handleTopicSubmit(e.currentTarget.value);
+                            }}
+                            autoFocus
+                        />
+                        <Button onClick={(e) => {
+                            const input = e.currentTarget.previousSibling as HTMLInputElement;
+                            handleTopicSubmit(input.value);
+                        }}>
+                            <Send className="w-4 h-4" />
+                        </Button>
+                    </div>
+                );
+
             case "AUDIENCE":
                 return (
                     <div className="grid grid-cols-1 gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -200,6 +340,64 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
                     </div>
                 );
 
+            case "OUTCOMES":
+                return (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 w-full">
+                        {isLoadingOutcomes ? (
+                            <div className="flex items-center gap-2 text-slate-500 text-sm p-4 justify-center bg-slate-50 rounded-lg border border-dashed">
+                                <Sparkles className="w-4 h-4 animate-spin text-teal-500" />
+                                Analyzing topic for suggestions...
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="flex flex-wrap gap-2">
+                                    {suggestedOutcomes.map((outcome, idx) => {
+                                        const isSelected = state.outcomes.includes(outcome);
+                                        return (
+                                            <button
+                                                key={idx}
+                                                onClick={() => toggleOutcome(outcome)}
+                                                className={cn(
+                                                    "px-3 py-2 text-sm rounded-full border transition-all text-left",
+                                                    isSelected
+                                                        ? "bg-teal-50 border-teal-500 text-teal-700 font-medium ring-1 ring-teal-200 shadow-sm"
+                                                        : "bg-white border-slate-200 text-slate-600 hover:border-teal-300 hover:bg-slate-50"
+                                                )}
+                                            >
+                                                {isSelected && <Check className="w-3 h-3 inline mr-1.5" />}
+                                                {outcome}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="flex gap-2 pt-2">
+                                    <input
+                                        type="text"
+                                        value={customOutcome}
+                                        onChange={(e) => setCustomOutcome(e.target.value)}
+                                        className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                        placeholder="Add custom outcome..."
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") handleAddCustomOutcome();
+                                        }}
+                                    />
+                                    <Button size="sm" variant="outline" onClick={handleAddCustomOutcome}>
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
+                                </div>
+
+                                <Button
+                                    className="w-full bg-teal-600 hover:bg-teal-700 mt-2"
+                                    onClick={handleOutcomesSubmit}
+                                >
+                                    Continue ({state.outcomes.length} Selected)
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                );
+
             case "DOCUMENTS_CHECK":
                 return (
                     <div className="flex gap-4 animate-in fade-in slide-in-from-bottom-4">
@@ -219,10 +417,38 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
                         <FileUploader
                             onUploadComplete={(files, text) => {
                                 setState(prev => ({ ...prev, documents: files, documentText: text }));
-                                setCurrentStep("DURATION");
-                                addBotMessage(`Received ${files.length} document(s). How long should the video be?`, "DURATION");
+                                setCurrentStep("ADDITIONAL");
+                                addBotMessage(`Received ${files.length} document(s). Is there any additional context?`, "ADDITIONAL");
                             }}
                         />
+                    </div>
+                );
+
+            case "ADDITIONAL":
+                return (
+                    <div className="flex gap-2 animate-in fade-in slide-in-from-bottom-4 w-full">
+                        <div className="flex-1 relative">
+                            <textarea
+                                className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-teal-500 outline-none resize-none h-24 text-sm"
+                                placeholder="e.g., Focus specifically on remote work scenarios..."
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleAdditionalContextSubmit(e.currentTarget.value);
+                                    }
+                                }}
+                                autoFocus
+                            />
+                            <div className="absolute bottom-2 right-2 text-[10px] text-slate-400">
+                                Press Enter to submit
+                            </div>
+                        </div>
+                        <Button className="h-24 self-start" onClick={(e) => {
+                            const input = e.currentTarget.previousSibling?.firstChild as HTMLTextAreaElement;
+                            handleAdditionalContextSubmit(input.value);
+                        }}>
+                            <Send className="w-4 h-4" />
+                        </Button>
                     </div>
                 );
 
@@ -298,6 +524,10 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
                     <div className="animate-in fade-in slide-in-from-bottom-4">
                         <div className="bg-slate-50 p-4 rounded-lg mb-4 text-sm space-y-2 border">
                             <div className="flex justify-between">
+                                <span className="text-slate-500">Topic:</span>
+                                <span className="font-medium">{state.topic}</span>
+                            </div>
+                            <div className="flex justify-between">
                                 <span className="text-slate-500">Audience:</span>
                                 <span className="font-medium capitalize">{state.audience?.replace('_', ' ')}</span>
                             </div>
@@ -306,9 +536,19 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
                                 <span className="font-medium">{state.duration} mins</span>
                             </div>
                             <div className="flex justify-between">
+                                <span className="text-slate-500">Outcomes:</span>
+                                <span className="font-medium">{state.outcomes.length} selected</span>
+                            </div>
+                            <div className="flex justify-between">
                                 <span className="text-slate-500">Documents:</span>
                                 <span className="font-medium">{state.hasDocuments ? `${state.documents.length} files` : "None"}</span>
                             </div>
+                            {state.additionalContext && (
+                                <div className="pt-2 mt-2 border-t">
+                                    <span className="text-slate-500 text-xs uppercase block mb-1">Context:</span>
+                                    <span className="font-medium block text-xs text-slate-700">{state.additionalContext}</span>
+                                </div>
+                            )}
                         </div>
                         <Button
                             className="w-full bg-teal-600 hover:bg-teal-700 text-lg py-6"

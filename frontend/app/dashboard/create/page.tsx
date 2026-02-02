@@ -447,32 +447,17 @@ function DashboardCreatePageContent() {
                     country: country,
                     logo_url: user?.user_metadata?.logo_url,
                     logo_crop: user?.user_metadata?.logo_crop,
-                    conversation_history: [] // We could pass the chat history here if we wanted to store it
+                    // Discovery Context (NEW)
+                    topic: wizardState.topic,
+                    learning_outcomes: wizardState.outcomes,
+                    additional_context: wizardState.additionalContext,
+                    source_document_text: wizardState.documentText // Send text immediately
                 })
             });
 
             const data = await res.json();
 
             if (data.status === "started") {
-                // If text was extracted locally in wizard, we might need to send it separately 
-                // OR we rely on the backend to have it if we used the upload endpoint.
-                // If the wizard uploaded files, the backend has the text? 
-                // The wizard's FileUploader component creates a combined text string.
-                // We should update the course with this text if it exists.
-
-                if (wizardState.documentText) {
-                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/course/${data.course_id}/source-documents`, {
-                        method: "PATCH",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${session?.access_token}`
-                        },
-                        body: JSON.stringify({
-                            source_document_text: wizardState.documentText
-                        })
-                    });
-                }
-
                 router.push('/dashboard');
             } else {
                 console.error("Failed to start intake");
@@ -608,7 +593,7 @@ function DashboardCreatePageContent() {
                                 Let's build a high-impact video course together. Just answer a few questions to get started.
                             </p>
                         </div>
-                        <CourseWizard onComplete={handleWizardComplete} isLoading={isLoading} />
+                        <CourseWizard onComplete={handleWizardComplete} isLoading={isLoading} country={country} />
                     </div>
                 )}
 

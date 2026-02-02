@@ -197,13 +197,20 @@ async def generate_topics_task(
     duration: int, 
     country: str, 
     user_provided_title: str = None,
-    target_audience: str = "all_employees"
+    target_audience: str = "all_employees",
+    discovery_context: dict = None
 ):
     """
     Background worker to generate topics and update DB.
     Uses a SOURCE-FIRST approach: extract topics from document, then adapt for audience.
+    When no documents provided, uses discovery context (topic, learning_outcomes, additional_context).
     """
-    print(f"   🏗️ Worker: Generating topics for {course_id} (audience={target_audience})...")
+    # Extract discovery context if provided
+    discovery_topic = discovery_context.get("topic", "") if discovery_context else ""
+    discovery_outcomes = discovery_context.get("learning_outcomes", []) if discovery_context else []
+    discovery_additional = discovery_context.get("additional_context", "") if discovery_context else ""
+    
+    print(f"   🏗️ Worker: Generating topics for {course_id} (audience={target_audience}, topic='{discovery_topic}')...")
     
     try:
         # Import strategies here to avoid circular imports
@@ -299,17 +306,34 @@ CRITICAL REQUIREMENTS:
 - DO NOT generate generic topics unless explicitly in the document
 """
         else:
-            # No source document - AI-generated content
+            # No source document - Use discovery context for topic generation
+            # Build outcomes section if available
+            outcomes_section = ""
+            if discovery_outcomes:
+                outcomes_section = f"""
+USER'S DESIRED LEARNING OUTCOMES (MUST address these):
+{chr(10).join(f"- {outcome}" for outcome in discovery_outcomes)}
+"""
+            
+            # Build additional context section if available
+            additional_section = ""
+            if discovery_additional:
+                additional_section = f"""
+ADDITIONAL CONTEXT FROM USER:
+{discovery_additional}
+"""
+            
             prompt = f"""You are an expert instructional designer creating engaging corporate training.
 
-NO SOURCE DOCUMENT PROVIDED - Generate best-practice training content.
+=== USER DISCOVERY CONTEXT (PRIMARY GUIDANCE) ===
 
-COURSE CONTEXT:
+TRAINING TOPIC: {discovery_topic if discovery_topic else "General corporate training"}
+{outcomes_section}
+{additional_section}
+
+=== AUDIENCE CONTEXT ===
+
 - Target Audience: {audience_strategy['display_name']}
-- Duration: {duration} minutes
-- Region: {country}
-
-AUDIENCE STRATEGY:
 - Tone: {audience_strategy['tone']}
 - Structure: {audience_strategy['structure']}
 - Language Level: {audience_strategy['language_level']}
@@ -318,20 +342,30 @@ AUDIENCE STRATEGY:
 - Narrative Style: "{audience_strategy['narrative_style']}"
 - Call to Action: {audience_strategy['call_to_action']}
 
-DURATION STRATEGY:
+=== DURATION CALIBRATION ===
+
+Creating a {duration}-MINUTE course:
 - Purpose: {duration_config['purpose']}
 - Pedagogical Goal: {duration_config.get('pedagogical_goal', 'Effective Training')}
 - Topic Count: {duration_config['topic_count']}
 - Depth Level: {duration_config['depth_level']}
 - Content Priorities: {', '.join(duration_config['content_priorities'])}
 
-Generate a comprehensive course plan drawing from industry best practices and expert knowledge.
+{jurisdiction_context}
 
-OUTPUT FORMAT (JSON):
+=== YOUR TASK ===
+
+Generate a comprehensive course plan for "{discovery_topic if discovery_topic else 'the requested training'}" that:
+1. Addresses ALL the user's desired learning outcomes
+2. Uses industry best practices and expert knowledge
+3. Is tailored to the {audience_strategy['display_name']} audience
+4. Fits the {duration}-minute duration with {duration_config['topic_count']} topics
+
+=== OUTPUT FORMAT (JSON) ===
 {{
-  "title": "Engaging Course Title",
+  "title": "Engaging Course Title for {discovery_topic if discovery_topic else 'this training'}",
   "learning_objective": "Clear, measurable learning outcome",
-  "document_type_detected": "AI-generated content (no source document)",
+  "document_type_detected": "AI-generated content based on user requirements",
   "topics": [
     {{
       "id": 1,
@@ -345,9 +379,11 @@ OUTPUT FORMAT (JSON):
 }}
 
 REQUIREMENTS:
+- Topics MUST support the user's desired learning outcomes
 - Follow the {duration_config['topic_count']} topic guideline
 - Focus on: {', '.join(duration_config['content_priorities'][:3])}
 """
+
 
         res_text = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000)
         data = extract_json_from_response(res_text)

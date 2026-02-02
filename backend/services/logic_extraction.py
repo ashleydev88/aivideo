@@ -31,7 +31,8 @@ class MotionGraph(BaseModel):
         'process', 'cycle', 'hierarchy', 'comparison', 'statistic', 'grid', 
         'timeline', 'funnel', 'pyramid', 'mindmap', 
         'code', 'math', 'architecture',
-        'matrix', 'metaphor', 'anatomy'
+        'matrix', 'metaphor', 'anatomy',
+        'document-anchor', 'contextual-overlay'
     ]
     nodes: List[MotionNode]
     edges: List[MotionEdge]
@@ -87,6 +88,10 @@ CRITICAL: You must choose the specific ARCHETYPE that best fits the logic of the
 - **"matrix"**: 2x2 Quadrants. Use for "SWOT Analysis", "Risk vs Reward", or "Urgent vs Important" matrices.
 - **"metaphor"**: The "Iceberg" model. Use for "Surface vs Deep" or "Visible vs Hidden" concepts.
 - **"anatomy"**: Labeling parts. Use for explaining a diagram where specific parts need labels.
+
+### 5. DOCUMENT & CONTEXT TIER
+- **"document-anchor"**: Key quotes or citations. Use for highlighting specific text excerpts, regulations, or "Key Takeways" from a document.
+- **"contextual-overlay"**: Text overlaid on visual context. Use when describing a scene, a physical location, or when the text needs a visual backdrop to make sense.
 
 ### OUTPUT FORMAT (JSON ONLY):
 {

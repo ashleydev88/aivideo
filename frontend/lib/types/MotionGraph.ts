@@ -9,7 +9,8 @@ export type MotionArchetype =
     | 'process' | 'cycle' | 'hierarchy' | 'comparison' | 'statistic' | 'grid'
     | 'timeline' | 'funnel' | 'pyramid' | 'mindmap'
     | 'code' | 'math' | 'architecture'
-    | 'matrix' | 'metaphor' | 'anatomy';
+    | 'matrix' | 'metaphor' | 'anatomy'
+    | 'document-anchor' | 'contextual-overlay';
 
 export interface MotionNodeData {
     label: string;
