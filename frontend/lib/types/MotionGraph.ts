@@ -18,7 +18,8 @@ export interface MotionNodeData {
     description?: string;
     icon?: string; // lucide icon name (kebab-case)
     variant?: 'neutral' | 'primary' | 'secondary' | 'accent' | 'positive' | 'negative' | 'warning';
-    value?: string | number; // For statistic nodes
+    value?: string | number;
+    image?: string; // For statistic nodes
 }
 
 export interface MotionNode {

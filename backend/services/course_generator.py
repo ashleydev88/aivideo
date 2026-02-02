@@ -12,7 +12,8 @@ from backend.config import (
     DURATION_STRATEGIES,
     STYLE_MAPPING,
     MINIMALIST_PROMPT,
-    ENABLE_SCRIPT_VALIDATION
+    ENABLE_SCRIPT_VALIDATION,
+    TOPIC_GENERATOR_MODEL
 )
 from backend.db import supabase_admin
 from backend.services.ai import replicate_chat_completion, generate_image_replicate, extract_policy_essence
@@ -39,45 +40,7 @@ def convert_bytes_to_webp(image_bytes: bytes) -> bytes:
         print(f"⚠️ WebP Conversion Failed: {e}")
         return image_bytes
 
-def inject_bookend_slides(script_plan: list, course_title: str, logo_url: str = None, logo_crop: dict = None) -> list:
-    """
-    Injects a welcome slide at the beginning and a thank you slide at the end of the script.
-    Now includes logo information if provided.
-    """
-    print("   📚 Injecting welcome and thank you slides...")
-    
-    logo_info = {
-        "url": logo_url,
-        "crop": logo_crop
-    } if logo_url else None
 
-    # Welcome slide (first)
-    welcome_slide = {
-        "text": f"Welcome to the {course_title} training.",
-        "visual_text": f"Welcome to {course_title}",
-        "prompt": "",
-        "visual_type": "title_card",
-        "layout": "title",
-        "duration_hint": 4000,
-        "duration": 4000,
-        "logo_info": logo_info
-    }
-    
-    # Thank you slide (last)
-    thanks_slide = {
-        "text": "Thank you for watching.",
-        "visual_text": "Thank you for watching",
-        "prompt": "",
-        "visual_type": "title_card",
-        "layout": "title",
-        "duration_hint": 3000,
-        "duration": 3000,
-        "logo_info": logo_info
-    }
-    
-    result = [welcome_slide] + script_plan + [thanks_slide]
-    print(f"   ✅ Injected bookends: {len(script_plan)} content slides → {len(result)} total slides")
-    return result
 
 async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt: str, user_id: str):
     """
@@ -361,11 +324,16 @@ Generate a comprehensive course plan for "{discovery_topic if discovery_topic el
 3. Is tailored to the {audience_strategy['display_name']} audience
 4. Fits the {duration}-minute duration with {duration_config['topic_count']} topics
 
+CRITICAL: Since no specific internal policies were provided, you must:
+- Base all content on GENERAL INDUSTRY BEST PRACTICES
+- Make NO ASSUMPTIONS about the user's specific internal processes
+- Explicitly advise learners to "check their local policies and processes" for specifics
+
 === OUTPUT FORMAT (JSON) ===
 {{
   "title": "Engaging Course Title for {discovery_topic if discovery_topic else 'this training'}",
   "learning_objective": "Clear, measurable learning outcome",
-  "document_type_detected": "AI-generated content based on user requirements",
+  "document_type_detected": "Best Practice Guide (Generic)",
   "topics": [
     {{
       "id": 1,
@@ -385,7 +353,7 @@ REQUIREMENTS:
 """
 
 
-        res_text = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000)
+        res_text = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000, model=TOPIC_GENERATOR_MODEL)
         data = extract_json_from_response(res_text)
         
         # Use user-provided title if available, otherwise use generated title
@@ -447,6 +415,17 @@ async def generate_structure_task(course_id: str, context_package: dict, request
                 "- Reference US specific legal frameworks (Title VII, OSHA) if laws are mentioned.\n"
             )
 
+        # BEST PRACTICE INJECTION (If no policy text)
+        best_practice_instruction = ""
+        if not context_package.get('policy_text'):
+             best_practice_instruction = (
+                "NO SOURCE DOCUMENT PROVIDED - CRITICAL RULES:\n"
+                "- You MUST base all content on GENERAL INDUSTRY BEST PRACTICES.\n"
+                "- Do NOT invent specific company policies (e.g., do not say 'Fill out Form 12B').\n"
+                "- Use phrases like 'Standard procedure usually involves...' or 'Best practice suggests...'.\n"
+                "- MANDATORY: Regularly include the phrase 'Please check your local policies and processes' or similar disclaimers to ensure accuracy.\n\n"
+             )
+
         depth_requirements = f"""
 DURATION-SPECIFIC DEPTH REQUIREMENTS:
 
@@ -478,9 +457,12 @@ Target Average: 20 seconds per slide.
             f"VISUAL STYLE GUIDE: {context_package['style_guide']}\n\n"
             f"{depth_requirements}\n\n"
             f"{jurisdiction_prompt}\n\n"
+            f"{best_practice_instruction}\n"
             f"YOUR TASK:\n"
             f"Create a complete video script that transforms policy content into an engaging learning experience.\n"
             f"Follow all previous instructions regarding narration length, visual text, and image prompts.\n"
+            f"CRITICAL: The FIRST slide MUST be a Welcome/Title slide using 'visual_type': 'contextual_overlay' with a high-quality, cinematic image prompt suited for the topic.\n"
+            f"CRITICAL: The LAST slide MUST be a 'Thank You' slide using 'visual_type': 'contextual_overlay' with a high-quality, cinematic image prompt.\n"
             f"OUTPUT FORMAT (JSON):\n"
             f"{{\n"
             f"  \"script\": [\n"
@@ -541,10 +523,7 @@ Target Average: 20 seconds per slide.
         pipeline = PipelineManager()
         script_plan = await asyncio.to_thread(pipeline.assign_visual_types, script_plan)
         
-        # Inject Bookends
-        logo_url = metadata.get("logo_url")
-        logo_crop = metadata.get("logo_crop")
-        script_plan = inject_bookend_slides(script_plan, request.title, logo_url, logo_crop)
+
         
         # Generate Draft Visuals
         style_key = metadata.get("style", "Minimalist Vector")

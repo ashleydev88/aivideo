@@ -66,10 +66,10 @@ export const PreviewMotionBox: React.FC<PreviewMotionBoxProps> = ({
                         <input
                             value={label}
                             onChange={(e) => onUpdate?.('label', e.target.value)}
-                            className="font-bold text-slate-800 text-2xl leading-tight mb-1 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none"
+                            className="font-black text-slate-800 text-2xl leading-tight mb-1 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none"
                         />
                     ) : (
-                        <h3 className="font-bold text-slate-800 text-2xl leading-tight mb-1">{label}</h3>
+                        <h3 className="font-black text-slate-800 text-2xl leading-tight mb-1">{label}</h3>
                     )}
 
                     {subLabel && (
@@ -139,10 +139,10 @@ export const PreviewStatBox: React.FC<PreviewMotionBoxProps & { value?: string |
                 <input
                     value={description || (value ? label : '')}
                     onChange={(e) => onUpdate?.('description', e.target.value)} // Note: logic for label fallback is tricky here, simplified
-                    className="text-3xl font-bold text-slate-700 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none"
+                    className="text-3xl font-black text-slate-700 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none"
                 />
             ) : (
-                <div className="text-3xl font-bold text-slate-700">
+                <div className="text-3xl font-black text-slate-700">
                     {description || (value ? label : '')}
                 </div>
             )}

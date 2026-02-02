@@ -16,6 +16,7 @@ interface MotionGraphPreviewProps {
     accentColor?: string;
     backgroundColor?: string;
     textColor?: string;
+    backgroundImage?: string | null;
     onUpdate?: (newData: MotionGraph) => void;
 }
 
@@ -34,6 +35,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     accentColor = '#14b8a6',
     backgroundColor = '#f8fafc',
     textColor = '#0f172a',
+    backgroundImage,
     onUpdate,
 }) => {
     if (!data || !data.nodes || data.nodes.length === 0) {
@@ -251,12 +253,12 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                     <input
                                         value={node.data.label}
                                         onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                        className="font-bold text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                        className="font-black text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
                                         style={{ fontSize: `${labelFontSize}px` }}
                                     />
                                 ) : (
                                     <h4
-                                        className="font-bold text-slate-800"
+                                        className="font-black text-slate-800"
                                         style={{ fontSize: `${labelFontSize}px` }}
                                     >
                                         {node.data.label}
@@ -318,57 +320,76 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                 style={{ gap: `${gap}px` }}
             >
                 {nodes.map((node) => {
-                    const color = getVariantColor(node.data.variant, accentColor);
+                    // Strict color coding for comparisons
+                    let color = getVariantColor(node.data.variant, accentColor);
+                    if (node.data.variant === 'negative') color = '#ef4444'; // Red-500
+                    if (node.data.variant === 'positive') color = '#22c55e'; // Green-500
+
                     return (
                         <div
                             key={node.id}
-                            className="bg-white shadow-lg flex items-start border-l-8"
+                            className="bg-white shadow-lg flex flex-col border-t-8 overflow-hidden"
                             style={{
-                                borderLeftColor: color,
-                                padding: `${padding}px`,
-                                gap: `${padding}px`,
+                                borderTopColor: color,
                                 borderRadius: `${borderRadius}px`,
+                                height: '100%'
                             }}
                         >
-                            <div
-                                className="rounded-2xl flex-shrink-0"
-                                style={{
-                                    backgroundColor: color + '15',
-                                    padding: `${iconContainerPadding}px`,
-                                }}
-                            >
-                                {React.createElement(getIcon(node.data.icon), { size: iconSize, color })}
-                            </div>
-                            <div className="w-full min-w-0">
-                                {onUpdate ? (
-                                    <input
-                                        value={node.data.label}
-                                        onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                        className="font-bold text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
-                                        style={{ fontSize: `${labelFontSize}px` }}
+                            {/* Image Section (if available) - Flexible height */}
+                            {node.data.image && (
+                                <div className="w-full relative h-[45%] bg-slate-100 border-b" style={{ borderColor: color + '20' }}>
+                                    <img
+                                        src={node.data.image}
+                                        alt={node.data.label}
+                                        className="w-full h-full object-cover"
                                     />
-                                ) : (
-                                    <h4
-                                        className="font-bold text-slate-800"
-                                        style={{ fontSize: `${labelFontSize}px` }}
+                                    {/* Tint overlay matching variant */}
+                                    <div className="absolute inset-0 opacity-10" style={{ backgroundColor: color }} />
+                                </div>
+                            )}
+
+                            <div className="flex flex-col flex-1" style={{ padding: `${padding}px`, gap: `${padding / 2}px` }}>
+                                <div className="flex items-center gap-4">
+                                    <div
+                                        className="rounded-full flex-shrink-0 flex items-center justify-center shadow-sm"
+                                        style={{
+                                            backgroundColor: color,
+                                            width: `${iconSize * 1.5}px`,
+                                            height: `${iconSize * 1.5}px`,
+                                        }}
                                     >
-                                        {node.data.label}
-                                    </h4>
-                                )}
+                                        {React.createElement(getIcon(node.data.icon), { size: iconSize, color: '#ffffff' })}
+                                    </div>
+                                    {onUpdate ? (
+                                        <input
+                                            value={node.data.label}
+                                            onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                            className="font-black text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                            style={{ fontSize: `${labelFontSize}px` }}
+                                        />
+                                    ) : (
+                                        <h4
+                                            className="font-black text-slate-800 leading-tight"
+                                            style={{ fontSize: `${labelFontSize}px` }}
+                                        >
+                                            {node.data.label}
+                                        </h4>
+                                    )}
+                                </div>
 
                                 {(node.data.description || onUpdate) && (
                                     onUpdate ? (
                                         <textarea
                                             value={node.data.description || ''}
                                             onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
-                                            className="text-slate-500 mt-2 leading-relaxed bg-transparent w-full resize-none outline-none focus:bg-slate-50 rounded"
+                                            className="text-slate-500 mt-2 leading-relaxed bg-transparent w-full resize-none outline-none focus:bg-slate-50 rounded flex-1"
                                             style={{ fontSize: `${descFontSize}px` }}
                                             rows={2}
                                             placeholder="Description"
                                         />
                                     ) : (
                                         <p
-                                            className="text-slate-500 mt-2 leading-relaxed line-clamp-2"
+                                            className="text-slate-500 mt-2 leading-relaxed"
                                             style={{ fontSize: `${descFontSize}px` }}
                                         >
                                             {node.data.description}
@@ -500,10 +521,10 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                 <input
                                     value={node.data.label}
                                     onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                    className="font-bold text-slate-800 text-2xl bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
+                                    className="font-black text-slate-800 text-2xl bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
                                 />
                             ) : (
-                                <h4 className="font-bold text-slate-800 text-2xl">{node.data.label}</h4>
+                                <h4 className="font-black text-slate-800 text-2xl">{node.data.label}</h4>
                             )}
 
                             {(node.data.subLabel || onUpdate) && (
@@ -536,7 +557,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         className="bg-white rounded-3xl shadow-lg p-10 text-center border-t-8"
                         style={{ borderTopColor: color }}
                     >
-                        <h4 className="font-bold text-slate-800 text-3xl">
+                        <h4 className="font-black text-slate-800 text-3xl">
                             {onUpdate ? (
                                 <input
                                     value={node.data.label}
@@ -577,7 +598,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
             <div className="w-full max-w-6xl space-y-12">
                 {/* Surface level */}
                 <div className="bg-blue-50 rounded-3xl p-8 border-l-8 border-blue-400">
-                    <h4 className="text-blue-600 font-bold mb-6 flex items-center gap-4 text-3xl">
+                    <h4 className="text-blue-600 font-black mb-6 flex items-center gap-4 text-3xl">
                         <Lucide.Eye size={32} /> Visible
                     </h4>
                     <div className="space-y-4">
@@ -587,10 +608,10 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                     <input
                                         value={node.data.label}
                                         onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                        className="font-medium text-slate-700 text-2xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                        className="font-bold text-slate-700 text-2xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
                                     />
                                 ) : (
-                                    <span className="font-medium text-slate-700 text-2xl">{node.data.label}</span>
+                                    <span className="font-bold text-slate-700 text-2xl">{node.data.label}</span>
                                 )}
                             </div>
                         ))}
@@ -599,7 +620,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
                 {/* Deep level */}
                 <div className="bg-slate-100 rounded-3xl p-8 border-l-8 border-slate-500">
-                    <h4 className="text-slate-600 font-bold mb-6 flex items-center gap-4 text-3xl">
+                    <h4 className="text-slate-600 font-black mb-6 flex items-center gap-4 text-3xl">
                         <Lucide.EyeOff size={32} /> Hidden
                     </h4>
                     <div className="space-y-4">
@@ -609,10 +630,10 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                     <input
                                         value={node.data.label}
                                         onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                        className="font-medium text-slate-700 text-2xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                        className="font-bold text-slate-700 text-2xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
                                     />
                                 ) : (
-                                    <span className="font-medium text-slate-700 text-2xl">{node.data.label}</span>
+                                    <span className="font-bold text-slate-700 text-2xl">{node.data.label}</span>
                                 )}
                             </div>
                         ))}
@@ -640,10 +661,10 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         <input
                             value={centerNode?.data.label}
                             onChange={(e) => handleNodeUpdate(centerNode.id, 'label', e.target.value)}
-                            className="font-bold text-slate-800 text-4xl bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
+                            className="font-black text-slate-800 text-4xl bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
                         />
                     ) : (
-                        <h3 className="font-bold text-slate-800 text-4xl">{centerNode?.data.label}</h3>
+                        <h3 className="font-black text-slate-800 text-4xl">{centerNode?.data.label}</h3>
                     )}
                 </div>
 
@@ -666,10 +687,10 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                 <input
                                     value={node.data.label}
                                     onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                    className="font-medium text-slate-700 bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
+                                    className="font-bold text-slate-700 bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
                                 />
                             ) : (
-                                <span className="font-medium text-slate-700">{node.data.label}</span>
+                                <span className="font-bold text-slate-700">{node.data.label}</span>
                             )}
                         </div>
                     );
@@ -693,12 +714,12 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                             <textarea
                                 value={quoteNode?.data.label}
                                 onChange={(e) => handleNodeUpdate(quoteNode.id, 'label', e.target.value)}
-                                className="font-serif italic text-5xl text-slate-800 leading-tight w-full bg-transparent resize-none outline-none focus:bg-slate-50 rounded"
+                                className="font-black text-5xl text-slate-800 leading-tight w-full bg-transparent resize-none outline-none focus:bg-slate-50 rounded"
                                 rows={3}
                                 placeholder="Quote or key text..."
                             />
                         ) : (
-                            <blockquote className="font-serif italic text-5xl text-slate-800 leading-tight">
+                            <blockquote className="font-black text-5xl text-slate-800 leading-tight">
                                 "{quoteNode?.data.label}"
                             </blockquote>
                         )}
@@ -746,16 +767,29 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const secondaryNodes = nodes.slice(1);
 
         return (
-            <div className="w-full h-full relative flex items-center p-24">
-                {/* Background Placeholder */}
+            <div className="w-full h-full relative flex items-center justify-start p-24">
+                {/* Background (Image or Placeholder) */}
                 <div className="absolute inset-0 bg-slate-200 flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/40 to-transparent z-10" />
-                    <Lucide.Image size={120} className="text-slate-400 opacity-20" />
-                    <span className="text-slate-400 font-bold text-3xl ml-4 opacity-20 uppercase tracking-widest">
-                        Visual Background
-                    </span>
-                    {/* Abstract shapes to verify overlay visibility */}
-                    <div className="absolute right-0 top-0 w-2/3 h-full bg-slate-300 transform skew-x-12 opacity-50" />
+                    {backgroundImage ? (
+                        <>
+                            <img
+                                src={backgroundImage}
+                                alt="Background"
+                                className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/40 to-transparent z-10" />
+                        </>
+                    ) : (
+                        <>
+                            <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/40 to-transparent z-10" />
+                            <Lucide.Image size={120} className="text-slate-400 opacity-20" />
+                            <span className="text-slate-400 font-bold text-3xl ml-4 opacity-20 uppercase tracking-widest">
+                                Visual Background
+                            </span>
+                            {/* Abstract shapes to verify overlay visibility */}
+                            <div className="absolute right-0 top-0 w-2/3 h-full bg-slate-300 transform skew-x-12 opacity-50" />
+                        </>
+                    )}
                 </div>
 
                 {/* Content Overlay */}

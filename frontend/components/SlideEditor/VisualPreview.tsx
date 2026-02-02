@@ -211,7 +211,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     label: layout_data?.left_label || 'Option A',
                     description: layout_data?.left_text || 'Description for option A',
                     variant: 'negative',
-                    icon: 'x-circle'
+                    icon: 'x-circle',
+                    image: layout_data?.left_image
                 }
             });
             nodes.push({
@@ -221,7 +222,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     label: layout_data?.right_label || 'Option B',
                     description: layout_data?.right_text || 'Description for option B',
                     variant: 'positive',
-                    icon: 'check-circle-2'
+                    icon: 'check-circle-2',
+                    image: layout_data?.right_image
                 }
             });
             return {
@@ -258,9 +260,9 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                 id: 'doc-quote',
                 type: 'motion-card',
                 data: {
-                    label: visual_text || "Quoted Text",
-                    subLabel: layout_data?.source || "Source Document",
-                    description: layout_data?.context || "Key Reference",
+                    label: layout_data?.verbatim_quote || visual_text || "Quoted Text",
+                    subLabel: layout_data?.source_reference || "Source Document",
+                    description: layout_data?.context_note || "Key Reference",
                     variant: 'accent',
                     icon: 'file-text'
                 }
@@ -320,6 +322,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                             accentColor={slide.accent_color}
                             backgroundColor={slide.background_color}
                             textColor={slide.text_color}
+                            backgroundImage={resolvedImage}
                             onUpdate={visual_type === 'chart' ? onChartUpdate : undefined} // Only allow chart editing for now, complex types generated from layout_data
                         />
                     </BackgroundEditTrigger>
@@ -341,8 +344,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     <AutoFitText className="items-center justify-center origin-center">
                         <div className="w-full text-center">
                             <style>{`
-                                .ProseMirror h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                                .ProseMirror h2 { font-weight: 700; margin-bottom: 0.5em; }
+                                .ProseMirror h1 { font-weight: 900; line-height: 1.1; margin-bottom: 0.5em; letter-spacing: -0.02em; }
+                                .ProseMirror h2 { font-weight: 900; margin-bottom: 0.5em; letter-spacing: -0.01em; }
                                 .ProseMirror p { margin-bottom: 0.5em; }
                                 .ProseMirror ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
                                 .ProseMirror li { margin-bottom: 0.5em; }
@@ -384,8 +387,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     <AutoFitText className="items-center justify-center origin-center">
                         <div className="w-full text-center">
                             <style>{`
-                                    .ProseMirror h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                                    .ProseMirror p { opacity: 0.9; }
+                                    .ProseMirror h1 { font-weight: 900; line-height: 1.1; margin-bottom: 0.5em; letter-spacing: -0.02em; }
+                                    .ProseMirror p { opacity: 0.9; font-weight: 500; }
                                     .ProseMirror strong { color: rgba(255,255,255,0.9); }
                                  `}</style>
                             {onTextChange ? (
@@ -408,49 +411,18 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         )
     }
 
-    // 4. HYBRID RENDERER (Text Left 50%, Image Right 50%)
+    // 4. HYBRID RENDERER (Text Left 50%, Image Right 50% -> Now with Curve and Gradient)
     const isHybrid = visual_type === 'hybrid' ||
         ((visual_type === 'image' || !visual_type) && !!slide.visual_text);
 
     if (isHybrid) {
         const textContent = slide.visual_text || slide.text || "";
+        const baseColor = slide.background_color || '#0f172a';
 
         return (
-            <div className="w-full h-full flex flex-row bg-slate-900 rounded-lg">
-                {/* Left: Text - Adjustable Background */}
-                <BackgroundEditTrigger className="w-1/2 h-full">
-                    <div
-                        className="slide-preview-content w-full h-full flex flex-col p-6 border-r border-slate-800"
-                        style={{ backgroundColor: slide.background_color || '#0f172a', color: slide.text_color || '#ffffff' }}
-                    >
-                        <AutoFitText className="items-start justify-center origin-left">
-                            <div className="w-full text-left">
-                                <style>{`
-                                        .ProseMirror h1 { font-weight: 800; margin-bottom: 0.4em; line-height: 1.1; }
-                                        .ProseMirror h2 { font-weight: 700; margin-bottom: 0.4em; }
-                                        .ProseMirror p { margin-bottom: 0.5em; line-height: 1.4; }
-                                        .ProseMirror ul { list-style-type: disc; padding-left: 1.2em; }
-                                        .ProseMirror li { margin-bottom: 0.3em; }
-                                        .ProseMirror strong { color: ${slide.accent_color || '#14b8a6'} !important; }
-                                     `}</style>
-                                {onTextChange ? (
-                                    <RichTextEditor
-                                        value={textContent}
-                                        onChange={onTextChange}
-                                        variant="minimal"
-                                    />
-                                ) : (
-                                    <div className="prose prose-lg dark:prose-invert max-w-none">
-                                        {parse(textContent)}
-                                    </div>
-                                )}
-                            </div>
-                        </AutoFitText>
-                    </div>
-                </BackgroundEditTrigger>
-
-                {/* Right: Image */}
-                <div className="w-1/2 h-full relative bg-slate-100">
+            <div className="w-full h-full relative bg-slate-900 overflow-hidden">
+                {/* Right: Image Layer (Sits behind text partially) */}
+                <div className="absolute top-0 right-0 w-[60%] h-full bg-slate-800">
                     {resolvedImage ? (
                         <Image
                             src={resolvedImage}
@@ -459,11 +431,80 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                             className="object-cover"
                         />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-400 p-4 text-center">
-                            {image ? <div className="flex flex-col items-center gap-2"><RefreshCcw className="animate-spin h-4 w-4" /> <span className="text-xs">Loading Visual...</span></div> : "No Image"}
+                        <div className="w-full h-full flex items-center justify-center text-slate-600 p-4 text-center bg-slate-200">
+                            {image ? <div className="flex flex-col items-center gap-2"><RefreshCcw className="animate-spin h-6 w-6" /> <span className="font-bold">Loading Visual...</span></div> : "No Image"}
                         </div>
                     )}
                 </div>
+
+                {/* Left: Text - Curved Cutout & Gradient */}
+                <BackgroundEditTrigger className="w-full h-full absolute inset-0 pointer-events-none">
+                    {/* SVG Definition for the Curve using objectBoundingBox for responsiveness */}
+                    <svg className="absolute w-0 h-0" aria-hidden="true" focusable="false">
+                        <defs>
+                            <clipPath id="hybrid-curve-clip" clipPathUnits="objectBoundingBox">
+                                <path d="M 0 0 L 0.85 0 Q 1 0.5 0.85 1 L 0 1 Z" />
+                            </clipPath>
+                        </defs>
+                    </svg>
+
+                    <div
+                        className="h-full w-[55%] relative z-10 pointer-events-auto flex flex-col justify-center p-24 shadow-2xl"
+                        style={{
+                            background: `linear-gradient(135deg, ${baseColor} 0%, ${baseColor} 60%, transparent 100%)`, // Gradient fades out slightly at edge
+                            backgroundColor: baseColor, // Fallback
+                            clipPath: 'url(#hybrid-curve-clip)'
+                        }}
+                    >
+                        {/* Gradient reinforcement to ensure legibility over the curve */}
+                        <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none mix-blend-multiply" />
+
+                        <div className="relative z-20" style={{ color: slide.text_color || '#ffffff' }}>
+                            <AutoFitText className="items-start justify-center origin-left">
+                                <div className="w-full text-left">
+                                    <style>{`
+                                        .ProseMirror h1 { 
+                                            font-weight: 900; 
+                                            margin-bottom: 0.2em; 
+                                            line-height: 0.95; 
+                                            letter-spacing: -0.03em; 
+                                            font-size: 4em;
+                                            text-wrap: balance; /* Helps prevents orphans like 's' */
+                                            text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                                        }
+                                        .ProseMirror h2 { 
+                                            font-weight: 800; 
+                                            margin-bottom: 0.3em; 
+                                            letter-spacing: -0.02em;
+                                            font-size: 2.5em;
+                                        }
+                                        .ProseMirror p { 
+                                            margin-bottom: 0.8em; 
+                                            line-height: 1.5; 
+                                            font-size: 1.4em;
+                                            opacity: 0.95;
+                                            font-weight: 500;
+                                        }
+                                        .ProseMirror ul { list-style-type: disc; padding-left: 1.2em; }
+                                        .ProseMirror li { margin-bottom: 0.4em; font-size: 1.3em; }
+                                        .ProseMirror strong { color: ${slide.accent_color || '#14b8a6'} !important; }
+                                     `}</style>
+                                    {onTextChange ? (
+                                        <RichTextEditor
+                                            value={textContent}
+                                            onChange={onTextChange}
+                                            variant="minimal"
+                                        />
+                                    ) : (
+                                        <div className="prose prose-2xl dark:prose-invert max-w-none">
+                                            {parse(textContent)}
+                                        </div>
+                                    )}
+                                </div>
+                            </AutoFitText>
+                        </div>
+                    </div>
+                </BackgroundEditTrigger>
             </div>
         )
     }

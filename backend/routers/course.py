@@ -8,7 +8,6 @@ from backend.services.course_generator import (
     generate_structure_task, 
     generate_final_assets_task,
     trigger_remotion_render,
-    inject_bookend_slides,
     generate_draft_visuals
 )
 from backend.services.storage import handle_failure, get_asset_url

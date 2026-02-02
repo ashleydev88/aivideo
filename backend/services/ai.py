@@ -1,9 +1,9 @@
 import replicate
 import requests
 import json
-from backend.config import REPLICATE_API_TOKEN
+from backend.config import REPLICATE_API_TOKEN, LLM_MODEL_NAME
 
-def replicate_chat_completion(messages, max_tokens=2048, temperature=0.7):
+def replicate_chat_completion(messages, max_tokens=2048, temperature=0.7, model=LLM_MODEL_NAME):
     # Convert messages list to single prompt string
     prompt = ""
     for msg in messages:
@@ -12,10 +12,10 @@ def replicate_chat_completion(messages, max_tokens=2048, temperature=0.7):
         prompt += f"{role}: {content}\n\n"
     prompt += "Assistant: "
 
-    print(f"   🤖 Calling DeepSeek V3 via Replicate...")
+    print(f"   🤖 Calling {model} via Replicate...")
     try:
         output = replicate.run(
-            "deepseek-ai/deepseek-v3",
+            model,
             input={
                 "prompt": prompt,
                 "max_tokens": max_tokens,
@@ -27,7 +27,7 @@ def replicate_chat_completion(messages, max_tokens=2048, temperature=0.7):
             return "".join(output)
         return str(output)
     except Exception as e:
-        print(f"   ❌ Replicate DeepSeek Error: {e}")
+        print(f"   ❌ Replicate {model} Error: {e}")
         raise e
 
 def generate_image_replicate(prompt):
@@ -72,7 +72,7 @@ def extract_policy_essence(policy_text: str) -> str:
         print(f"   📄 Policy is {len(policy_text)} chars - skipping pre-processing")
         return policy_text
     
-    print(f"   🔧 Pre-processing long policy ({len(policy_text)} chars) with DeepSeek V3 (Replicate)...")
+    print(f"   🔧 Pre-processing long policy ({len(policy_text)} chars) with Gemini 3 (Replicate)...")
     
     prompt = """You are a Policy Document Specialist. Your task is to extract ONLY the substantive policy content.
 
