@@ -127,38 +127,66 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                 return renderMetaphor();
             case 'anatomy':
                 return renderAnatomy();
+            case 'document-anchor':
+                return renderDocumentAnchor();
+            case 'contextual-overlay':
+                return renderContextualOverlay();
             default:
                 return renderGrid();
         }
     };
 
     // Horizontal flow (process, cycle, timeline)
-    const renderHorizontalFlow = () => (
-        <div className="flex flex-row items-center justify-center gap-8 w-full px-12 flex-wrap">
-            {nodes.map((node, i) => (
-                <React.Fragment key={node.id}>
-                    {i > 0 && (
-                        <div className="flex-shrink-0">
-                            <Lucide.ArrowRight size={48} color={textColor + 'aa'} strokeWidth={3} />
+    // Horizontal flow (process, cycle, timeline)
+    const renderHorizontalFlow = () => {
+        const nodeCount = nodes.length;
+
+        // Calculate scale factor to fit within available width
+        // Assume available width ~1000px (standard preview width is often smaller in split view, but we scale relative to a "full" canvas)
+        // Base node width: ~280px + 32px gap = 312px
+        const availableWidth = 1000;
+        const baseNodeWidth = 312;
+        const requiredWidth = nodeCount * baseNodeWidth;
+        // Add some padding buffer
+        const scaleFactor = Math.min(1, availableWidth / (requiredWidth + 100));
+        const clampedScale = Math.max(0.4, scaleFactor);
+
+        // Scaled values
+        const gap = Math.round(32 * clampedScale);
+        const iconSize = Math.round(48 * clampedScale); // Passed to arrow
+
+        return (
+            <div
+                className="flex flex-row items-center justify-center w-full"
+                style={{ gap: `${gap}px` }}
+            >
+                {nodes.map((node, i) => (
+                    <React.Fragment key={node.id}>
+                        {i > 0 && (
+                            <div className="flex-shrink-0">
+                                <Lucide.ArrowRight size={iconSize} color={textColor + 'aa'} strokeWidth={3} />
+                            </div>
+                        )}
+                        <div style={{ transform: `scale(${clampedScale})`, transformOrigin: 'center' }}>
+                            <PreviewMotionBox
+                                label={node.data.label}
+                                subLabel={node.data.subLabel}
+                                icon={node.data.icon}
+                                variant={node.data.variant}
+                                isEditable={!!onUpdate}
+                                onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
+                            />
                         </div>
-                    )}
-                    <PreviewMotionBox
-                        label={node.data.label}
-                        subLabel={node.data.subLabel}
-                        icon={node.data.icon}
-                        variant={node.data.variant}
-                        isEditable={!!onUpdate}
-                        onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
-                    />
-                </React.Fragment>
-            ))}
-            {archetype === 'cycle' && nodes.length > 1 && (
-                <div className="flex-shrink-0">
-                    <Lucide.RotateCcw size={48} color={accentColor} strokeWidth={3} />
-                </div>
-            )}
-        </div>
-    );
+                    </React.Fragment>
+                ))}
+                {archetype === 'cycle' && nodes.length > 1 && (
+                    <div className="flex-shrink-0">
+                        <Lucide.RotateCcw size={iconSize} color={accentColor} strokeWidth={3} />
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     // Vertical stack (hierarchy, funnel, pyramid)
     // Dynamically scales based on node count to prevent overflow
@@ -646,6 +674,148 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         </div>
                     );
                 })}
+            </div>
+        );
+    };
+
+    // Document Anchor (Quotes/Citations)
+    const renderDocumentAnchor = () => {
+        const quoteNode = nodes[0];
+        const color = getVariantColor(quoteNode?.data.variant, accentColor);
+
+        return (
+            <div className="flex items-center justify-center w-full max-w-5xl h-full">
+                <div className="relative bg-white rounded-3xl shadow-xl p-16 border-l-[16px]" style={{ borderColor: color }}>
+                    <Lucide.Quote size={80} className="absolute -top-10 -left-10 text-slate-800 bg-white p-2 rounded-full shadow-lg" />
+
+                    <div className="space-y-8">
+                        {onUpdate ? (
+                            <textarea
+                                value={quoteNode?.data.label}
+                                onChange={(e) => handleNodeUpdate(quoteNode.id, 'label', e.target.value)}
+                                className="font-serif italic text-5xl text-slate-800 leading-tight w-full bg-transparent resize-none outline-none focus:bg-slate-50 rounded"
+                                rows={3}
+                                placeholder="Quote or key text..."
+                            />
+                        ) : (
+                            <blockquote className="font-serif italic text-5xl text-slate-800 leading-tight">
+                                "{quoteNode?.data.label}"
+                            </blockquote>
+                        )}
+
+                        <div className="flex items-center gap-4 border-t pt-8" style={{ borderColor: color + '40' }}>
+                            <div className="w-16 h-1 w-16 rounded-full" style={{ backgroundColor: color }} />
+                            {onUpdate ? (
+                                <div className="w-full flex flex-col gap-2">
+                                    <input
+                                        value={quoteNode?.data.subLabel || ''}
+                                        onChange={(e) => handleNodeUpdate(quoteNode.id, 'subLabel', e.target.value)}
+                                        className="font-bold text-slate-600 text-2xl bg-transparent outline-none focus:bg-slate-50 rounded"
+                                        placeholder="Author / Source"
+                                    />
+                                    <input
+                                        value={quoteNode?.data.description || ''}
+                                        onChange={(e) => handleNodeUpdate(quoteNode.id, 'description', e.target.value)}
+                                        className="text-slate-400 text-xl bg-transparent outline-none focus:bg-slate-50 rounded"
+                                        placeholder="Context / Date"
+                                    />
+                                </div>
+                            ) : (
+                                <div>
+                                    <cite className="block font-bold text-slate-600 text-2xl not-italic">
+                                        {quoteNode?.data.subLabel || 'Unknown Source'}
+                                    </cite>
+                                    {quoteNode?.data.description && (
+                                        <span className="text-slate-400 text-xl">
+                                            {quoteNode.data.description}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Contextual Overlay (Text over visual placeholder)
+    const renderContextualOverlay = () => {
+        // Find main text node and potentially secondary nodes
+        const mainNode = nodes[0];
+        const secondaryNodes = nodes.slice(1);
+
+        return (
+            <div className="w-full h-full relative flex items-center p-24">
+                {/* Background Placeholder */}
+                <div className="absolute inset-0 bg-slate-200 flex items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/40 to-transparent z-10" />
+                    <Lucide.Image size={120} className="text-slate-400 opacity-20" />
+                    <span className="text-slate-400 font-bold text-3xl ml-4 opacity-20 uppercase tracking-widest">
+                        Visual Background
+                    </span>
+                    {/* Abstract shapes to verify overlay visibility */}
+                    <div className="absolute right-0 top-0 w-2/3 h-full bg-slate-300 transform skew-x-12 opacity-50" />
+                </div>
+
+                {/* Content Overlay */}
+                <div className="relative z-20 max-w-2xl space-y-8">
+                    {onUpdate ? (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-4">
+                                <Lucide.MapPin size={32} color={accentColor} />
+                                <input
+                                    value={mainNode?.data.subLabel || ''}
+                                    onChange={(e) => handleNodeUpdate(mainNode.id, 'subLabel', e.target.value)}
+                                    className="text-teal-400 font-bold tracking-widest uppercase text-xl bg-transparent w-full outline-none focus:ring-1 focus:ring-teal-500 rounded"
+                                    placeholder="LOCATION / CONTEXT"
+                                />
+                            </div>
+                            <textarea
+                                value={mainNode?.data.label}
+                                onChange={(e) => handleNodeUpdate(mainNode.id, 'label', e.target.value)}
+                                className="text-6xl font-black text-white leading-none bg-transparent w-full resize-none outline-none focus:ring-1 focus:ring-teal-500 rounded p-2"
+                                rows={2}
+                            />
+                            <textarea
+                                value={mainNode?.data.description || ''}
+                                onChange={(e) => handleNodeUpdate(mainNode.id, 'description', e.target.value)}
+                                className="text-2xl text-slate-200 leading-relaxed bg-transparent w-full resize-none outline-none focus:ring-1 focus:ring-teal-500 rounded p-2"
+                                rows={3}
+                                placeholder="Description..."
+                            />
+                        </div>
+                    ) : (
+                        <>
+                            {mainNode?.data.subLabel && (
+                                <div className="flex items-center gap-4 text-teal-400 font-bold tracking-widest uppercase text-xl animate-fade-in-up">
+                                    <Lucide.MapPin size={32} />
+                                    {mainNode.data.subLabel}
+                                </div>
+                            )}
+                            <h2 className="text-6xl font-black text-white leading-none drop-shadow-lg">
+                                {mainNode?.data.label}
+                            </h2>
+                            {mainNode?.data.description && (
+                                <p className="text-2xl text-slate-200 leading-relaxed max-w-xl drop-shadow-md">
+                                    {mainNode.data.description}
+                                </p>
+                            )}
+                        </>
+                    )}
+
+                    {/* Secondary items (optional) */}
+                    {secondaryNodes.length > 0 && (
+                        <div className="pt-8 flex gap-6">
+                            {secondaryNodes.map(node => (
+                                <div key={node.id} className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/20 text-white min-w-[150px]">
+                                    <h5 className="font-bold">{node.data.label}</h5>
+                                    <p className="text-sm text-slate-300">{node.data.value || node.data.description}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         );
     };

@@ -197,22 +197,135 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         );
     }
 
-    // 1. CHART RENDERER (MotionGraph)
-    if (visual_type === 'chart' && chart_data) {
-        return (
-            <ScaleContainer>
-                {/* Background editing for Chart might be complex due to canvas, putting wrapper around */}
-                <BackgroundEditTrigger className="w-full h-full">
-                    <MotionGraphPreview
-                        data={chart_data}
-                        accentColor={slide.accent_color}
-                        backgroundColor={slide.background_color}
-                        textColor={slide.text_color}
-                        onUpdate={onChartUpdate}
-                    />
-                </BackgroundEditTrigger>
-            </ScaleContainer>
-        );
+    // Helper to convert backend slide data to MotionGraph format
+    const convertToMotionGraph = (slide: any): any => {
+        const { visual_type, layout_data, visual_text, text, accent_color } = slide;
+        const nodes = [];
+
+        // 1. Comparison Split
+        if (visual_type === 'comparison_split') {
+            nodes.push({
+                id: 'node-left',
+                type: 'motion-card',
+                data: {
+                    label: layout_data?.left_label || 'Option A',
+                    description: layout_data?.left_text || 'Description for option A',
+                    variant: 'negative',
+                    icon: 'x-circle'
+                }
+            });
+            nodes.push({
+                id: 'node-right',
+                type: 'motion-card',
+                data: {
+                    label: layout_data?.right_label || 'Option B',
+                    description: layout_data?.right_text || 'Description for option B',
+                    variant: 'positive',
+                    icon: 'check-circle-2'
+                }
+            });
+            return {
+                id: 'generated-graph',
+                archetype: 'comparison', // Maps to standard comparison
+                nodes,
+                edges: []
+            };
+        }
+
+        // 2. Key Stat Breakout
+        if (visual_type === 'key_stat_breakout') {
+            nodes.push({
+                id: 'stat-main',
+                type: 'motion-stat',
+                data: {
+                    label: layout_data?.stat_label || 'Key Statistic',
+                    value: layout_data?.stat_value || '100%',
+                    description: visual_text || text,
+                    variant: 'primary',
+                }
+            });
+            return {
+                id: 'generated-stat',
+                archetype: 'statistic',
+                nodes,
+                edges: []
+            };
+        }
+
+        // 3. Document Anchor
+        if (visual_type === 'document_anchor') {
+            nodes.push({
+                id: 'doc-quote',
+                type: 'motion-card',
+                data: {
+                    label: visual_text || "Quoted Text",
+                    subLabel: layout_data?.source || "Source Document",
+                    description: layout_data?.context || "Key Reference",
+                    variant: 'accent',
+                    icon: 'file-text'
+                }
+            });
+            return {
+                id: 'generated-doc',
+                archetype: 'document-anchor',
+                nodes,
+                edges: []
+            };
+        }
+
+        // 4. Contextual Overlay
+        if (visual_type === 'contextual_overlay') {
+            nodes.push({
+                id: 'context-main',
+                type: 'motion-card',
+                data: {
+                    label: visual_text || "Section Title",
+                    subLabel: layout_data?.kicker || "INTRODUCTION",
+                    description: text,
+                    variant: 'neutral',
+                    icon: 'map-pin'
+                }
+            });
+            return {
+                id: 'generated-overlay',
+                archetype: 'contextual-overlay',
+                nodes,
+                edges: []
+            };
+        }
+
+        return null;
+    };
+
+
+    // 1. CHART RENDERER (Including new types that map to MotionGraph)
+    // Check if it's a chart OR one of our new specialized types
+    const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay'];
+    const isSpecialType = specialTypes.includes(visual_type);
+
+    if ((visual_type === 'chart' && chart_data) || isSpecialType) {
+
+        let graphData = chart_data;
+        if (isSpecialType) {
+            graphData = convertToMotionGraph(slide);
+        }
+
+        if (graphData) {
+            return (
+                <ScaleContainer>
+                    {/* Background editing for Chart might be complex due to canvas, putting wrapper around */}
+                    <BackgroundEditTrigger className="w-full h-full">
+                        <MotionGraphPreview
+                            data={graphData}
+                            accentColor={slide.accent_color}
+                            backgroundColor={slide.background_color}
+                            textColor={slide.text_color}
+                            onUpdate={visual_type === 'chart' ? onChartUpdate : undefined} // Only allow chart editing for now, complex types generated from layout_data
+                        />
+                    </BackgroundEditTrigger>
+                </ScaleContainer>
+            );
+        }
     }
 
     // 2. KINETIC TEXT RENDERER

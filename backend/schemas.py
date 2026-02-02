@@ -66,7 +66,12 @@ class IntakeRequest(BaseModel):
     country: str = "UK"
     logo_url: Optional[str] = None
     logo_crop: Optional[dict] = None
-    conversation_history: Optional[List[ConversationMessage]] = None
+    # conversation_history removed
+    # New discovery context fields
+    topic: Optional[str] = None  # What topic should this training cover?
+    learning_outcomes: Optional[List[str]] = None  # Selected learning outcomes
+    additional_context: Optional[str] = None  # Anything else I should know?
+    source_document_text: Optional[str] = None # Merged upload text
 
 class UploadLimits(BaseModel):
     """Upload constraints for document intake"""
@@ -75,3 +80,17 @@ class UploadLimits(BaseModel):
     max_total_size_mb: int = 25
     allowed_extensions: List[str] = [".pdf", ".docx", ".txt"]
     max_text_chars: int = 100000
+
+
+# --- DISCOVERY AGENT MODELS ---
+
+class OutcomeSuggestionRequest(BaseModel):
+    """Request for AI-generated learning outcome suggestions"""
+    topic: str  # The training topic
+    audience: str  # new_hires, all_employees, leadership
+    country: str = "UK"  # Default to UK context
+
+class OutcomeSuggestionResponse(BaseModel):
+    """Response with suggested learning outcomes"""
+    suggestions: List[str]
+

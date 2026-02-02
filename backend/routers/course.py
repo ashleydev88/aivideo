@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Header, Request, 
 from fastapi.responses import JSONResponse
 from backend.db import supabase, supabase_admin
 from backend.dependencies import get_user_id_from_token
-from backend.schemas import CourseRequest, PlanRequest, ScriptRequest, RenameCourseRequest, IntakeRequest
+from backend.schemas import CourseRequest, PlanRequest, ScriptRequest, RenameCourseRequest, IntakeRequest, OutcomeSuggestionRequest
 from backend.services.course_generator import (
     generate_topics_task, 
     generate_structure_task, 
@@ -14,6 +14,7 @@ from backend.services.course_generator import (
 from backend.services.storage import handle_failure, get_asset_url
 from backend.services.ai import replicate_chat_completion, generate_image_replicate
 from backend.services.pipeline import PipelineManager
+from backend.services.discovery_agent import suggest_learning_outcomes
 from backend.utils import parser, helpers
 from backend.config import (
     STYLE_MAPPING, 
@@ -30,6 +31,7 @@ import json
 from typing import List
 
 router = APIRouter()
+
 
 @router.post("/create")
 async def create_course(request: CourseRequest, background_tasks: BackgroundTasks):
@@ -72,7 +74,45 @@ async def get_upload_limits():
     """Returns the current upload limits for client-side validation"""
     return UPLOAD_LIMITS
 
+@router.post("/suggest-outcomes")
+async def suggest_outcomes(
+    request: OutcomeSuggestionRequest,
+    authorization: str = Header(None)
+):
+    """
+    Uses the Discovery Agent to generate AI-powered learning outcome suggestions
+    based on the topic and target audience.
+    """
+    print(f"🎯 Suggesting outcomes for topic='{request.topic}', audience='{request.audience}'")
+    
+    # Authentication check
+    user_id = get_user_id_from_token(authorization)
+    
+    try:
+        # Call the Discovery Agent
+        suggestions = await asyncio.to_thread(
+            suggest_learning_outcomes,
+            request.topic,
+            request.audience,
+            request.country
+        )
+        
+        return {"suggestions": suggestions}
+        
+    except Exception as e:
+        print(f"❌ Suggest Outcomes Error: {e}")
+        # Return fallback suggestions rather than failing
+        return {
+            "suggestions": [
+                f"Understand the core concepts of {request.topic}",
+                f"Apply {request.topic} principles in daily work",
+                f"Identify key responsibilities and requirements",
+                f"Know when and how to escalate issues"
+            ]
+        }
+
 @router.post("/upload-documents")
+
 async def upload_documents(
     files: List[UploadFile] = File(...),
     authorization: str = Header(None)
@@ -149,8 +189,9 @@ async def start_intake(
     """
     New primary entry point for course creation.
     Creates a course record with structured intake data and starts topic generation.
+    Now includes discovery context (topic, learning_outcomes, additional_context).
     """
-    print(f"🚀 Starting Intake Flow: audience={request.target_audience}")
+    print(f"🚀 Starting Intake Flow: topic='{request.topic}', audience={request.target_audience}")
     
     user_id = get_user_id_from_token(authorization)
     
@@ -163,7 +204,7 @@ async def start_intake(
     audience_strategy = AUDIENCE_STRATEGIES.get(target_audience, AUDIENCE_STRATEGIES["all_employees"])
     duration_config = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
     
-    # Build metadata with all the new structured data
+    # Build metadata with all the new structured data including discovery context
     metadata = {
         "duration": request.duration,
         "country": request.country,
@@ -175,13 +216,15 @@ async def start_intake(
         "custom_title": request.title,
         # Audience-based context
         "audience_strategy": audience_strategy,
-        "duration_strategy": duration_config
+        "duration_strategy": duration_config,
+        # Discovery context (NEW)
+        "discovery_topic": request.topic,
+        "discovery_outcomes": request.learning_outcomes,
+        "discovery_additional_context": request.additional_context
     }
     
-    # Serialize conversation history if present
-    conversation_json = None
-    if request.conversation_history:
-        conversation_json = [msg.dict() for msg in request.conversation_history]
+    
+    # conversation_history serialization removed
     
     try:
         response = supabase_admin.table("courses").insert({
@@ -192,8 +235,13 @@ async def start_intake(
             # Audience type
             "target_audience": target_audience,
             "has_source_documents": request.has_source_documents,
+            # NEW: Discovery Context Columns
+            "topic": request.topic,
+            "learning_outcomes": request.learning_outcomes, # Stored as JSONB
+            "additional_context": request.additional_context,
+            "source_document_text": request.source_document_text, # Store text immediately
             "intake_complete": True,
-            "conversation_history": conversation_json,
+            # conversation_history removed as per schema change
             # Progress tracking
             "progress_phase": "topics",
             "progress": 0
@@ -203,18 +251,27 @@ async def start_intake(
         print(f"❌ DB Insert Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create course record")
     
+    # Build discovery context dict for topic generator
+    discovery_context = {
+        "topic": request.topic,
+        "learning_outcomes": request.learning_outcomes or [],
+        "additional_context": request.additional_context
+    }
+    
     # Start background task with enhanced context
     background_tasks.add_task(
         generate_topics_task, 
         course_id, 
-        None,  # source_document_text will be loaded from DB if needed
+        request.source_document_text,  # Pass text directly from request (fixes race condition)
         request.duration, 
         request.country, 
         request.title,
-        target_audience
+        target_audience,
+        discovery_context  # NEW: pass discovery context
     )
     
     return {"status": "started", "course_id": course_id}
+
 
 @router.patch("/{course_id}/source-documents")
 async def update_source_documents(
