@@ -1,3 +1,4 @@
+from backend.config import VISUAL_DIRECTOR_MODEL
 from backend.services.ai import replicate_chat_completion
 from backend.utils.helpers import extract_json_from_response
 import json
@@ -99,7 +100,8 @@ OUTPUT (JSON):
 [
   {{ "id": 1, "type": "contextual_overlay", "reason": "Section introduction" }},
   {{ "id": 2, "type": "key_stat_breakout", "reason": "45% statistic is the key takeaway", "layout_data": {{ "stat_value": "45%", "stat_label": "reduction in incidents" }} }},
-  {{ "id": 3, "type": "comparison_split", "reason": "Do vs Don't comparison", "layout_data": {{ "left_label": "Don't", "left_text": "Share passwords", "right_label": "Do", "right_text": "Use password manager" }} }}
+  {{ "id": 3, "type": "document_anchor", "reason": "Specific GDPR citation", "layout_data": {{ "source_reference": "GDPR Article 5", "verbatim_quote": "Personal data shall be processed lawfully, fairly and in a transparent manner.", "context_note": "Principle of lawfulness" }} }},
+  {{ "id": 4, "type": "comparison_split", "reason": "Do vs Don't comparison", "layout_data": {{ "left_label": "Don't", "left_text": "Share passwords", "left_prompt": "Person handing over password", "right_label": "Do", "right_text": "Use password manager", "right_prompt": "Secure digital vault" }} }}
 ]
 
 IMPORTANT: For specialized layouts (contextual_overlay, comparison_split, document_anchor, key_stat_breakout), include a "layout_data" object with the required fields for that layout type.
@@ -107,7 +109,8 @@ IMPORTANT: For specialized layouts (contextual_overlay, comparison_split, docume
         try:
             res_text = replicate_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=2000
+                max_tokens=2000,
+                model=VISUAL_DIRECTOR_MODEL
             )
             print(f"   📋 Visual Director Raw Response: {res_text[:500]}...")
             directives = extract_json_from_response(res_text)

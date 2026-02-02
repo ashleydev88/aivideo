@@ -11,7 +11,9 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 # --- CONFIGURATION ---
-LLM_MODEL_NAME = "deepseek-ai/deepseek-v3"
+LLM_MODEL_NAME = "google/gemini-3-flash"
+TOPIC_GENERATOR_MODEL = "google/gemini-3-pro"
+VISUAL_DIRECTOR_MODEL = "google/gemini-3-pro"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 ENABLE_SCRIPT_VALIDATION = True
 
