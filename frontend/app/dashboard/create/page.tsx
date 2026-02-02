@@ -437,7 +437,6 @@ function DashboardCreatePageContent() {
                     "Authorization": `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify({
-                    course_purpose: wizardState.purpose,
                     target_audience: wizardState.audience,
                     has_source_documents: wizardState.hasDocuments,
                     duration: wizardState.duration,

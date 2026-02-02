@@ -30,6 +30,9 @@ You are a World-Class Instructional Designer and Video Director.
 Your task is to assign the optimal VISUAL FORMAT for each slide to maximize learning retention and engagement.
 
 AVAILABLE FORMATS:
+
+--- STANDARD LAYOUTS ---
+
 1. "hybrid" (Image + Kinetic Text): 
    - BEST FOR: Complex concepts needing a metaphor + definition.
    - Layout: Image on Right, Kinetic Text on Left.
@@ -50,23 +53,56 @@ AVAILABLE FORMATS:
    - Layout: Large, animated typography.
    - Use for emphasis or when no visual metaphor is strong enough.
 
+--- SPECIALIZED LAYOUTS (Use for specific content patterns) ---
+
+5. "contextual_overlay" (Full-Screen Background with Glassmorphism Text):
+   - BEST FOR: Introductions, section headers, topic transitions, or setting environmental context.
+   - Layout: AI-generated full-screen background with semi-transparent text overlay.
+   - TRIGGER PATTERNS: "Welcome to...", "In this section...", "Let's explore...", section intros, topic overviews.
+   - Use when you want to establish mood/environment while presenting a headline.
+
+6. "comparison_split" (Do This vs. Not That Split-Screen):
+   - BEST FOR: Dos and Don'ts, binary choices, compliant vs. non-compliant, pros vs. cons.
+   - Layout: Vertical split-screen. Left=negative (red tint), Right=positive (green tint).
+   - TRIGGER PATTERNS: "Do/Don't", "vs", "instead of", "rather than", "correct/incorrect", "right/wrong", "compliant/non-compliant".
+   - Use when content presents a clear binary choice or contrast between two actions.
+
+7. "document_anchor" (Legal Quote / Source Citation):
+   - BEST FOR: Quoting specific legal clauses, policy citations, regulations, or official documents.
+   - Layout: Document page visual on one side, highlighted verbatim quote on the other.
+   - TRIGGER PATTERNS: "Article X", "Section Y", "According to the policy", "The regulation states", quotes with specific sources, GDPR, legal citations.
+   - Use when building authority by showing exactly where a rule comes from.
+
+8. "key_stat_breakout" (Large Statistic Display):
+   - BEST FOR: Statistics, percentages, monetary figures, key metrics, success rates.
+   - Layout: Large number/percentage (50-60% of screen) with context label below.
+   - TRIGGER PATTERNS: Specific numbers like "45%", "$2.5M", "3x increase", "90% of employees", "within 24 hours".
+   - Use when a single statistic is the main takeaway of the slide.
+
 RULES:
 - "Process" language ("steps", "stages", "flow") MUST be a "chart".
-- lists of 3+ items should be a "chart" (List view).
+- Lists of 3+ items should be a "chart" (List view).
 - Emotional/Scenario content works best as "image".
 - Key definitions work best as "hybrid" or "kinetic_text".
 - Use "kinetic_text" for strong, short statements (quotes, warnings, key facts).
-- NEVER assign "chart" to two consecutive slides - if content needs chart, use "hybrid" or "kinetic_text" for adjacent slides.
+- NEVER assign "chart" to two consecutive slides.
+- NEVER assign "document_anchor" or "key_stat_breakout" to two consecutive slides.
 - DIVERSIFY: Avoid using the same format for more than 2 slides in a row.
+- PRIORITIZE specialized layouts when content clearly matches their trigger patterns.
+- When a slide contains a prominent statistic, prefer "key_stat_breakout" over "chart".
+- When quoting official sources verbatim, prefer "document_anchor" over "kinetic_text".
 
 INPUT SLIDES:
 {json.dumps(slides_context, indent=2)}
 
 OUTPUT (JSON):
 [
-  {{ "id": 1, "type": "image", "reason": "Opening scene setting" }},
-  {{ "id": 2, "type": "hybrid", "reason": "Defining the core concept" }}
+  {{ "id": 1, "type": "contextual_overlay", "reason": "Section introduction" }},
+  {{ "id": 2, "type": "key_stat_breakout", "reason": "45% statistic is the key takeaway", "layout_data": {{ "stat_value": "45%", "stat_label": "reduction in incidents" }} }},
+  {{ "id": 3, "type": "comparison_split", "reason": "Do vs Don't comparison", "layout_data": {{ "left_label": "Don't", "left_text": "Share passwords", "right_label": "Do", "right_text": "Use password manager" }} }}
 ]
+
+IMPORTANT: For specialized layouts (contextual_overlay, comparison_split, document_anchor, key_stat_breakout), include a "layout_data" object with the required fields for that layout type.
 """
         try:
             res_text = replicate_chat_completion(
@@ -81,12 +117,19 @@ OUTPUT (JSON):
             directive_map = {d["id"]: d for d in directives}
             
             enriched_script = []
-            type_counts = {"image": 0, "hybrid": 0, "kinetic_text": 0, "chart": 0}
+            type_counts = {
+                "image": 0, "hybrid": 0, "kinetic_text": 0, "chart": 0,
+                "contextual_overlay": 0, "comparison_split": 0, 
+                "document_anchor": 0, "key_stat_breakout": 0
+            }
             for idx, slide in enumerate(script_data):
                 slide_id = idx + 1  # Use 1-based index to match AI response
                 d = directive_map.get(slide_id, {"type": "image"})
                 slide["visual_type"] = d.get("type", "image")
                 slide["visual_reason"] = d.get("reason", "")
+                # Extract layout_data for specialized layouts
+                if d.get("layout_data"):
+                    slide["layout_data"] = d["layout_data"]
                 enriched_script.append(slide)
                 # Track type distribution
                 vtype = slide["visual_type"]

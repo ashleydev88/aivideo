@@ -161,11 +161,36 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     );
 
     // Vertical stack (hierarchy, funnel, pyramid)
+    // Dynamically scales based on node count to prevent overflow
     const renderVerticalStack = () => {
         const isFunnelOrPyramid = archetype === 'funnel' || archetype === 'pyramid';
+        const nodeCount = nodes.length;
+
+        // Calculate scale factor to fit all nodes within available height
+        // Available height: ~700px (1080 - title - padding - margins)
+        // Base node height: ~120px + 24px gap = 144px per node
+        const availableHeight = 700;
+        const baseNodeHeight = 144;
+        const requiredHeight = nodeCount * baseNodeHeight;
+        const scaleFactor = Math.min(1, availableHeight / requiredHeight);
+
+        // Apply minimum scale to maintain readability
+        const clampedScale = Math.max(0.6, scaleFactor);
+
+        // Scaled values
+        const gap = Math.round(24 * clampedScale);
+        const padding = Math.round(32 * clampedScale);
+        const iconContainerPadding = Math.round(16 * clampedScale);
+        const iconSize = Math.round(40 * clampedScale);
+        const labelFontSize = Math.round(30 * clampedScale);
+        const descFontSize = Math.round(20 * clampedScale);
+        const borderRadius = Math.round(16 * clampedScale);
 
         return (
-            <div className="flex flex-col items-center justify-center gap-6 w-full max-w-6xl">
+            <div
+                className="flex flex-col items-center justify-center w-full max-w-6xl"
+                style={{ gap: `${gap}px`, maxHeight: '100%' }}
+            >
                 {nodes.map((node, i) => {
                     const widthPercent = isFunnelOrPyramid
                         ? (archetype === 'funnel' ? 100 - (i * 12) : 100 - (i * 15))
@@ -175,24 +200,39 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     return (
                         <div
                             key={node.id}
-                            className="bg-white rounded-2xl shadow-md p-8 flex items-center gap-8 border-l-8"
+                            className="bg-white shadow-md flex items-center border-l-8 flex-shrink-0"
                             style={{
                                 width: `${widthPercent}%`,
-                                borderLeftColor: color
+                                borderLeftColor: color,
+                                padding: `${padding}px`,
+                                gap: `${padding}px`,
+                                borderRadius: `${borderRadius}px`,
                             }}
                         >
-                            <div className="p-4 rounded-xl" style={{ backgroundColor: color + '20' }}>
-                                {React.createElement(getIcon(node.data.icon), { size: 40, color })}
+                            <div
+                                className="rounded-xl flex-shrink-0"
+                                style={{
+                                    backgroundColor: color + '20',
+                                    padding: `${iconContainerPadding}px`,
+                                }}
+                            >
+                                {React.createElement(getIcon(node.data.icon), { size: iconSize, color })}
                             </div>
-                            <div className="w-full">
+                            <div className="w-full min-w-0">
                                 {onUpdate ? (
                                     <input
                                         value={node.data.label}
                                         onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                        className="font-bold text-slate-800 text-3xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                        className="font-bold text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                        style={{ fontSize: `${labelFontSize}px` }}
                                     />
                                 ) : (
-                                    <h4 className="font-bold text-slate-800 text-3xl">{node.data.label}</h4>
+                                    <h4
+                                        className="font-bold text-slate-800"
+                                        style={{ fontSize: `${labelFontSize}px` }}
+                                    >
+                                        {node.data.label}
+                                    </h4>
                                 )}
 
                                 {(node.data.description || onUpdate) && (
@@ -200,11 +240,17 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                         <input
                                             value={node.data.description || ''}
                                             onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
-                                            className="text-xl text-slate-500 mt-1 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                            className="text-slate-500 mt-1 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                            style={{ fontSize: `${descFontSize}px` }}
                                             placeholder="Description"
                                         />
                                     ) : (
-                                        <p className="text-xl text-slate-500 line-clamp-2 mt-1">{node.data.description}</p>
+                                        <p
+                                            className="text-slate-500 line-clamp-2 mt-1"
+                                            style={{ fontSize: `${descFontSize}px` }}
+                                        >
+                                            {node.data.description}
+                                        </p>
                                     )
                                 )}
                             </div>
@@ -216,49 +262,98 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     };
 
     // Grid layout (grid, comparison)
-    const renderGrid = () => (
-        <div className="grid grid-cols-2 gap-12 w-full max-w-7xl px-6">
-            {nodes.map((node) => {
-                const color = getVariantColor(node.data.variant, accentColor);
-                return (
-                    <div
-                        key={node.id}
-                        className="bg-white p-8 rounded-3xl shadow-lg flex items-start gap-8 border-l-8"
-                        style={{ borderLeftColor: color }}
-                    >
-                        <div className="p-5 rounded-2xl" style={{ backgroundColor: color + '15' }}>
-                            {React.createElement(getIcon(node.data.icon), { size: 48, color })}
-                        </div>
-                        <div className="w-full">
-                            {onUpdate ? (
-                                <input
-                                    value={node.data.label}
-                                    onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                    className="text-3xl font-bold text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
-                                />
-                            ) : (
-                                <h4 className="text-3xl font-bold text-slate-800">{node.data.label}</h4>
-                            )}
+    // Dynamically scales based on node count to prevent overflow
+    const renderGrid = () => {
+        const nodeCount = nodes.length;
+        const rowCount = Math.ceil(nodeCount / 2);
 
-                            {(node.data.description || onUpdate) && (
-                                onUpdate ? (
-                                    <textarea
-                                        value={node.data.description || ''}
-                                        onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
-                                        className="text-xl text-slate-500 mt-2 leading-relaxed bg-transparent w-full resize-none outline-none focus:bg-slate-50 rounded"
-                                        rows={2}
-                                        placeholder="Description"
+        // Calculate scale factor based on available height
+        // Available height: ~700px, base row height: ~200px + 48px gap
+        const availableHeight = 700;
+        const baseRowHeight = 248;
+        const requiredHeight = rowCount * baseRowHeight;
+        const scaleFactor = Math.min(1, availableHeight / requiredHeight);
+        const clampedScale = Math.max(0.5, scaleFactor);
+
+        // Scaled values
+        const gap = Math.round(48 * clampedScale);
+        const padding = Math.round(32 * clampedScale);
+        const iconContainerPadding = Math.round(20 * clampedScale);
+        const iconSize = Math.round(48 * clampedScale);
+        const labelFontSize = Math.round(30 * clampedScale);
+        const descFontSize = Math.round(20 * clampedScale);
+        const borderRadius = Math.round(24 * clampedScale);
+
+        return (
+            <div
+                className="grid grid-cols-2 w-full max-w-7xl px-6"
+                style={{ gap: `${gap}px` }}
+            >
+                {nodes.map((node) => {
+                    const color = getVariantColor(node.data.variant, accentColor);
+                    return (
+                        <div
+                            key={node.id}
+                            className="bg-white shadow-lg flex items-start border-l-8"
+                            style={{
+                                borderLeftColor: color,
+                                padding: `${padding}px`,
+                                gap: `${padding}px`,
+                                borderRadius: `${borderRadius}px`,
+                            }}
+                        >
+                            <div
+                                className="rounded-2xl flex-shrink-0"
+                                style={{
+                                    backgroundColor: color + '15',
+                                    padding: `${iconContainerPadding}px`,
+                                }}
+                            >
+                                {React.createElement(getIcon(node.data.icon), { size: iconSize, color })}
+                            </div>
+                            <div className="w-full min-w-0">
+                                {onUpdate ? (
+                                    <input
+                                        value={node.data.label}
+                                        onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
+                                        className="font-bold text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
+                                        style={{ fontSize: `${labelFontSize}px` }}
                                     />
                                 ) : (
-                                    <p className="text-xl text-slate-500 mt-2 leading-relaxed">{node.data.description}</p>
-                                )
-                            )}
+                                    <h4
+                                        className="font-bold text-slate-800"
+                                        style={{ fontSize: `${labelFontSize}px` }}
+                                    >
+                                        {node.data.label}
+                                    </h4>
+                                )}
+
+                                {(node.data.description || onUpdate) && (
+                                    onUpdate ? (
+                                        <textarea
+                                            value={node.data.description || ''}
+                                            onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
+                                            className="text-slate-500 mt-2 leading-relaxed bg-transparent w-full resize-none outline-none focus:bg-slate-50 rounded"
+                                            style={{ fontSize: `${descFontSize}px` }}
+                                            rows={2}
+                                            placeholder="Description"
+                                        />
+                                    ) : (
+                                        <p
+                                            className="text-slate-500 mt-2 leading-relaxed line-clamp-2"
+                                            style={{ fontSize: `${descFontSize}px` }}
+                                        >
+                                            {node.data.description}
+                                        </p>
+                                    )
+                                )}
+                            </div>
                         </div>
-                    </div>
-                );
-            })}
-        </div>
-    );
+                    );
+                })}
+            </div>
+        );
+    };
 
     // Statistics display
     const renderStats = () => (

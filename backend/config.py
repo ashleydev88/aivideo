@@ -154,91 +154,78 @@ DURATION_STRATEGIES = {
     }
 }
 
-# --- INSTRUCTIONAL STRATEGIES BY COURSE PURPOSE ---
-# These drive how the AI structures content and selects examples based on the course intent
+# --- AUDIENCE STRATEGIES ---
+# Unified configuration for the 3 audience types
+# Each audience carries tone, structure, and extraction hints
 
-INSTRUCTIONAL_STRATEGIES = {
-    "onboarding": {
+AUDIENCE_STRATEGIES = {
+    "new_hires": {
+        "display_name": "New Hires",
         "tone": "welcoming, encouraging, supportive",
-        "structure": "progressive disclosure - start simple, build complexity",
-        "emphasis": ["relevance to the new role", "core principles", "where to get help", "support resources"],
-        "example_types": "new starter scenarios, first-time situations",
-        "narrative_style": "You're joining a supportive team. Here's what you need to know to succeed.",
-        "call_to_action": "Ask questions, reach out to your team, explore resources"
+        "structure": "progressive disclosure - start simple, build familiarity",
+        "emphasis": ["relevance to new role", "core principles", "where to get help", "support resources"],
+        "example_types": "first-time scenarios, common new starter questions",
+        "narrative_style": "Welcome to the team. Here's what you need to know to get started.",
+        "call_to_action": "Ask questions, reach out to your manager, explore resources",
+        "language_level": "accessible, jargon-free, encouraging",
+        "focus_areas": [
+            "what this means for you as a new starter",
+            "basic procedures to follow",
+            "who to contact for help",
+            "key terms and definitions explained simply",
+            "timelines and expectations",
+            "support and resources available"
+        ],
+        "extraction_prompt": "Focus on what a new employee needs to know on day one. Extract foundational concepts, key contacts, and simple procedures. Keep it welcoming and not overwhelming."
     },
-    "compliance_training": {
-        "tone": "authoritative, clear, serious but not intimidating",
-        "structure": "rule-consequence-procedure - state requirement, explain why, show how to comply",
-        "emphasis": ["non-negotiable requirements", "consequences of non-compliance", "reporting procedures", "correct actions"],
-        "example_types": "policy violation scenarios with outcomes, correct vs incorrect actions",
-        "narrative_style": "This is required. Here's why it matters and exactly what you must do.",
-        "call_to_action": "Report concerns, document everything, escalate when unsure"
+    "all_employees": {
+        "display_name": "All Employees",
+        "tone": "clear, authoritative, professional but approachable",
+        "structure": "rule-consequence-action - state requirement, explain why, show how to comply",
+        "emphasis": ["mandatory requirements", "consequences of non-compliance", "correct actions", "reporting procedures"],
+        "example_types": "common scenarios, policy violations with outcomes, correct vs incorrect actions",
+        "narrative_style": "This is what you need to know and do. Here's why it matters.",
+        "call_to_action": "Follow the process, report concerns, document everything",
+        "language_level": "accessible with key terms explained",
+        "focus_areas": [
+            "your rights and responsibilities",
+            "step-by-step procedures to follow",
+            "how to report issues or concerns",
+            "what to expect during processes",
+            "timelines and deadlines",
+            "consequences of non-compliance"
+        ],
+        "extraction_prompt": "Focus on what every employee must know and do. Extract mandatory requirements, procedures, rights, and consequences. Keep it clear and actionable."
     },
-    "leadership_development": {
-        "tone": "empowering, reflective, challenging",
+    "leadership": {
+        "display_name": "Leadership",
+        "tone": "empowering, strategic, challenging",
         "structure": "challenge-framework-application - present dilemma, provide model, practice applying",
-        "emphasis": ["strategic application", "decision-making frameworks", "impact on team/organization"],
-        "example_types": "leadership dilemmas, complex decision points, strategic choices",
-        "narrative_style": "Great leaders aren't born—they're developed. Let's build your capabilities.",
-        "call_to_action": "Reflect on your style, practice with your team, seek feedback"
-    },
-    "business_case": {
-        "tone": "persuasive, data-driven, confident",
-        "structure": "problem-solution-benefits - pain point, proposed solution, measurable outcomes",
-        "emphasis": ["ROI and value", "competitive advantage", "risk mitigation", "implementation feasibility"],
-        "example_types": "success metrics, before/after comparisons, value propositions",
-        "narrative_style": "Here's the opportunity and exactly why we should act now.",
-        "call_to_action": "Approve the investment, support the initiative, champion the change"
-    },
-    "custom": {
-        "tone": "professional, clear, engaging",
-        "structure": "flexible - adapt to content",
-        "emphasis": ["key concepts", "practical application", "next steps"],
-        "example_types": "relevant scenarios based on content",
-        "narrative_style": "Let's explore this topic together.",
-        "call_to_action": "Apply what you've learned"
+        "emphasis": ["decision-making authority", "team implementation", "escalation procedures", "oversight responsibilities"],
+        "example_types": "leadership dilemmas, complex decisions, edge cases, team scenarios",
+        "narrative_style": "As a leader, here's how you implement, enforce, and make decisions.",
+        "call_to_action": "Lead by example, coach your team, escalate when appropriate",
+        "language_level": "professional, managerial vocabulary",
+        "focus_areas": [
+            "your responsibilities as a manager/leader",
+            "how to conduct procedures and conversations",
+            "decision-making authority and limits",
+            "when and how to escalate",
+            "documentation requirements",
+            "team communication",
+            "handling exceptions and edge cases"
+        ],
+        "extraction_prompt": "Focus on what managers and leaders need to implement and enforce this policy. Extract procedural responsibilities, decision frameworks, escalation paths, and team management guidance."
     }
 }
 
-# --- AUDIENCE ADAPTATIONS ---
-# These modify language level, jargon, and focus based on who is watching
-
-AUDIENCE_ADAPTATIONS = {
-    "employees": {
-        "language_level": "accessible, everyday language",
-        "jargon": "minimal - explain any technical terms",
-        "focus": "practical application, what to do day-to-day",
-        "assumed_knowledge": "general workplace awareness",
-        "examples": "frontline scenarios, individual contributor situations"
-    },
-    "line_managers": {
-        "language_level": "professional, managerial vocabulary",
-        "jargon": "moderate - standard business terms acceptable",
-        "focus": "team implementation, oversight responsibilities, escalation procedures",
-        "assumed_knowledge": "people management basics, company structure",
-        "examples": "team situations, performance conversations, delegation scenarios"
-    },
-    "senior_leadership": {
-        "language_level": "executive, strategic vocabulary",
-        "jargon": "industry-standard terminology expected",
-        "focus": "strategic implications, governance, organizational impact",
-        "assumed_knowledge": "business operations, market dynamics, regulatory landscape",
-        "examples": "board-level decisions, cross-functional initiatives, stakeholder management"
-    },
-    "executives": {
-        "language_level": "C-suite, investor-ready",
-        "jargon": "full business fluency assumed",
-        "focus": "shareholder value, competitive positioning, risk exposure",
-        "assumed_knowledge": "deep business acumen, industry expertise",
-        "examples": "market-moving decisions, M&A scenarios, investor communications"
-    },
-    "mixed": {
-        "language_level": "clear and accessible, with depth for those who want it",
-        "jargon": "explain on first use, then use naturally",
-        "focus": "balanced - principles for all, specifics for specialists",
-        "assumed_knowledge": "varied - layer content appropriately",
-        "examples": "range of scenarios from individual to organizational"
-    }
+# Legacy mapping for backward compatibility with existing courses
+AUDIENCE_LEGACY_MAP = {
+    "employees": "all_employees",
+    "line_managers": "leadership",
+    "senior_leadership": "leadership",
+    "executives": "leadership",
+    "mixed": "all_employees"
 }
 
 # --- UPLOAD LIMITS ---

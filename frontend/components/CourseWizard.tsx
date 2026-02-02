@@ -22,11 +22,9 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Types corresponding to backend
-type CoursePurpose = "onboarding" | "compliance_training" | "leadership_development" | "business_case" | "custom";
-type TargetAudience = "employees" | "line_managers" | "senior_leadership" | "executives" | "mixed";
+type TargetAudience = "new_hires" | "all_employees" | "leadership";
 
 interface WizardState {
-    purpose: CoursePurpose | null;
     audience: TargetAudience | null;
     hasDocuments: boolean | null;
     documents: File[];
@@ -52,7 +50,6 @@ interface CourseWizardProps {
 
 const STEPS = [
     "WELCOME",
-    "PURPOSE",
     "AUDIENCE",
     "DOCUMENTS_CHECK",
     "DOCUMENTS_UPLOAD",
@@ -71,7 +68,6 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
     const [isTyping, setIsTyping] = useState(false);
 
     const [state, setState] = useState<WizardState>({
-        purpose: null,
         audience: null,
         hasDocuments: null,
         documents: [],
@@ -101,8 +97,8 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
             hasInitialized.current = true;
             addBotMessage("Hi there! I'm your AI Instructional Designer.", "WELCOME");
             setTimeout(() => {
-                addBotMessage("I can help you build a high-impact video course. To get started, what is the primary purpose of video course?", "PURPOSE");
-                setCurrentStep("PURPOSE");
+                addBotMessage("I can help you build a high-impact video course. Who is this training for?", "AUDIENCE");
+                setCurrentStep("AUDIENCE");
             }, 800);
         }
     }, []);
@@ -131,20 +127,11 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
         }]);
     };
 
-    // --- Handlers ---
-
-    const handlePurposeSelect = (purpose: CoursePurpose, label: string) => {
-        addUserMessage(label);
-        setState(prev => ({ ...prev, purpose }));
-        setCurrentStep("AUDIENCE");
-        addBotMessage("Got it. And who is the target audience for this course?", "AUDIENCE");
-    };
-
     const handleAudienceSelect = (audience: TargetAudience, label: string) => {
         addUserMessage(label);
         setState(prev => ({ ...prev, audience }));
         setCurrentStep("DOCUMENTS_CHECK");
-        addBotMessage("Do you have existing source documents (PDFs, Policies) you'd like me to base the content on?", "DOCUMENTS_CHECK");
+        addBotMessage("Great choice! Do you have existing source documents (PDFs, Policies) you'd like me to base the content on?", "DOCUMENTS_CHECK");
     };
 
     const handleDocumentCheck = (hasDocs: boolean) => {
@@ -189,55 +176,27 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
         if (isTyping) return null;
 
         switch (currentStep) {
-            case "PURPOSE":
+            case "AUDIENCE":
                 return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="grid grid-cols-1 gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <OptionCard
-                            icon={<CheckCircle2 className="w-5 h-5 text-emerald-500" />}
-                            title="Onboarding"
-                            desc="Welcome new hires with culture & basics"
-                            onClick={() => handlePurposeSelect("onboarding", "Onboarding")}
+                            icon={<User className="w-5 h-5 text-emerald-500" />}
+                            title="New Hires"
+                            desc="Welcome & orientation - accessible introduction for new starters"
+                            onClick={() => handleAudienceSelect("new_hires", "New Hires")}
                         />
                         <OptionCard
-                            icon={<Briefcase className="w-5 h-5 text-blue-500" />}
-                            title="Compliance Training"
-                            desc="Mandatory policies, safety, & regulation"
-                            onClick={() => handlePurposeSelect("compliance_training", "Compliance Training")}
+                            icon={<CheckCircle2 className="w-5 h-5 text-blue-500" />}
+                            title="All Employees"
+                            desc="Company-wide training - clear requirements and actions for everyone"
+                            onClick={() => handleAudienceSelect("all_employees", "All Employees")}
                         />
                         <OptionCard
                             icon={<Target className="w-5 h-5 text-purple-500" />}
-                            title="Leadership Development"
-                            desc="Soft skills, management & strategy"
-                            onClick={() => handlePurposeSelect("leadership_development", "Leadership Development")}
+                            title="Leadership"
+                            desc="Managers & Leaders - implementation, decisions, and team guidance"
+                            onClick={() => handleAudienceSelect("leadership", "Leadership")}
                         />
-                        <OptionCard
-                            icon={<FileText className="w-5 h-5 text-orange-500" />}
-                            title="Business Case"
-                            desc="Proposals, pitches & project updates"
-                            onClick={() => handlePurposeSelect("business_case", "Business Case")}
-                        />
-                    </div>
-                );
-
-            case "AUDIENCE":
-                return (
-                    <div className="flex flex-wrap gap-3 animate-in fade-in slide-in-from-bottom-4">
-                        {[
-                            { id: "employees", label: "All Employees" },
-                            { id: "line_managers", label: "Line Managers" },
-                            { id: "senior_leadership", label: "Senior Leadership" },
-                            { id: "executives", label: "Executives" },
-                            { id: "mixed", label: "Mixed Audience" }
-                        ].map(opt => (
-                            <Button
-                                key={opt.id}
-                                variant="outline"
-                                onClick={() => handleAudienceSelect(opt.id as TargetAudience, opt.label)}
-                                className="rounded-full hover:border-teal-500 hover:text-teal-600 hover:bg-teal-50"
-                            >
-                                {opt.label}
-                            </Button>
-                        ))}
                     </div>
                 );
 
@@ -338,10 +297,6 @@ export default function CourseWizard({ onComplete, isLoading = false }: CourseWi
                 return (
                     <div className="animate-in fade-in slide-in-from-bottom-4">
                         <div className="bg-slate-50 p-4 rounded-lg mb-4 text-sm space-y-2 border">
-                            <div className="flex justify-between">
-                                <span className="text-slate-500">Purpose:</span>
-                                <span className="font-medium capitalize">{state.purpose?.replace('_', ' ')}</span>
-                            </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-500">Audience:</span>
                                 <span className="font-medium capitalize">{state.audience?.replace('_', ' ')}</span>
