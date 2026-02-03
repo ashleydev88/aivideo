@@ -34,16 +34,16 @@ export function Notifications() {
             if (!session) return;
 
             try {
-                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-                const res = await fetch(`${API_BASE_URL}/api/course/courses`, {
-                    headers: {
-                        Authorization: `Bearer ${session.access_token}`,
-                    },
-                });
+                const { data: courses, error } = await supabase
+                    .from("courses")
+                    .select("*")
+                    .order("created_at", { ascending: false });
 
-                if (!res.ok) return;
+                if (error) {
+                    console.error("Error fetching courses from DB:", error);
+                    return;
+                }
 
-                const courses = await res.json();
                 if (!courses) return;
 
                 const newNotifications: NotificationItem[] = [];

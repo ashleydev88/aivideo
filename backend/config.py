@@ -221,14 +221,17 @@ AUDIENCE_STRATEGIES = {
     }
 }
 
-# Legacy mapping for backward compatibility with existing courses
+# --- AUDIENCE LEGACY MAP ---
 AUDIENCE_LEGACY_MAP = {
-    "employees": "all_employees",
-    "line_managers": "leadership",
-    "senior_leadership": "leadership",
-    "executives": "leadership",
-    "mixed": "all_employees"
+    "New Hires": "new_hires",
+    "All Employees": "all_employees",
+    "Leadership": "leadership",
+    # Mappings for potential older values
+    "Employees": "all_employees",
+    "Executives": "leadership",
+    "Management": "leadership"
 }
+
 
 # --- UPLOAD LIMITS ---
 # Constraints for document uploads during intake

@@ -87,6 +87,29 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
     const { visual_type, layout, image, chart_data } = slide;
     const [resolvedImage, setResolvedImage] = useState<string | null>(null);
     const [isHovering, setIsHovering] = useState(false);
+    const [brandColor, setBrandColor] = useState<string | null>(null);
+
+    // Fetch Brand Colour
+    useEffect(() => {
+        const fetchBrandColor = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('brand_colour')
+                    .eq('id', user.id)
+                    .single();
+                if (profile?.brand_colour) {
+                    setBrandColor(profile.brand_colour);
+                }
+            }
+        };
+        fetchBrandColor();
+    }, []);
+
+    // Effective Accent Color: Brand Color overrides Slide Accent Color
+    const effectiveAccentColor = brandColor || slide.accent_color || '#14b8a6';
 
     // Resolve Image URL (Path -> Signed URL)
     useEffect(() => {
@@ -319,8 +342,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     <BackgroundEditTrigger className="w-full h-full">
                         <MotionGraphPreview
                             data={graphData}
-                            accentColor={slide.accent_color}
-                            backgroundColor={slide.background_color}
+                            accentColor={effectiveAccentColor}
+                            backgroundColor={visual_type === 'contextual_overlay' && brandColor ? brandColor : slide.background_color} // Contextual Overlay uses brand color bg
                             textColor={slide.text_color}
                             backgroundImage={resolvedImage}
                             onUpdate={visual_type === 'chart' ? onChartUpdate : undefined} // Only allow chart editing for now, complex types generated from layout_data
@@ -349,7 +372,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                                 .ProseMirror p { margin-bottom: 0.5em; }
                                 .ProseMirror ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
                                 .ProseMirror li { margin-bottom: 0.5em; }
-                                .ProseMirror strong { color: ${slide.accent_color || '#14b8a6'} !important; }
+                                .ProseMirror strong { color: ${effectiveAccentColor} !important; }
                              `}</style>
                             {onTextChange ? (
                                 <RichTextEditor
@@ -451,8 +474,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     <div
                         className="h-full w-[55%] relative z-10 pointer-events-auto flex flex-col justify-center p-24 shadow-2xl"
                         style={{
-                            background: `linear-gradient(135deg, ${baseColor} 0%, ${baseColor} 60%, transparent 100%)`, // Gradient fades out slightly at edge
-                            backgroundColor: baseColor, // Fallback
+                            background: `linear-gradient(135deg, ${brandColor || baseColor} 0%, ${brandColor || baseColor} 60%, transparent 100%)`, // Use brand color if available
+                            backgroundColor: brandColor || baseColor, // Fallback
                             clipPath: 'url(#hybrid-curve-clip)'
                         }}
                     >
@@ -487,7 +510,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                                         }
                                         .ProseMirror ul { list-style-type: disc; padding-left: 1.2em; }
                                         .ProseMirror li { margin-bottom: 0.4em; font-size: 1.3em; }
-                                        .ProseMirror strong { color: ${slide.accent_color || '#14b8a6'} !important; }
+                                        .ProseMirror strong { color: ${effectiveAccentColor} !important; }
                                      `}</style>
                                     {onTextChange ? (
                                         <RichTextEditor

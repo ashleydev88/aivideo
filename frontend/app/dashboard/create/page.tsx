@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { CheckCircle2, PlayCircle } from 'lucide-react';
 import CourseWizard from '@/components/CourseWizard';
-import PlanningEditor from '@/components/PlanningEditor';
+// PlanningEditor removed (unused)
 
 import { createClient } from '@/lib/supabase/client';
+
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCourseGeneration } from '@/lib/CourseGenerationContext';
@@ -310,7 +311,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, logoInfo }:
 
 // --- MAIN PAGE ---
 function DashboardCreatePageContent() {
-    const [view, setView] = useState<"setup" | "planning" | "designing">("setup");
+    const [view, setView] = useState<"setup" | "designing">("setup");
     const [isLoading, setIsLoading] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const router = useRouter();
@@ -332,6 +333,7 @@ function DashboardCreatePageContent() {
     const [logoCrop, setLogoCrop] = useState<any>(null);
     const [accentColor, setAccentColor] = useState("#14b8a6"); // Default teal
     const [colorName, setColorName] = useState("teal");
+    const [brandDefaultColor, setBrandDefaultColor] = useState<string | null>(null);
 
     // Status State
     const [statusText, setStatusText] = useState("Initializing...");
@@ -368,6 +370,19 @@ function DashboardCreatePageContent() {
             if (session?.user?.user_metadata?.location_preference) {
                 setCountry(session.user.user_metadata.location_preference as "USA" | "UK");
             }
+
+            // Fetch Brand Colour if session exists
+            if (session?.user) {
+                supabase.from('profiles')
+                    .select('brand_colour')
+                    .eq('id', session.user.id)
+                    .single()
+                    .then(({ data }) => {
+                        if (data?.brand_colour) {
+                            setBrandDefaultColor(data.brand_colour);
+                        }
+                    });
+            }
         });
 
         const {
@@ -393,24 +408,6 @@ function DashboardCreatePageContent() {
         }
     }, [initialId, session]);
 
-    // PREVENT NAVIGATING AWAY WHEN IN PLANNING MODE
-    useEffect(() => {
-        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-            if (view === "planning") {
-                e.preventDefault();
-                e.returnValue = ''; // Chrome requires returnValue to be set
-                return '';
-            }
-        };
-
-        if (view === "planning") {
-            window.addEventListener("beforeunload", handleBeforeUnload);
-        }
-
-        return () => {
-            window.removeEventListener("beforeunload", handleBeforeUnload);
-        };
-    }, [view]);
 
 
 
@@ -593,7 +590,12 @@ function DashboardCreatePageContent() {
                                 Let's build a high-impact video course together. Just answer a few questions to get started.
                             </p>
                         </div>
-                        <CourseWizard onComplete={handleWizardComplete} isLoading={isLoading} country={country} />
+                        <CourseWizard
+                            onComplete={handleWizardComplete}
+                            isLoading={isLoading}
+                            country={country}
+                            brandColor={brandDefaultColor}
+                        />
                     </div>
                 )}
 
