@@ -48,7 +48,7 @@ import asyncio
 class LogicExtractor:
     """
     Extracts semantic logic from text and returns a MotionGraph structure.
-    Uses DeepSeek V3 via Replicate (same as other AI features).
+    Uses the AI pipeline via Replicate (same as other AI features).
     """
     
     def __init__(self):
@@ -56,7 +56,7 @@ class LogicExtractor:
 
     async def extract_from_text(self, text: str) -> MotionGraph:
         """
-        Parses raw text and returns a semantic MotionGraph using Deepseek V3 via Replicate.
+        Parses raw text and returns a semantic MotionGraph using the AI pipeline via Replicate.
         """
         print("   📊 Logic Extraction: Analyzing text for visualization structure...")
 
@@ -162,7 +162,7 @@ ICON EXAMPLES: "shield", "alert-triangle", "check-circle", "users", "file-text",
         return MotionGraph(
             id=str(uuid.uuid4()),
             archetype="process",
-            metadata={"title": "Mock Process (No API Key)", "description": "Deepseek setup incomplete"},
+            metadata={"title": "Mock Process (No API Key)", "description": "AI pipeline setup incomplete"},
             nodes=[
                 MotionNode(
                     id="step-1", 

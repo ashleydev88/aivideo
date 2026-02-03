@@ -62,7 +62,7 @@ def extract_policy_essence(policy_text: str) -> str:
     """
     Pre-processes long policy documents by stripping boilerplate content.
     Only runs for documents > 10,000 characters to avoid unnecessary API calls.
-    Uses DeepSeek V3 (via Replicate) for fast, cost-effective processing.
+    Uses Gemini 3 (via Replicate) for fast, cost-effective processing.
     
     PRESERVES: All rules, procedures, requirements, deadlines, consequences.
     REMOVES: Table of contents, headers, footers, revision history, generic definitions.
@@ -74,7 +74,7 @@ def extract_policy_essence(policy_text: str) -> str:
         print(f"   📄 Policy is {len(policy_text)} chars - skipping pre-processing")
         return policy_text
     
-    print(f"   🔧 Pre-processing long policy ({len(policy_text)} chars) with Gemini 3 (Replicate)...")
+    print(f"   🔧 Pre-processing long policy ({len(policy_text)} chars) via Replicate...")
     
     prompt = """You are a Policy Document Specialist. Your task is to extract ONLY the substantive policy content.
 
