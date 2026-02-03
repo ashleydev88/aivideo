@@ -212,8 +212,12 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         )
     }
 
+    // 0. SPECIALIZED TYPES DETECTION
+    const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay'];
+    const isSpecialType = specialTypes.includes(visual_type);
+
     // Fallback if no visual yet
-    if (!image && !chart_data && visual_type !== 'kinetic_text' && visual_type !== 'title_card') {
+    if (!image && !chart_data && visual_type !== 'kinetic_text' && visual_type !== 'title_card' && !isSpecialType) {
         return (
             <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
                 Drafting Visual...
@@ -326,9 +330,6 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
 
     // 1. CHART RENDERER (Including new types that map to MotionGraph)
     // Check if it's a chart OR one of our new specialized types
-    const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay'];
-    const isSpecialType = specialTypes.includes(visual_type);
-
     if ((visual_type === 'chart' && chart_data) || isSpecialType) {
 
         let graphData = chart_data;
@@ -362,8 +363,12 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         return (
             <BackgroundEditTrigger className="w-full h-full">
                 <div
-                    className="slide-preview-content w-full h-full p-8 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: slide.background_color || '#0f172a', color: slide.text_color || '#ffffff' }}
+                    className="slide-preview-content w-full h-full p-8 rounded-lg flex items-center justify-center transition-all duration-500"
+                    style={{
+                        background: `linear-gradient(135deg, ${brandColor || slide.background_color || '#0f172a'} 0%, ${isLightColor(brandColor || slide.background_color || '#0f172a') ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.4)'} 100%)`,
+                        backgroundColor: brandColor || slide.background_color || '#0f172a',
+                        color: slide.text_color || '#ffffff'
+                    }}
                 >
                     <div className="w-full text-center">
                         <style>{`
@@ -471,14 +476,11 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     {/* Right: Image Layer (Sits behind text partially) */}
                     <div className="absolute top-0 right-0 w-[60%] h-full bg-slate-800">
                         {resolvedImage ? (
-                            <>
-                                <img
-                                    src={resolvedImage}
-                                    alt={slide.prompt || "Slide Visual"}
-                                    className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-white/70" />
-                            </>
+                            <img
+                                src={resolvedImage}
+                                alt={slide.prompt || "Slide Visual"}
+                                className="w-full h-full object-cover"
+                            />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-600 p-4 text-center bg-slate-200">
                                 {image ? <div className="flex flex-col items-center gap-2"><RefreshCcw className="animate-spin h-6 w-6" /> <span className="font-bold">Loading Visual...</span></div> : "No Image"}
@@ -498,10 +500,10 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                         </svg>
 
                         <div
-                            className="h-full w-[55%] relative z-10 pointer-events-auto flex flex-col justify-center p-24 shadow-2xl"
+                            className="h-full w-[55%] relative z-10 pointer-events-auto flex flex-col justify-center p-24 shadow-2xl transition-all duration-500"
                             style={{
-                                background: `linear-gradient(135deg, ${brandColor || baseColor} 0%, ${brandColor || baseColor} 60%, transparent 100%)`, // Use brand color if available
-                                backgroundColor: brandColor || baseColor, // Fallback
+                                background: `linear-gradient(135deg, ${brandColor || baseColor} 0%, ${isLightColor(brandColor || baseColor) ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.4)'} 100%)`,
+                                backgroundColor: brandColor || baseColor,
                                 clipPath: 'url(#hybrid-curve-clip)'
                             }}
                         >

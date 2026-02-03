@@ -11,9 +11,12 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 # --- CONFIGURATION ---
-LLM_MODEL_NAME = "google/gemini-3-flash"
+LLM_MODEL_NAME = "google/gemini-3-pro"  # Primary Script Generator
 TOPIC_GENERATOR_MODEL = "google/gemini-3-pro"
 VISUAL_DIRECTOR_MODEL = "google/gemini-3-pro"
+HYBRID_GENERATOR_MODEL = "google/gemini-3-flash"
+KINETIC_GENERATOR_MODEL = "google/gemini-3-flash"
+IMAGE_PROMPT_GENERATOR_MODEL = "google/gemini-3-flash"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 ENABLE_SCRIPT_VALIDATION = True
 
@@ -103,6 +106,70 @@ PEDAGOGY_INSTRUCTIONS = {
         "CRITICAL: The narration must reference the visual structure (e.g., 'As you can see in this sequence...', 'Unlike the option on the left...')."
     )
 }
+
+# --- SPECIALIZED GENERATOR PROMPTS ---
+
+HYBRID_GENERATOR_PROMPT = """
+You are a High-End Typography Designer. 
+Your task is to take a Slide Title and Narration, and create punchy, layout-appropriate visual text for a HYBRID slide (50% image, 50% text).
+
+CONTEXT:
+Title: {title}
+Narration: {narration}
+
+RULES:
+1. Use semantic HTML focusing on impact (<h1> for headers, <strong> for emphasis).
+2. Maximum 15 words total.
+3. Anchor the text to the core action or term mentioned in the narration.
+4. Do NOT repeat the narration verbatim.
+
+OUTPUT FORMAT (JSON):
+{{
+  "visual_text": "HTML string"
+}}
+"""
+
+KINETIC_GENERATOR_PROMPT = """
+You are a Motion Graphics Text Designer.
+Your task is to create high-impact, typographic visual text for a kinetic text-only slide.
+
+CONTEXT:
+Title: {title}
+Narration: {narration}
+
+RULES:
+1. Focus on one or two powerful statements.
+2. Use <h1> for the main takeaway and <strong> for critical keywords.
+3. Maximum 10 words total.
+4. This text will be the only thing on screen, so make it count.
+
+OUTPUT FORMAT (JSON):
+{{
+  "visual_text": "HTML string"
+}}
+"""
+
+IMAGE_PROMPT_GENERATOR_PROMPT = """
+You are a Professional Diffusion Prompt Engineer.
+Your task is to take a Slide Title, Narration, and Visual Archetype, and create a high-quality, descriptive image prompt for a diffusion model (SDXL).
+
+CONTEXT:
+Title: {title}
+Narration: {narration}
+Archetype: {archetype}
+
+RULES:
+1. Focus on visual description, lighting, composition, and mood.
+2. Translate abstract concepts into concrete visual metaphors or scenes.
+3. Keep the prompt between 30-60 words.
+4. DO NOT include any text, signage, or words to be rendered in the image.
+5. Focus on the core subject and environment.
+
+OUTPUT FORMAT (JSON):
+{{
+  "prompt": "The detailed diffusion prompt"
+}}
+"""
 
 # Frameworks that change based on the course goal (Duration Strategy)
 LEARNING_ARCS = {

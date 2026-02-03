@@ -23,7 +23,7 @@ class PipelineManager:
             slides_context.append({
                 "id": idx + 1,  # Use 1-based index since slides don't have 'id' field
                 "text": slide.get("text", "")[:100] + "...", # Truncate for token efficiency
-                "visual_note": slide.get("visual_text", "")
+                "visual_note": slide.get("slide_title", "")
             })
 
         prompt = f"""

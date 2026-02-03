@@ -15,7 +15,14 @@ from backend.config import (
     ENABLE_SCRIPT_VALIDATION,
     TOPIC_GENERATOR_MODEL,
     PEDAGOGY_INSTRUCTIONS,
-    LEARNING_ARCS
+    LEARNING_ARCS,
+    LLM_MODEL_NAME,
+    HYBRID_GENERATOR_MODEL,
+    KINETIC_GENERATOR_MODEL,
+    HYBRID_GENERATOR_PROMPT,
+    KINETIC_GENERATOR_PROMPT,
+    IMAGE_PROMPT_GENERATOR_MODEL,
+    IMAGE_PROMPT_GENERATOR_PROMPT
 )
 from backend.db import supabase_admin
 from backend.services.ai import replicate_chat_completion, generate_image_replicate, extract_policy_essence
@@ -68,7 +75,7 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
             # Generate Chart Data (Logic Extraction)
             if visual_type == "chart" and not chart_data:
                 try:
-                    text_context = f"{slide.get('visual_text', '')}\n{slide['text']}"
+                    text_context = f"{slide.get('slide_title', '')}\n{slide['text']}"
                     graph_model = await logic_extractor.extract_from_text(text_context)
                     chart_data = graph_model.model_dump()
                 except Exception as e:
@@ -483,19 +490,19 @@ SOURCE MATERIAL: {context_package.get('policy_text', 'No source provided')[:3000
 
 === TASK ===
 Generate the final JSON script. For each slide in the outline:
-1. Write 'visual_text' (MAX 6 WORDS) that anchors the concept.
-2. Write 'text' (Narration) that explains the concept using the visual as a reference.
-3. Write a 'prompt' for the image generator that matches the archetype.
+1. Write 'slide_title' (Conceptual headline, max 6 words).
+2. Write 'text' (Narration) that explains the concept.
+3. Select the best 'visual_archetype' (image, chart, kinetic_text, contextual_overlay, comparison_split, document_anchor, key_stat_breakout).
 
 === VISUAL ARCHETYPE GUIDE ===
-- If explaining a workflow -> Use 'process' -> Prompt: "A clean minimalist flowchart showing step A leading to step B..."
-- If explaining a danger -> Use 'metaphor' -> Prompt: "A stormy sea or caution tape aesthetic..."
-- If listing requirements -> Use 'list' -> Prompt: "A checklist with 3 items checked off..."
-- If contrasting ideas -> Use 'comparison' -> Prompt: "Split screen, left side chaotic, right side organized..."
+- If explaining a workflow -> Use 'process'.
+- If explaining a danger -> Use 'metaphor'.
+- If listing requirements -> Use 'list'.
+- If contrasting ideas -> Use 'comparison'.
 
 === SPECIAL VISUAL RULES ===
 - For "Knowledge Check" / "Quick Check" slides:
-   - Visual Text: THE QUESTION + Options A, B, C.
+   - Slide Title: THE QUESTION.
    - Narration: Read the question. Read the options. Then say "Take a moment..." (provide a pause in wording). Then say "The correct answer is [X] because [reason]."
    - Duration: Override the default. Set duration to at least 20000 (20 seconds) to allow thinking time.
 
@@ -505,9 +512,8 @@ Generate the final JSON script. For each slide in the outline:
     {{
       "slide_number": 1,
       "visual_archetype": "contextual_overlay", 
-      "visual_text": "# {context_package['title']}",
+      "slide_title": "{context_package['title']}",
       "text": "Welcome. In the next few minutes, we will master the core safety protocols that keep you safe.",
-      "prompt": "Cinematic wide shot of a modern, clean corporate office, soft lighting, 8k resolution.",
       "duration": 12000
     }}
     // ... continue for all slides in the outline
@@ -520,7 +526,7 @@ Generate the final JSON script. For each slide in the outline:
         max_retries = 2
         
         for attempt in range(max_retries):
-            res_text = await asyncio.to_thread(replicate_chat_completion, messages=messages, max_tokens=20000)
+            res_text = await asyncio.to_thread(replicate_chat_completion, messages=messages, max_tokens=20000, model=LLM_MODEL_NAME)
             data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
             
@@ -560,6 +566,54 @@ Generate the final JSON script. For each slide in the outline:
         pipeline = PipelineManager()
         script_plan = await asyncio.to_thread(pipeline.assign_visual_types, script_plan)
         
+        # --- NEW SPECIALIZED VISUAL TEXT GENERATION ---
+        print("   ✍️ AI: Generating Specialized Visual Text...")
+        
+        async def refine_visual_text(slide):
+            vtype = slide.get("visual_type")
+            title = slide.get("slide_title", "")
+            narration = slide.get("text", "")
+            
+            if vtype == "chart":
+                slide["visual_text"] = "" # Defer to LogicExtractor
+                return slide
+            
+            if vtype == "hybrid":
+                prompt = HYBRID_GENERATOR_PROMPT.format(title=title, narration=narration)
+                res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], model=HYBRID_GENERATOR_MODEL)
+                data = extract_json_from_response(res)
+                slide["visual_text"] = data.get("visual_text", title) # Fallback to title
+                return slide
+            
+            if vtype == "kinetic_text":
+                prompt = KINETIC_GENERATOR_PROMPT.format(title=title, narration=narration)
+                res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], model=KINETIC_GENERATOR_MODEL)
+                data = extract_json_from_response(res)
+                slide["visual_text"] = data.get("visual_text", title) # Fallback to title
+                return slide
+            
+            # Default fallback for other types
+            slide["visual_text"] = title
+            return slide
+
+        async def refine_image_prompt(slide):
+            vtype = slide.get("visual_type")
+            title = slide.get("slide_title", "")
+            narration = slide.get("text", "")
+            
+            # Types that require an image prompt
+            if vtype in ["image", "hybrid", "contextual_overlay", "comparison_split"]:
+                prompt = IMAGE_PROMPT_GENERATOR_PROMPT.format(title=title, narration=narration, archetype=vtype)
+                res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], model=IMAGE_PROMPT_GENERATOR_MODEL)
+                data = extract_json_from_response(res)
+                slide["prompt"] = data.get("prompt", title) # Fallback to title
+            return slide
+
+        text_tasks = [refine_visual_text(slide) for slide in script_plan]
+        prompt_tasks = [refine_image_prompt(slide) for slide in script_plan]
+        
+        # Parallelize both text and prompt refinements
+        await asyncio.gather(*(text_tasks + prompt_tasks))
 
         
         # Generate Draft Visuals
