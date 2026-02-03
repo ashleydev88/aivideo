@@ -11,7 +11,7 @@ export const calculateLayout = async (graph: MotionGraph, width: number, height:
             'elk.algorithm': 'layered',
             'elk.direction': 'DOWN',
             'elk.padding': '[top=50,left=50,bottom=50,right=50]',
-            'elk.spacing.nodeNode': '60',
+            'elk.spacing.nodeNode': '100',
             'elk.layered.spacing.nodeNodeBetweenLayers': '80',
         };
 
@@ -88,12 +88,11 @@ export const calculateLayout = async (graph: MotionGraph, width: number, height:
     const layout = await elk.layout(elkGraph);
 
     // 3. Map positions back to MotionGraph
+    const rootWidth = (layout as any).width || width;
+    const rootHeight = (layout as any).height || height;
+
     const positionedNodes = graph.nodes.map(node => {
         const layoutNode = layout.children?.find(n => n.id === node.id);
-
-        // ELK layout returns width/height on the root node
-        const rootWidth = (layout as any).width || width;
-        const rootHeight = (layout as any).height || height;
 
         return {
             ...node,
@@ -106,6 +105,8 @@ export const calculateLayout = async (graph: MotionGraph, width: number, height:
 
     return {
         ...graph,
-        nodes: positionedNodes
+        nodes: positionedNodes,
+        layoutWidth: rootWidth,
+        layoutHeight: rootHeight
     };
 };

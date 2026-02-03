@@ -69,6 +69,7 @@ const ScaleContainer = ({ children }: { children: React.ReactNode }) => {
     return (
         <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-slate-100 flex items-center justify-center">
             <div
+                className="relative shadow-2xl"
                 style={{
                     width: 1920,
                     height: 1080,
@@ -79,7 +80,7 @@ const ScaleContainer = ({ children }: { children: React.ReactNode }) => {
             >
                 {children}
             </div>
-        </div>
+        </div >
     );
 };
 

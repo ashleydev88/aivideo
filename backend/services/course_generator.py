@@ -13,7 +13,9 @@ from backend.config import (
     STYLE_MAPPING,
     MINIMALIST_PROMPT,
     ENABLE_SCRIPT_VALIDATION,
-    TOPIC_GENERATOR_MODEL
+    TOPIC_GENERATOR_MODEL,
+    PEDAGOGY_INSTRUCTIONS,
+    LEARNING_ARCS
 )
 from backend.db import supabase_admin
 from backend.services.ai import replicate_chat_completion, generate_image_replicate, extract_policy_essence
@@ -42,7 +44,7 @@ def convert_bytes_to_webp(image_bytes: bytes) -> bytes:
 
 
 
-async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt: str, user_id: str):
+async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt: str, user_id: str, seed: int = None, protagonist: str = ""):
     """
     Phase 1 Generation: Generates Images and Charts ONLY.
     Runs before user review so they can see the visuals in the slide editor.
@@ -76,7 +78,9 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
             # Generate Image for standard layouts (image, hybrid)
             if visual_type in ["image", "hybrid"] and not image_url:
                 full_prompt = f"{style_prompt}. {slide['prompt']}"
-                image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
+                if protagonist:
+                    full_prompt += f" Featuring {protagonist}."
+                image_data = await asyncio.to_thread(generate_image_replicate, full_prompt, seed)
                 
                 if image_data:
                     # Convert to WebP
@@ -93,7 +97,7 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
                 bg_prompt = layout_data.get("background_prompt", slide.get("prompt", ""))
                 if bg_prompt:
                     full_prompt = f"{style_prompt}. {bg_prompt}. Cinematic, atmospheric, suitable as a background."
-                    image_data = await asyncio.to_thread(generate_image_replicate, full_prompt)
+                    image_data = await asyncio.to_thread(generate_image_replicate, full_prompt, seed)
                     
                     if image_data:
                         image_data = await asyncio.to_thread(convert_bytes_to_webp, image_data)
@@ -112,11 +116,15 @@ async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt
                 if left_prompt and right_prompt:
                     # Generate left (negative) image
                     left_full_prompt = f"{style_prompt}. {left_prompt}. Subtle red or warning tone."
-                    left_image_data = await asyncio.to_thread(generate_image_replicate, left_full_prompt)
+                    if protagonist:
+                         left_full_prompt += f" Featuring {protagonist}."
+                    left_image_data = await asyncio.to_thread(generate_image_replicate, left_full_prompt, seed)
                     
                     # Generate right (positive) image
                     right_full_prompt = f"{style_prompt}. {right_prompt}. Subtle green or success tone."
-                    right_image_data = await asyncio.to_thread(generate_image_replicate, right_full_prompt)
+                    if protagonist:
+                        right_full_prompt += f" Featuring {protagonist}."
+                    right_image_data = await asyncio.to_thread(generate_image_replicate, right_full_prompt, seed)
                     
                     if left_image_data and right_image_data:
                         left_image_data = await asyncio.to_thread(convert_bytes_to_webp, left_image_data)
@@ -401,82 +409,111 @@ async def generate_structure_task(course_id: str, context_package: dict, request
         topics_list = context_package['topics']
         avg_slides_per_topic = math.floor(context_package['target_slides'] / len(topics_list)) if topics_list else 3
 
-        jurisdiction_prompt = ""
-        if request.country.upper() == "UK":
-            jurisdiction_prompt = (
-                "JURISDICTION & LANGUAGE RULES:\n"
-                "- STRICTLY use British English spelling and terminology (e.g., 'colour', 'lift', 'flat', 'mobile').\n"
-                "- Reference UK specific legal frameworks (Equality Act, HSE guidelines) if laws are mentioned.\n"
-            )
+        # 1. Determine the Learning Arc based on duration/purpose
+        # Logic: Short courses are 'compliance', medium are 'skill', long are 'executive' (or map to specific duration IDs)
+        if context_package['duration'] <= 3:
+            learning_arc = LEARNING_ARCS['compliance']
+        elif context_package['duration'] <= 10:
+            learning_arc = LEARNING_ARCS['skill']
         else:
-            jurisdiction_prompt = (
-                "JURISDICTION & LANGUAGE RULES:\n"
-                "- STRICTLY use American English spelling and terminology (e.g., 'color', 'elevator', 'apartment', 'cell phone').\n"
-                "- Reference US specific legal frameworks (Title VII, OSHA) if laws are mentioned.\n"
-            )
+            learning_arc = LEARNING_ARCS['skill'] # Default fallback
 
-        # BEST PRACTICE INJECTION (If no policy text)
-        best_practice_instruction = ""
-        if not context_package.get('policy_text'):
-             best_practice_instruction = (
-                "NO SOURCE DOCUMENT PROVIDED - CRITICAL RULES:\n"
-                "- You MUST base all content on GENERAL INDUSTRY BEST PRACTICES.\n"
-                "- Do NOT invent specific company policies (e.g., do not say 'Fill out Form 12B').\n"
-                "- Use phrases like 'Standard procedure usually involves...' or 'Best practice suggests...'.\n"
-                "- MANDATORY: Regularly include the phrase 'Please check your local policies and processes' or similar disclaimers to ensure accuracy.\n\n"
-             )
+        # 2. Construct the "World Class" Chain-of-Thought Prompting Strategy
+        
+        # STEP 1: HIGH-LEVEL OUTLINE (The Architecture)
+        # We ask for just the slide titles and concepts first to ensure the arc is solid.
+        outline_prompt = f"""
+You are a World-Class Instructional Architect.
+Your goal is to design the STRUCTURE (Outline) for a high-retention video course.
 
-        depth_requirements = f"""
-DURATION-SPECIFIC DEPTH REQUIREMENTS:
+=== CONTEXT ===
+COURSE TITLE: {context_package['title']}
+AUDIENCE: {context_package['audience_strategy']['display_name']}
+TOTAL TIME: {context_package['duration']} minutes ({context_package['target_slides']} slides target).
+LEARNING ARC: {learning_arc}
 
-Your script is for a {context_package['duration']}-MINUTE video with strategy tier: {context_package['strategy_tier']}
+=== TASK ===
+Generate a High-Level Outline for exactly {context_package['target_slides']} slides.
+For each slide, provide:
+1. "slide_number": 1 to {context_package['target_slides']}
+2. "title": Short header (e.g., "The Problem", "The Solution")
+3. "concept": Brief description of what this slide covers (1 sentence)
+4. "visual_archetype": (image, chart, kinetic_text, comparison, process, list, metaphor)
 
-FOCUS & DEPTH:
-- Depth Level: {strategy['depth_level']}
-- Primary Focus: {strategy['focus']}
-- Content Priorities: {', '.join(strategy['content_priorities'])}
+=== CRITICAL CONSTRAINT ===
+You must strictly follow the "Learning Arc" structure defined above.
+MANDATORY: The slide *before* the final conclusion loop MUST be a "Knowledge Check".
+- Title: "Quick Check"
+- Concept: A scenario-based multiple choice question (A, B, or C). 
+- Visual Archetype: "kinetic_text" (or "list" if options are long).
 
-SLIDE ALLOCATION FOR {context_package['duration']} MINUTES:
-- Target: {context_package['target_slides']} slides total (approx 20s each)
-- Average: {avg_slides_per_topic} per topic
-- Topic Count: {len(topics_list)} topics
-- Use 'complexity' field in topics to weigh slide allocation (Complex = more slides).
-
-SLIDE DURATION RULES (as per your extensive rules):
-Target Average: 20 seconds per slide.
+=== OUTPUT FORMAT (JSON ONLY) ===
+{{
+  "outline": [
+    {{ "slide_number": 1, "title": "...", "concept": "...", "visual_archetype": "..." }},
+    ...
+  ]
+}}
 """
-        # (Shortening the prompt block for brevity in this file write, but ensuring core logic is preserved)
-        base_prompt = (
-            f"You are an expert video course scriptwriter creating engaging, comprehensive e-learning content.\n\n"
-            f"CONTEXT:\n"
-            f"- Course Title: {context_package['title']}\n"
-            f"- Learning Objective: {context_package['learning_objective']}\n"
-            f"- Duration: {context_package['duration']} minutes ({context_package['target_slides']} slides target)\n"
-            f"- Original Policy Content: {context_package['policy_text']}\n"
-            f"- Approved Topics: {json.dumps(context_package['topics'])}\n\n"
-            f"VISUAL STYLE GUIDE: {context_package['style_guide']}\n\n"
-            f"{depth_requirements}\n\n"
-            f"{jurisdiction_prompt}\n\n"
-            f"{best_practice_instruction}\n"
-            f"YOUR TASK:\n"
-            f"Create a complete video script that transforms policy content into an engaging learning experience.\n"
-            f"Follow all previous instructions regarding narration length, visual text, and image prompts.\n"
-            f"CRITICAL: The FIRST slide MUST be a Welcome/Title slide using 'visual_type': 'contextual_overlay' with a high-quality, cinematic image prompt suited for the topic.\n"
-            f"CRITICAL: The LAST slide MUST be a 'Thank You' slide using 'visual_type': 'contextual_overlay' with a high-quality, cinematic image prompt.\n"
-            f"OUTPUT FORMAT (JSON):\n"
-            f"{{\n"
-            f"  \"script\": [\n"
-            f"    {{\n"
-            f"      \"slide_number\": 1,\n"
-            f"      \"text\": \"Narration text here...\",\n"
-            f"      \"visual_text\": \"# Markdown text here\",\n"
-            f"      \"layout\": \"split\",\n"
-            f"      \"prompt\": \"Detailed image generation prompt...\",\n"
-            f"      \"duration\": 15000\n"
-            f"    }}\n"
-            f"  ]\n"
-            f"}}\n"
-        )
+        print("   🧠 Step 1: Generating Course Outline...")
+        outline_res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": outline_prompt}], max_tokens=4000)
+        outline_data = extract_json_from_response(outline_res)
+        outline = outline_data.get("outline", [])
+        
+        # STEP 2: DETAILED SCRIPTING (The Director)
+        # Now we flesh out the details using the approved outline.
+        base_prompt = f"""
+You are an Expert Video Director and Scriptwriter.
+You will now write the FULL SCRIPT for the course based on the provided OUTLINE.
+
+=== CONTEXT ===
+AUDIENCE: {context_package['audience_strategy']['display_name']}
+TONE: {context_package['audience_strategy']['tone']} ("{context_package['audience_strategy']['narrative_style']}")
+SOURCE MATERIAL: {context_package.get('policy_text', 'No source provided')[:3000]}...
+
+=== PEDAGOGICAL RULES (STRICT COMPLIANCE REQUIRED) ===
+{PEDAGOGY_INSTRUCTIONS['cognitive_load']}
+
+{PEDAGOGY_INSTRUCTIONS['multimedia_principles']}
+
+{PEDAGOGY_INSTRUCTIONS['visual_logic']}
+
+=== THE APPROVED OUTLINE (FOLLOW THIS) ===
+{json.dumps(outline, indent=2)}
+
+=== TASK ===
+Generate the final JSON script. For each slide in the outline:
+1. Write 'visual_text' (MAX 6 WORDS) that anchors the concept.
+2. Write 'text' (Narration) that explains the concept using the visual as a reference.
+3. Write a 'prompt' for the image generator that matches the archetype.
+
+=== VISUAL ARCHETYPE GUIDE ===
+- If explaining a workflow -> Use 'process' -> Prompt: "A clean minimalist flowchart showing step A leading to step B..."
+- If explaining a danger -> Use 'metaphor' -> Prompt: "A stormy sea or caution tape aesthetic..."
+- If listing requirements -> Use 'list' -> Prompt: "A checklist with 3 items checked off..."
+- If contrasting ideas -> Use 'comparison' -> Prompt: "Split screen, left side chaotic, right side organized..."
+
+=== SPECIAL VISUAL RULES ===
+- For "Knowledge Check" / "Quick Check" slides:
+   - Visual Text: THE QUESTION + Options A, B, C.
+   - Narration: Read the question. Read the options. Then say "Take a moment..." (provide a pause in wording). Then say "The correct answer is [X] because [reason]."
+   - Duration: Override the default. Set duration to at least 20000 (20 seconds) to allow thinking time.
+
+=== OUTPUT FORMAT (JSON ONLY) ===
+{{
+  "script": [
+    {{
+      "slide_number": 1,
+      "visual_archetype": "contextual_overlay", 
+      "visual_text": "# {context_package['title']}",
+      "text": "Welcome. In the next few minutes, we will master the core safety protocols that keep you safe.",
+      "prompt": "Cinematic wide shot of a modern, clean corporate office, soft lighting, 8k resolution.",
+      "duration": 12000
+    }}
+    // ... continue for all slides in the outline
+  ]
+}}
+"""
         
         messages = [{"role": "user", "content": base_prompt}]
         script_plan = []
@@ -559,7 +596,19 @@ Target Average: 20 seconds per slide.
 
 
 
-        script_plan = await generate_draft_visuals(course_id, script_plan, style_prompt, request.user_id)
+        # Generate/Retrieve Consistency Assets
+        consistency_seed = metadata.get("consistency_seed")
+        if not consistency_seed:
+            consistency_seed = int(time.time())
+            metadata["consistency_seed"] = consistency_seed
+        
+        protagonist_desc = metadata.get("protagonist_description", "")
+        # If no protagonist exists, we could optionally generate one here, but for now we'll stick to seed.
+        
+        # Save any new metadata
+        supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
+
+        script_plan = await generate_draft_visuals(course_id, script_plan, style_prompt, request.user_id, seed=consistency_seed, protagonist=protagonist_desc)
         
         supabase_admin.table("courses").update({
             "slide_data": script_plan,

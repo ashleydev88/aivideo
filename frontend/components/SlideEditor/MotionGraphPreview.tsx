@@ -317,7 +317,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         return (
             <div
                 className="grid grid-cols-2 w-full max-w-7xl px-6"
-                style={{ gap: `${gap}px` }}
+                style={{ gap: `${gap}px`, minHeight: '600px' }}
             >
                 {nodes.map((node) => {
                     // Strict color coding for comparisons
@@ -426,32 +426,48 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const centerNode = nodes[0];
         const orbitNodes = nodes.slice(1);
 
+        // Increased container size and radius to prevent overlaps
+        const containerSize = 1400; // was 1000
+        const radius = 520; // was 350
+        const centerXY = containerSize / 2;
+
         return (
-            <div className="relative w-[1000px] h-[1000px] flex items-center justify-center">
+            <div
+                className="relative flex items-center justify-center transform origin-center"
+                style={{
+                    width: `${containerSize}px`,
+                    height: `${containerSize}px`,
+                    // Scale down slightly to fit in standard viewports if needed
+                    transform: 'scale(0.8)'
+                }}
+            >
                 {/* Center node */}
-                <div className="absolute z-10">
+                <div className="absolute z-10" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
                     <PreviewMotionBox
                         label={centerNode.data.label}
                         icon={centerNode.data.icon}
                         variant={centerNode.data.variant || 'primary'}
                         isEditable={!!onUpdate}
                         onUpdate={(field, val) => handleNodeUpdate(centerNode.id, field, val)}
+                        className="scale-110 shadow-2xl" // Make center node slightly larger
                     />
                 </div>
 
                 {/* Orbit nodes */}
                 {orbitNodes.map((node, i) => {
                     const angle = (i / orbitNodes.length) * 2 * Math.PI - Math.PI / 2;
-                    const x = Math.cos(angle) * 350;
-                    const y = Math.sin(angle) * 350;
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
 
                     return (
                         <div
                             key={node.id}
                             className="absolute"
                             style={{
-                                left: 500 + x - 160,
-                                top: 500 + y - 80,
+                                left: '50%',
+                                top: '50%',
+                                transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
+                                maxWidth: '350px' // Constrain width to prevent massive expansion
                             }}
                         >
                             <PreviewMotionBox

@@ -64,7 +64,7 @@ class LogicExtractor:
 Your goal is to parse text and map it to the **perfect semantic visualization structure**.
 
 CRITICAL: You must choose the specific ARCHETYPE that best fits the logic of the information.
-CRITICAL: ALL nodes MUST have a meaningful description. Do not leave descriptions empty or use placeholders.
+CRITICAL: ALL nodes MUST have a meaningful description. Do not leave descriptions empty or use placeholders. If no specific description exists, summarize the label.
 
 ### 1. ESSENTIAL TIER (Basic Structure)
 - **"process"**: Sequential steps where order matters (A -> B -> C). Use for recipes, workflows, or instructions.
@@ -145,6 +145,12 @@ ICON EXAMPLES: "shield", "alert-triangle", "check-circle", "users", "file-text",
             if not graph.id:
                 graph.id = str(uuid.uuid4())
             
+            # FALLBACK: Ensure all nodes have descriptions
+            for node in graph.nodes:
+                if not node.data.description or node.data.description.strip() == "":
+                    print(f"   ⚠️ Node {node.id} missing description. Auto-filling with label.")
+                    node.data.description = node.data.label
+
             print(f"   ✅ Logic Extraction: archetype='{graph.archetype}', {len(graph.nodes)} nodes")
             return graph
 

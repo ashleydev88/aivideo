@@ -63,27 +63,15 @@ export const PreviewMotionBox: React.FC<PreviewMotionBoxProps> = ({
                 {/* Text */}
                 <div className="w-full">
                     {isEditable ? (
-                        <input
+                        <textarea
                             value={label}
                             onChange={(e) => onUpdate?.('label', e.target.value)}
-                            className="font-black text-slate-800 text-2xl leading-tight mb-1 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none"
+                            className="font-black text-slate-800 text-2xl leading-tight mb-2 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none resize-none"
+                            rows={label.length > 20 ? 3 : 2}
+                            style={{ fieldSizing: "content" } as any}
                         />
                     ) : (
-                        <h3 className="font-black text-slate-800 text-2xl leading-tight mb-1">{label}</h3>
-                    )}
-
-                    {subLabel && (
-                        isEditable ? (
-                            <input
-                                value={subLabel}
-                                onChange={(e) => onUpdate?.('subLabel', e.target.value)}
-                                className="text-sm font-bold text-slate-500 uppercase tracking-wider mt-1 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none"
-                            />
-                        ) : (
-                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mt-1">
-                                {subLabel}
-                            </p>
-                        )
+                        <h3 className="font-black text-slate-800 text-2xl leading-tight mb-2">{label}</h3>
                     )}
 
                     {(description || isEditable) && (

@@ -30,7 +30,7 @@ def replicate_chat_completion(messages, max_tokens=2048, temperature=0.7, model=
         print(f"   ❌ Replicate {model} Error: {e}")
         raise e
 
-def generate_image_replicate(prompt):
+def generate_image_replicate(prompt, seed=None):
     print(f"   ⚡ Generating image (SDXL Lightning)...")
     try:
         # Using bytedance/sdxl-lightning-4step for speed and cost
@@ -42,7 +42,9 @@ def generate_image_replicate(prompt):
                 "height": 720,
                 "scheduler": "K_EULER",
                 "num_inference_steps": 4,
-                "negative_prompt": "text, watermark, ugly, blurry, low quality"
+                "num_inference_steps": 4,
+                "negative_prompt": "text, watermark, ugly, blurry, low quality",
+                **({"seed": seed} if seed is not None else {})
             }
         )
         # Replicate usually returns a list of outputs for this model, or a single string url

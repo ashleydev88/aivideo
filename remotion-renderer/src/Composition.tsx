@@ -7,6 +7,19 @@ import { Chart } from './components/Chart';
 import { TitleCard } from './components/TitleCard';
 import './style.css';
 
+const hexToRgba = (hex: string, alpha: number) => {
+    let c: any;
+    if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+        c = hex.substring(1).split('');
+        if (c.length === 3) {
+            c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+        }
+        c = '0x' + c.join('');
+        return 'rgba(' + [(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',') + ',' + alpha + ')';
+    }
+    return hex;
+};
+
 export const MainComposition: React.FC<{
     slide_data: any[];
     accent_color: string;
@@ -30,6 +43,7 @@ export const MainComposition: React.FC<{
                 const isKineticOnly = slide.visual_type === 'kinetic_text';
                 const isChart = slide.visual_type === 'chart';
                 const isTitleCard = slide.visual_type === 'title_card';
+                const isContextualOverlay = slide.visual_type === 'contextual_overlay';
                 const hasText = slide.text || slide.visual_text;
 
                 const customBg = slide.background_color;
@@ -37,7 +51,7 @@ export const MainComposition: React.FC<{
 
                 // Debug logging
                 console.log(`[Slide ${i}] visual_type: ${slide.visual_type}, hasImage: ${!!slide.image}, hasText: ${!!hasText}`);
-                console.log(`[Slide ${i}] Layout flags: hybrid=${isHybrid}, imageOnly=${isImageOnly}, kineticOnly=${isKineticOnly}, chart=${isChart}, titleCard=${isTitleCard}`);
+                console.log(`[Slide ${i}] Layout flags: hybrid=${isHybrid}, imageOnly=${isImageOnly}, kineticOnly=${isKineticOnly}, chart=${isChart}, titleCard=${isTitleCard}, contextualOverlay=${isContextualOverlay}`);
 
                 // Title Card Logic
                 let titleCardBg = customBg;
@@ -78,8 +92,8 @@ export const MainComposition: React.FC<{
                             </AbsoluteFill>
                         )}
 
-                        {/* LAYOUT: IMAGE ONLY (Full Screen) */}
-                        {isImageOnly && slide.image && (
+                        {/* LAYOUT: IMAGE ONLY (Full Screen) OR CONTEXTUAL OVERLAY */}
+                        {(isImageOnly || isContextualOverlay) && slide.image && (
                             <AbsoluteFill
                                 className="flex items-center justify-center"
                                 style={{ backgroundColor: customBg || '#000000' }}
@@ -93,7 +107,14 @@ export const MainComposition: React.FC<{
                                 />
                                 {/* Overlay Text (Match Preview) */}
                                 {slide.visual_text && (
-                                    <div className="absolute bottom-12 left-12 right-12 bg-black/60 backdrop-blur-md p-8 rounded-2xl text-white">
+                                    <div
+                                        className="absolute bottom-12 left-12 right-12 backdrop-blur-md p-8 rounded-2xl text-white"
+                                        style={{
+                                            backgroundColor: isContextualOverlay && accent_color
+                                                ? hexToRgba(accent_color, 0.9)
+                                                : 'rgba(0, 0, 0, 0.6)'
+                                        }}
+                                    >
                                         <div className="font-mono text-xl opacity-70 mb-2 font-bold tracking-wider">ON-SCREEN TEXT</div>
                                         {/<[a-z][\s\S]*>/i.test(slide.visual_text) ? (
                                             <div className="prose prose-xl prose-invert max-w-none">

@@ -73,6 +73,44 @@ STYLE_MAPPING = {
     },
 }
 
+# --- PEDAGOGICAL FRAMEWORKS ---
+# These inject specific learning science principles into the prompt context.
+
+PEDAGOGY_INSTRUCTIONS = {
+    "cognitive_load": (
+        "STRICT COGNITIVE LOAD CONTROL:\n"
+        "- LIMIT NARRATION: Maximum 45 words per slide (approx 18-20 seconds).\n"
+        "- ONE CONCEPT RULE: If a sentence contains 'and', 'also', or multiple commas, split it across two slides.\n"
+        "- ACTIVE VOICE: Use 'You' and 'We'. Avoid passive voice (e.g., 'Forms must be signed' -> 'You must sign the form')."
+    ),
+    "multimedia_principles": (
+        "MAYER'S MULTIMEDIA PRINCIPLES (MANDATORY):\n"
+        "1. REDUNDANCY PRINCIPLE: The On-Screen Text (visual_text) must NEVER match the Narration verbatim. "
+        "Narration explains; Visual Text anchors. \n"
+        "   - BAD: Narration says 'Wear goggles', Text says 'Wear goggles'.\n"
+        "   - GOOD: Narration says 'Always protect your eyes before entering the zone', Text says 'MANDATORY: GOGGLES'.\n"
+        "2. SIGNALING PRINCIPLE: Use cue words in narration (First, Therefore, However) to guide the learner's mental model."
+    ),
+    "visual_logic": (
+        "VISUAL-VERBAL ALIGNMENT:\n"
+        "You must select a 'visual_archetype' for every slide based on the logic of the content:\n"
+        "- 'process': For steps, workflows, or sequences.\n"
+        "- 'comparison': For 'Do vs Don't', 'Old vs New', or contrasting options.\n"
+        "- 'list': For 3+ items, requirements, or checklists.\n"
+        "- 'metaphor': For abstract concepts (e.g., an iceberg for hidden risks).\n"
+        "- 'statistic': For data, percentages, or key numbers.\n"
+        "- 'contextual_overlay': For establishing shots or emotional resonance.\n"
+        "CRITICAL: The narration must reference the visual structure (e.g., 'As you can see in this sequence...', 'Unlike the option on the left...')."
+    )
+}
+
+# Frameworks that change based on the course goal (Duration Strategy)
+LEARNING_ARCS = {
+    "skill": "1. HOOK (Why it matters) -> 2. CONCEPT (The Rule) -> 3. STEPS (How to do it) -> 4. PITFALLS (What to avoid)",
+    "compliance": "1. RISK (The Consequence) -> 2. RULE (The Requirement) -> 3. ACTION (What you must do) -> 4. RESOURCES (Where to get help)",
+    "executive": "1. BOTTOM LINE (Key Takeaway) -> 2. CONTEXT (Why now) -> 3. STRATEGY (The Plan) -> 4. ASK (Required Decision)"
+}
+
 # --- DURATION STRATEGIES ---
 DURATION_STRATEGIES = {
     # DEV ONLY - 1 minute option for quick testing
@@ -219,6 +257,17 @@ AUDIENCE_STRATEGIES = {
         ],
         "extraction_prompt": "Focus on what managers and leaders need to implement and enforce this policy. Extract procedural responsibilities, decision frameworks, escalation paths, and team management guidance."
     }
+}
+
+AUDIENCE_LEGACY_MAP = {
+    "General": "all_employees",
+    "Managers": "leadership",
+    "New Hires": "new_hires",
+    "Executive": "leadership",
+    # Pass-throughs
+    "all_employees": "all_employees",
+    "leadership": "leadership",
+    "new_hires": "new_hires"
 }
 
 # --- UPLOAD LIMITS ---

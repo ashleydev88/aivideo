@@ -390,6 +390,23 @@ async def generate_structure(request: ScriptRequest, background_tasks: Backgroun
         topics_list = [t.dict() for t in request.topics]
         strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
         
+        # Resolve Audience Strategy
+        req_audience = request.target_audience
+        if not req_audience and course_id:
+             try:
+                 res = supabase_admin.table("courses").select("target_audience").eq("id", course_id).execute()
+                 if res.data:
+                     req_audience = res.data[0].get("target_audience")
+             except: pass
+             
+        if not req_audience:
+             req_audience = "all_employees"
+             
+        if req_audience in AUDIENCE_LEGACY_MAP:
+             req_audience = AUDIENCE_LEGACY_MAP[req_audience]
+             
+        audience_strategy = AUDIENCE_STRATEGIES.get(req_audience, AUDIENCE_STRATEGIES["all_employees"])
+
         context_package = {
             "policy_text": request.policy_text, 
             "original_policy_text": request.policy_text, 
@@ -400,7 +417,8 @@ async def generate_structure(request: ScriptRequest, background_tasks: Backgroun
             "target_slides": target_slides,
             "style_guide": STYLE_MAPPING.get(request.style, {"prompt": MINIMALIST_PROMPT})["prompt"],
             "strategy_tier": strategy["purpose"],
-            "country": request.country
+            "country": request.country,
+            "audience_strategy": audience_strategy
         }
         
         metadata = {
@@ -410,7 +428,8 @@ async def generate_structure(request: ScriptRequest, background_tasks: Backgroun
             "accent_color": request.accent_color,
             "color_name": request.color_name,
             "logo_url": request.logo_url,
-            "logo_crop": request.logo_crop
+            "logo_crop": request.logo_crop,
+            "audience_strategy": audience_strategy
         }
         supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
 

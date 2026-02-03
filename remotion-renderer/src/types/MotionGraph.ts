@@ -39,4 +39,6 @@ export interface MotionGraph {
         title?: string;
         description?: string;
     };
+    layoutWidth?: number;
+    layoutHeight?: number;
 }

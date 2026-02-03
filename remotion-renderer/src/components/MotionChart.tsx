@@ -34,6 +34,14 @@ export const MotionChart: React.FC<MotionChartProps> = ({ data }) => {
 
     if (!layoutGraph) return null;
 
+    const padding = 100;
+    const contentWidth = layoutGraph.layoutWidth || width;
+    const contentHeight = layoutGraph.layoutHeight || height;
+
+    const scaleX = (width - padding) / contentWidth;
+    const scaleY = (height - padding) / contentHeight;
+    const scale = Math.min(scaleX, scaleY, 1); // Ensure it fits, don't upscale beyond 1x
+
     return (
         <AbsoluteFill className="bg-slate-50">
             {/* Optional: Add a subtle grid or decorative background */}
@@ -41,156 +49,166 @@ export const MotionChart: React.FC<MotionChartProps> = ({ data }) => {
                 style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '20px 20px' }}
             />
 
-            {/* Edges Layer (Behind Nodes) */}
-            <EdgeRenderer
-                edges={layoutGraph.edges}
-                nodes={layoutGraph.nodes}
-                archetype={data.archetype}
-            />
 
-            {layoutGraph.nodes.map((node, i) => {
-                // Staggered animation: 15 frames per item
-                const delay = i * 15;
+            <div
+                className="absolute inset-0 w-full h-full"
+                style={{
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'center center'
+                }}
+            >
+                {/* Edges Layer (Behind Nodes) */}
+                <EdgeRenderer
+                    edges={layoutGraph.edges}
+                    nodes={layoutGraph.nodes}
+                    archetype={data.archetype}
+                />
 
-                return (
-                    <div
-                        key={node.id}
-                        style={{
-                            position: 'absolute',
-                            left: node.position?.x,
-                            top: node.position?.y,
-                        }}
-                    >
-                        {/* Dynamic Component Switching */}
-                        {(() => {
-                            if (data.archetype === 'process' || data.archetype === 'cycle') {
-                                return (
-                                    <ProcessBox
-                                        label={node.data.label}
-                                        subLabel={node.data.subLabel}
-                                        icon={node.data.icon}
-                                        variant={node.data.variant}
-                                        delay={delay}
-                                    />
-                                );
-                            } else if (data.archetype === 'hierarchy') {
-                                return (
-                                    <HierarchyBox
-                                        {...node.data}
-                                        delay={delay}
-                                    />
-                                );
-                            } else if (data.archetype === 'grid') {
-                                return (
-                                    <GridBox
-                                        {...node.data}
-                                        delay={delay}
-                                    />
-                                );
-                            } else if (data.archetype === 'timeline') {
-                                return (
-                                    <TimelineBox
-                                        {...node.data}
-                                        delay={delay}
-                                        index={i}
-                                    />
-                                );
-                            } else if (data.archetype === 'funnel') {
-                                return (
-                                    <FunnelBox
-                                        {...node.data}
-                                        delay={delay}
-                                        index={i}
-                                        total={data.nodes.length}
-                                    />
-                                );
-                            } else if (data.archetype === 'pyramid') {
-                                return (
-                                    <PyramidBox
-                                        {...node.data}
-                                        delay={delay}
-                                        index={i}
-                                        total={data.nodes.length}
-                                    />
-                                );
-                            } else if (data.archetype === 'mindmap') {
-                                return (
-                                    <MindMapBox
-                                        {...node.data}
-                                        delay={delay}
-                                        isCenter={i === 0} // Assumption: First node is center
-                                    />
-                                );
-                            } else if (data.archetype === 'code') {
-                                return (
-                                    <CodeBox
-                                        {...node.data}
-                                        delay={delay}
-                                        // Assumption: 'description' usually holds the code content for this box type
-                                        code={node.data.description || ''}
-                                    />
-                                );
-                            } else if (data.archetype === 'math') {
-                                return (
-                                    <MathBox
-                                        {...node.data}
-                                        delay={delay}
-                                        // Assumption: 'description' provides formula
-                                        formula={node.data.description || ''}
-                                    />
-                                );
-                            } else if (data.archetype === 'architecture') {
-                                return (
-                                    <ArchitectureBox
-                                        {...node.data}
-                                        delay={delay}
-                                    />
-                                );
-                            } else if (data.archetype === 'matrix') {
-                                return (
-                                    <MatrixBox
-                                        {...node.data}
-                                        delay={delay}
-                                        index={i}
-                                    />
-                                );
-                            } else if (data.archetype === 'metaphor') {
-                                return (
-                                    <MetaphorBox
-                                        {...node.data}
-                                        delay={delay}
-                                        index={i}
-                                        total={data.nodes.length}
-                                    />
-                                );
-                            } else if (data.archetype === 'anatomy') {
-                                return (
-                                    <AnatomyBox
-                                        {...node.data}
-                                        delay={delay}
-                                    />
-                                );
-                            } else {
-                                // Default / Comparison / Statistic
-                                return (
-                                    <ComparisonBox
-                                        label={node.data.label}
-                                        description={node.data.description}
-                                        icon={node.data.icon}
-                                        variant={node.data.variant}
-                                        delay={delay}
-                                    />
-                                );
-                            }
-                        })()}
+                {layoutGraph.nodes.map((node, i) => {
+                    // Staggered animation: 15 frames per item
+                    const delay = i * 15;
 
-                        {/* 
-                           TODO: Add SVG Edges here connecting nodes.
-                           We would map layoutGraph.edges and draw <svg><path ... /></svg>
-                        */}
-                    </div>
-                );
-            })}
+                    return (
+                        <div
+                            key={node.id}
+                            style={{
+                                position: 'absolute',
+                                left: node.position?.x,
+                                top: node.position?.y,
+                            }}
+                        >
+                            {/* Dynamic Component Switching */}
+                            {(() => {
+                                if (data.archetype === 'process' || data.archetype === 'cycle') {
+                                    return (
+                                        <ProcessBox
+                                            label={node.data.label}
+                                            subLabel={node.data.subLabel}
+                                            icon={node.data.icon}
+                                            variant={node.data.variant}
+                                            delay={delay}
+                                        />
+                                    );
+                                } else if (data.archetype === 'hierarchy') {
+                                    return (
+                                        <HierarchyBox
+                                            {...node.data}
+                                            delay={delay}
+                                        />
+                                    );
+                                } else if (data.archetype === 'grid') {
+                                    return (
+                                        <GridBox
+                                            {...node.data}
+                                            delay={delay}
+                                        />
+                                    );
+                                } else if (data.archetype === 'timeline') {
+                                    return (
+                                        <TimelineBox
+                                            {...node.data}
+                                            delay={delay}
+                                            index={i}
+                                        />
+                                    );
+                                } else if (data.archetype === 'funnel') {
+                                    return (
+                                        <FunnelBox
+                                            {...node.data}
+                                            delay={delay}
+                                            index={i}
+                                            total={data.nodes.length}
+                                        />
+                                    );
+                                } else if (data.archetype === 'pyramid') {
+                                    return (
+                                        <PyramidBox
+                                            {...node.data}
+                                            delay={delay}
+                                            index={i}
+                                            total={data.nodes.length}
+                                        />
+                                    );
+                                } else if (data.archetype === 'mindmap') {
+                                    return (
+                                        <MindMapBox
+                                            {...node.data}
+                                            delay={delay}
+                                            isCenter={i === 0} // Assumption: First node is center
+                                        />
+                                    );
+                                } else if (data.archetype === 'code') {
+                                    return (
+                                        <CodeBox
+                                            {...node.data}
+                                            delay={delay}
+                                            // Assumption: 'description' usually holds the code content for this box type
+                                            code={node.data.description || ''}
+                                        />
+                                    );
+                                } else if (data.archetype === 'math') {
+                                    return (
+                                        <MathBox
+                                            {...node.data}
+                                            delay={delay}
+                                            // Assumption: 'description' provides formula
+                                            formula={node.data.description || ''}
+                                        />
+                                    );
+                                } else if (data.archetype === 'architecture') {
+                                    return (
+                                        <ArchitectureBox
+                                            {...node.data}
+                                            delay={delay}
+                                        />
+                                    );
+                                } else if (data.archetype === 'matrix') {
+                                    return (
+                                        <MatrixBox
+                                            {...node.data}
+                                            delay={delay}
+                                            index={i}
+                                        />
+                                    );
+                                } else if (data.archetype === 'metaphor') {
+                                    return (
+                                        <MetaphorBox
+                                            {...node.data}
+                                            delay={delay}
+                                            index={i}
+                                            total={data.nodes.length}
+                                        />
+                                    );
+                                } else if (data.archetype === 'anatomy') {
+                                    return (
+                                        <AnatomyBox
+                                            {...node.data}
+                                            delay={delay}
+                                        />
+                                    );
+                                } else {
+                                    // Default / Comparison / Statistic
+                                    return (
+                                        <ComparisonBox
+                                            label={node.data.label}
+                                            description={node.data.description}
+                                            icon={node.data.icon}
+                                            variant={node.data.variant}
+                                            delay={delay}
+                                        />
+                                    );
+                                }
+                            })()}
+
+                            {/* 
+                               TODO: Add SVG Edges here connecting nodes.
+                               We would map layoutGraph.edges and draw <svg><path ... /></svg>
+                            */}
+                        </div>
+                    );
+                })}
+            </div>
+
         </AbsoluteFill>
     );
 };
