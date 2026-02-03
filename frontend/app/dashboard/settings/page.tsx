@@ -8,9 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Info, User, CreditCard, Globe, Loader2, CheckCircle2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LoadingScreen } from '@/components/ui/loading-screen';
-import Cropper from 'react-easy-crop';
-import { Slider } from "@/components/ui/slider";
-import { Image as ImageIcon, Trash2, Camera } from 'lucide-react';
+
 
 export default function SettingsPage() {
     const supabase = createClient();
@@ -22,13 +20,6 @@ export default function SettingsPage() {
     // Form States
     const [fullName, setFullName] = useState("");
     const [location, setLocation] = useState<"USA" | "UK">("UK");
-    const [logoUrl, setLogoUrl] = useState<string | null>(null);
-    const [logoCrop, setLogoCrop] = useState<any>(null);
-    const [logoZoom, setLogoZoom] = useState(1);
-    const [tempLogo, setTempLogo] = useState<string | null>(null);
-    const [crop, setCrop] = useState({ x: 0, y: 0 });
-    const [zoom, setZoom] = useState(1);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
     useEffect(() => {
@@ -42,8 +33,6 @@ export default function SettingsPage() {
                 // Set initial form state from metadata
                 setFullName(user.user_metadata?.full_name || "");
                 setLocation(user.user_metadata?.location_preference || "UK");
-                setLogoUrl(user.user_metadata?.logo_url || null);
-                setLogoCrop(user.user_metadata?.logo_crop || null);
 
                 // Fetch Profile for subscription
                 const { data: profile } = await supabase
@@ -66,64 +55,24 @@ export default function SettingsPage() {
         fetchData();
     }, []);
 
-    const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.addEventListener('load', () => {
-                setTempLogo(reader.result as string);
-            });
-            reader.readAsDataURL(file);
-        }
-    };
 
     const handleSave = async () => {
         setSaving(true);
         setMessage(null);
 
         try {
-            let finalLogoUrl = logoUrl;
-            let finalLogoCrop = logoCrop;
-
-            // If there's a new logo being cropped
-            if (tempLogo && croppedAreaPixels) {
-                // Convert dataUrl to blob
-                const response = await fetch(tempLogo);
-                const blob = await response.blob();
-                const fileName = `logo_${user.id}_${Date.now()}.png`;
-                const filePath = `${user.id}/${fileName}`;
-
-                const { data, error: uploadError } = await supabase.storage
-                    .from('course-assets')
-                    .upload(filePath, blob, { contentType: 'image/png', upsert: true });
-
-                if (uploadError) throw uploadError;
-
-                // For simplicity, we'll store the public URL if it's a public bucket, 
-                // but usually we should use getPublicUrl or signed URLs.
-                // The backend get_asset_url handles both.
-                finalLogoUrl = filePath;
-                finalLogoCrop = { ...croppedAreaPixels, zoom: zoom };
-            }
-
             const { error } = await supabase.auth.updateUser({
                 data: {
                     full_name: fullName,
-                    location_preference: location,
-                    logo_url: finalLogoUrl,
-                    logo_crop: finalLogoCrop
+                    location_preference: location
                 }
             });
 
             if (error) throw error;
 
-            setLogoUrl(finalLogoUrl);
-            setLogoCrop(finalLogoCrop);
-            setTempLogo(null);
+            if (error) throw error;
+
             setMessage({ text: "Settings updated successfully", type: "success" });
 
             // Clear success message after 3 seconds
@@ -172,87 +121,6 @@ export default function SettingsPage() {
                         </div>
                         <div className="pt-2">
                             <p className="text-sm text-slate-500">Email: {user?.email}</p>
-                        </div>
-
-                        {/* LOGO SECTION */}
-                        <div className="space-y-4 pt-4 border-t border-slate-100">
-                            <div className="flex items-center gap-2">
-                                <Camera className="w-5 h-5 text-teal-600" />
-                                <label className="text-sm font-medium">Company Logo</label>
-                            </div>
-
-                            {!tempLogo && !logoUrl && (
-                                <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50">
-                                    <ImageIcon className="w-12 h-12 text-slate-300 mb-2" />
-                                    <p className="text-sm text-slate-500 mb-4">No logo uploaded yet</p>
-                                    <Button variant="outline" size="sm" className="relative">
-                                        Upload Logo
-                                        <input
-                                            type="file"
-                                            className="absolute inset-0 opacity-0 cursor-pointer"
-                                            accept="image/*"
-                                            onChange={handleFileChange}
-                                        />
-                                    </Button>
-                                </div>
-                            )}
-
-                            {(tempLogo || logoUrl) && (
-                                <div className="space-y-6">
-                                    <div className="relative w-full h-[300px] bg-slate-900 rounded-lg overflow-hidden border border-slate-200">
-                                        <Cropper
-                                            image={tempLogo || (logoUrl?.startsWith('http') ? logoUrl : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/course-assets/${logoUrl}`)}
-                                            crop={crop}
-                                            zoom={zoom}
-                                            aspect={1}
-                                            onCropChange={setCrop}
-                                            onCropComplete={onCropComplete}
-                                            onZoomChange={setZoom}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-medium text-slate-500">Zoom</span>
-                                            <span className="text-xs font-medium text-slate-500">{zoom.toFixed(1)}x</span>
-                                        </div>
-                                        <Slider
-                                            value={[zoom]}
-                                            min={1}
-                                            max={3}
-                                            step={0.1}
-                                            onValueChange={(vals) => setZoom(vals[0])}
-                                            className="w-full"
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button variant="outline" size="sm" className="relative">
-                                            Change Logo
-                                            <input
-                                                type="file"
-                                                className="absolute inset-0 opacity-0 cursor-pointer"
-                                                accept="image/*"
-                                                onChange={handleFileChange}
-                                            />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                            onClick={() => {
-                                                setLogoUrl(null);
-                                                setTempLogo(null);
-                                                setLogoCrop(null);
-                                            }}
-                                        >
-                                            <Trash2 className="w-4 h-4 mr-2" />
-                                            Remove
-                                        </Button>
-                                    </div>
-                                    <p className="text-xs text-slate-400 italic">
-                                        This logo will appear in the bottom left of the first and last slides of your courses.
-                                    </p>
-                                </div>
-                            )}
                         </div>
                     </CardContent>
                 </Card>

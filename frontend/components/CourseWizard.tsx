@@ -57,6 +57,7 @@ interface CourseWizardProps {
     onComplete: (data: WizardState) => void;
     isLoading?: boolean;
     country?: "USA" | "UK";
+    brandColor?: string | null;
 }
 
 const STEPS = [
@@ -75,7 +76,7 @@ const STEPS = [
 
 type Step = typeof STEPS[number];
 
-export default function CourseWizard({ onComplete, isLoading = false, country = "UK" }: CourseWizardProps) {
+export default function CourseWizard({ onComplete, isLoading = false, country = "UK", brandColor }: CourseWizardProps) {
     // --- State ---
     const [currentStep, setCurrentStep] = useState<Step>("WELCOME");
     const [history, setHistory] = useState<Message[]>([]);
@@ -96,7 +97,7 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
         documentText: "",
         duration: null,
         style: "Minimalist Vector",
-        accentColor: "#14b8a6",
+        accentColor: brandColor || "#14b8a6", // Init with brandColor
         colorName: "teal",
         title: "",
     });
@@ -269,12 +270,19 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
         addBotMessage("Perfect. Choose a visual style for the video.", "STYLE");
     };
 
-    const handleStyleSelect = (style: string, color: string, colorName: string) => {
-        addUserMessage(`${style} (${colorName})`);
-        setState(prev => ({ ...prev, style, accentColor: color, colorName }));
+    const handleStyleSelect = (style: string, defaultColor: string, colorName: string) => {
+        // Use brandColor if available, otherwise use style's default color
+        const colorToUse = brandColor || defaultColor;
+        // If using brandColor, we might want to keep the colorName as generic or "Brand" 
+        // but keeping it as the style default name is safer for prompt engineering unless we map it.
+        // Actually, the backend uses colorName for prompts. "teal", "blue" etc. 
+        // If we switch to a hex brandColor, we might want to update colorName to "custom" or similar?
+        // But for now, let's just update the accentColor hex. The colorName is less critical for the visual renderer which uses hex.
+
+        addUserMessage(`${style}`);
+        setState(prev => ({ ...prev, style, accentColor: colorToUse, colorName }));
         setCurrentStep("TITLE");
-        addBotMessage("Almost done! What should `we name this course?", "TITLE"); // Typo in original fixed? No, adding new line.
-        // Wait, original had "What should we name this course?". I'll stick to that.
+        addBotMessage("Almost done! What should we name this course?", "TITLE");
     };
 
     const handleTitleSubmit = (title: string) => {

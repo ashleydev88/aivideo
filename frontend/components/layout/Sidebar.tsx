@@ -12,6 +12,7 @@ import {
     ChevronRight,
     PlusCircle,
     LogOut,
+    Palette
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -24,6 +25,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { label: "Dashboard", href: "/dashboard", icon: <Home className="h-5 w-5" /> },
     { label: "Create New", href: "/dashboard/create", icon: <PlusCircle className="h-5 w-5" /> },
+    { label: "Brand", href: "/dashboard/brand", icon: <Palette className="h-5 w-5" /> },
     { label: "Settings", href: "/dashboard/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 

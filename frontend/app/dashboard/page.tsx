@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,48 +91,70 @@ export default function DashboardPage() {
     // Check if a project is currently being generated
 
 
-    // Initial fetch on mount
-    useEffect(() => {
-        const getUserAndProjects = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) {
-                    router.push("/login");
-                    return;
-                }
-                setUser(session.user);
+    // Unified fetch function
+    const fetchProjects = useCallback(async () => {
+        if (!user) return;
 
-                // Fetch profile and projects directly from Supabase
-                const [coursesRes, profileRes] = await Promise.all([
-                    supabase
-                        .from("courses")
-                        .select("*")
-                        .eq("user_id", session.user.id)
-                        .order("created_at", { ascending: false }),
-                    supabase.from("profiles").select("*").eq("id", session.user.id).single(),
-                ]);
-
-                if (coursesRes.error) {
-                    console.error("Error fetching courses:", coursesRes.error);
-                } else {
-                    setProjects(coursesRes.data || []);
-                }
-
-                if (profileRes.data) {
-                    setProfile(profileRes.data);
-                }
-            } catch (error) {
-                console.error("Error loading dashboard:", error);
-            } finally {
-                setLoading(false);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                router.push("/login");
+                return;
             }
-        };
-        getUserAndProjects();
-    }, [router, supabase]);
 
-    // Realtime Subscription
+            // Fetch profile and projects
+            const [coursesRes, profileRes] = await Promise.all([
+                supabase
+                    .from("courses")
+                    .select("*")
+                    .eq("user_id", session.user.id)
+                    .order("created_at", { ascending: false }),
+                supabase.from("profiles").select("*").eq("id", session.user.id).single(),
+            ]);
+
+            if (coursesRes.error) {
+                console.error("Error fetching courses:", coursesRes.error);
+            } else {
+                setProjects(coursesRes.data || []);
+            }
+
+            if (profileRes.data) {
+                setProfile(profileRes.data);
+            }
+        } catch (error) {
+            console.error("Error loading dashboard:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, [user, supabase, router]);
+
+    // Initial fetch on mount or user change
+    useEffect(() => {
+        if (!user) {
+            // Get initial user if not set
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) {
+                    setUser(session.user);
+                } else {
+                    setLoading(false); // Stop loading if no session properly
+                    router.push("/login");
+                }
+            });
+        }
+    }, [supabase, router]); // Run once to get user
+
+    // Trigger fetch when user is available
+    useEffect(() => {
+        if (user) {
+            fetchProjects();
+        }
+    }, [user, fetchProjects]);
+
+    // Realtime Subscription & Autolink
     useEffect(() => {
         if (!user) return;
+
+        console.log("🔌 Setting up usage subscription for user:", user.id);
 
         const channel = supabase
             .channel('dashboard-courses')
@@ -141,13 +163,21 @@ export default function DashboardPage() {
                 {
                     event: '*',
                     schema: 'public',
-                    table: 'courses',
-                    filter: `user_id=eq.${user.id}`
+                    table: 'courses'
+                    // removed filter: `user_id=eq.${user.id}` to rely on RLS and avoid connection issues
                 },
                 (payload) => {
-                    console.log("Realtime update:", payload);
+                    console.log("⚡ Realtime update received:", payload);
+
+                    // Optimistic updates
                     if (payload.eventType === 'INSERT') {
-                        setProjects((prev) => [payload.new as Project, ...prev]);
+                        // Double check it belongs to us (redundant if RLS works but safe)
+                        const newProject = payload.new as Project;
+                        // Avoid adding if we already have it (though standard insert shouldn't dup in this logic)
+                        setProjects((prev) => {
+                            if (prev.find(p => p.id === newProject.id)) return prev;
+                            return [newProject, ...prev];
+                        });
                     } else if (payload.eventType === 'UPDATE') {
                         setProjects((prev) =>
                             prev.map((p) => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
@@ -157,12 +187,31 @@ export default function DashboardPage() {
                     }
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log(`📡 Subscription status: ${status}`);
+            });
+
+        // 2. WINDOW FOCUS RE-FETCH
+        const handleFocus = () => {
+            console.log("👀 Window focused, refreshing projects...");
+            fetchProjects();
+        };
+        window.addEventListener('focus', handleFocus);
 
         return () => {
             supabase.removeChannel(channel);
+            window.removeEventListener('focus', handleFocus);
         };
-    }, [user, supabase]);
+    }, [user, supabase, fetchProjects]);
+
+    // 3. GENERATION COMPLETION RE-FETCH
+    // When active generation finishes, we want to ensure the list is up to date
+    useEffect(() => {
+        if (!activeGeneration && !loading) {
+            // If generation just cleared, refresh to show new video
+            fetchProjects();
+        }
+    }, [activeGeneration, loading, fetchProjects]);
 
     const handleDelete = async (id: string) => {
         if (!confirm("Are you sure you want to delete this project?")) return;

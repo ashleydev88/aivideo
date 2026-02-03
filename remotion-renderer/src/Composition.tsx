@@ -135,7 +135,7 @@ export const MainComposition: React.FC<{
                                 {/* Left Side: Kinetic Text */}
                                 <div
                                     className="w-1/2 h-full flex items-center justify-center p-8"
-                                    style={{ backgroundColor: customBg || undefined }} // Default is transparent/inherited from Background component? No, usually AbsoluteFill is clear.
+                                    style={{ backgroundColor: accent_color || customBg || '#0f172a' }} // Brand color on Left Side
                                 >
                                     {hasText && (
                                         <KineticText
@@ -184,16 +184,13 @@ export const MainComposition: React.FC<{
                         const durationFrames = Math.floor((slide.duration || 5000) / 1000 * 30);
                         const fromFrame = slide_data.slice(0, i).reduce((acc, s) => acc + Math.floor((s.duration || 5000) / 1000 * 30), 0);
 
-                        // Only show on first and last slide
-                        if (i !== 0 && i !== slide_data.length - 1) return null;
-
                         return (
                             <Sequence key={`logo-${i}`} from={fromFrame} durationInFrames={durationFrames}>
                                 <div
                                     style={{
                                         position: 'absolute',
                                         bottom: '40px',
-                                        left: '40px',
+                                        right: '40px',
                                         width: '120px',
                                         height: '120px',
                                         backgroundColor: 'rgba(255, 255, 255, 0.8)',

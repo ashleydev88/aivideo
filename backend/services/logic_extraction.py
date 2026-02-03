@@ -64,6 +64,7 @@ class LogicExtractor:
 Your goal is to parse text and map it to the **perfect semantic visualization structure**.
 
 CRITICAL: You must choose the specific ARCHETYPE that best fits the logic of the information.
+CRITICAL: ALL nodes MUST have a meaningful description. Do not leave descriptions empty or use placeholders.
 
 ### 1. ESSENTIAL TIER (Basic Structure)
 - **"process"**: Sequential steps where order matters (A -> B -> C). Use for recipes, workflows, or instructions.
@@ -105,7 +106,7 @@ CRITICAL: You must choose the specific ARCHETYPE that best fits the logic of the
             "data": {
                 "label": "Title",
                 "subLabel": "Subtitle/Type (optional)",
-                "description": "Longer description (optional)",
+                "description": "Detailed explanation of this step (MANDATORY - do not leave empty). Extract from context.",
                 "icon": "lucide-icon-name-kebab-case",
                 "variant": "neutral"
             }

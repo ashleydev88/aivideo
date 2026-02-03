@@ -451,9 +451,19 @@ async def finalize_course(course_id: str, request: Request, background_tasks: Ba
         res = supabase_admin.table("courses").select("slide_data, metadata").eq("id", course_id).execute()
         slide_data = res.data[0].get("slide_data", [])
 
-    res = supabase_admin.table("courses").select("metadata, accent_color").eq("id", course_id).execute()
+    res = supabase_admin.table("courses").select("metadata").eq("id", course_id).execute()
     metadata = res.data[0]['metadata']
-    accent_color = res.data[0].get('accent_color', '#14b8a6')
+    # Fallback to metadata's accent_color or default
+    accent_color = metadata.get('accent_color', '#14b8a6')
+
+    # Brand Colour Override: Check if user has a brand colour set defined in their profile
+    try:
+        profile_res = supabase_admin.table("profiles").select("brand_colour").eq("id", user_id).single().execute()
+        if profile_res.data and profile_res.data.get("brand_colour"):
+             accent_color = profile_res.data.get("brand_colour")
+             print(f"   🎨 Using Brand Colour Override: {accent_color}")
+    except Exception as e:
+        print(f"   ⚠️ Failed to fetch brand colour: {e}")
     
     style_key = metadata.get("style", "Minimalist Vector")
     style_config = STYLE_MAPPING.get(style_key, STYLE_MAPPING["Minimalist Vector"])
@@ -567,7 +577,27 @@ async def regenerate_slide_visual(
     metadata = res.data[0]['metadata'] if res.data else {}
     style_key = metadata.get("style", "Minimalist Vector")
     style_config = STYLE_MAPPING.get(style_key, STYLE_MAPPING["Minimalist Vector"])
-    style_prompt = style_config["prompt"]
+    raw_style_prompt = style_config["prompt"]
+
+    # Resolve Brand Color: Profile > Metadata > Default
+    resolved_color = style_config["default_accent"] # Fallback
+
+    if metadata.get("accent_color"):
+         resolved_color = metadata.get("accent_color")
+
+    try:
+        profile_res = supabase_admin.table("profiles").select("brand_colour").eq("id", user_id).single().execute()
+        if profile_res.data and profile_res.data.get("brand_colour"):
+             resolved_color = profile_res.data.get("brand_colour")
+    except Exception as e:
+        print(f"   ⚠️ Brand colour fetch failed: {e}")
+
+    try:
+        style_prompt = raw_style_prompt.format(primary_color=resolved_color)
+    except Exception as e:
+        # Fallback if format fails (e.g. no placeholder)
+        style_prompt = raw_style_prompt.replace("{primary_color}", resolved_color)
+
 
     from backend.services.storage import upload_asset_throttled
     
@@ -663,6 +693,12 @@ async def get_signed_url(request: Request, authorization: str = Header(None)):
     
     try:
         bucket = "course-assets"
+        
+        # Heuristic: If filename contains "logo_", check 'logos' bucket
+        # We can also accept an explicit bucket param in the future
+        if "/logo_" in path or path.startswith("logo_") or "_logo_" in path:
+             bucket = "logos"
+             
         signed_url_response = supabase_admin.storage.from_(bucket).create_signed_url(path, 900)
         
         # Handle dict response (standard in recent SDKs)

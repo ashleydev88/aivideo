@@ -528,7 +528,36 @@ Target Average: 20 seconds per slide.
         # Generate Draft Visuals
         style_key = metadata.get("style", "Minimalist Vector")
         style_config = STYLE_MAPPING.get(style_key, STYLE_MAPPING["Minimalist Vector"])
-        style_prompt = style_config["prompt"] 
+        raw_style_prompt = style_config["prompt"] 
+
+        # Resolve Brand Color: Profile > Metadata > Default
+        resolved_color = style_config["default_accent"] # Fallback
+        
+        # 1. Try Metadata (course specific)
+        if metadata.get("accent_color"):
+             resolved_color = metadata.get("accent_color")
+
+        # 2. Try Profile (brand override - highest priority if present)
+        try:
+            profile_res = supabase_admin.table("profiles").select("brand_colour").eq("id", request.user_id).single().execute()
+            if profile_res.data and profile_res.data.get("brand_colour"):
+                 resolved_color = profile_res.data.get("brand_colour")
+                 # Update metadata to reflect the actual color used
+                 metadata["accent_color"] = resolved_color
+                 try:
+                     supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
+                 except: pass
+        except Exception as e:
+            print(f"   ⚠️ Brand colour fetch failed: {e}")
+
+        # Format the prompt
+        try:
+            style_prompt = raw_style_prompt.format(primary_color=resolved_color)
+        except Exception as e:
+            print(f"   ⚠️ Prompt formatting failed: {e}")
+            style_prompt = raw_style_prompt.replace("{primary_color}", resolved_color)
+
+
 
         script_plan = await generate_draft_visuals(course_id, script_plan, style_prompt, request.user_id)
         
