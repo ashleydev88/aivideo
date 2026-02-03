@@ -221,18 +221,6 @@ AUDIENCE_STRATEGIES = {
     }
 }
 
-# --- AUDIENCE LEGACY MAP ---
-AUDIENCE_LEGACY_MAP = {
-    "New Hires": "new_hires",
-    "All Employees": "all_employees",
-    "Leadership": "leadership",
-    # Mappings for potential older values
-    "Employees": "all_employees",
-    "Executives": "leadership",
-    "Management": "leadership"
-}
-
-
 # --- UPLOAD LIMITS ---
 # Constraints for document uploads during intake
 

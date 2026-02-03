@@ -27,17 +27,19 @@ def suggest_learning_outcomes(topic: str, audience: str, country: str = "UK") ->
     audience_strategy = AUDIENCE_STRATEGIES.get(audience, AUDIENCE_STRATEGIES["all_employees"])
 
     # Build jurisdiction context
-    jurisdiction_context = ""
+    jurisdiction_info = ""
     if country.upper() == "UK":
-        jurisdiction_context = "CONTEXT: UK Employment Law and Regulations (e.g. Equality Act 2010, HSE)."
+        jurisdiction_info = "UK Employment Law (Equality Act 2010, HSE)"
     else:
-        jurisdiction_context = "CONTEXT: US Employment Law and Regulations (e.g. Title VII, OSHA, At-will employment)."
+        jurisdiction_info = "US Employment Law (Title VII, OSHA)"
     
+    jurisdiction_instruction = f"If the topic involves compliance, safety, or legal matters, ensure alignment with {jurisdiction_info}. If the topic is a soft skill (e.g. communication, leadership), DO NOT include legal references unless explicitly relevant."
+
     prompt = f"""You are an expert instructional designer. Generate 5 specific, measurable learning outcomes for a training course.
 
 TOPIC: {topic}
 TARGET AUDIENCE: {audience_strategy['display_name']}
-{jurisdiction_context}
+LEGAL CONTEXT: {jurisdiction_instruction}
 
 AUDIENCE CONTEXT:
 - Tone: {audience_strategy['tone']}
