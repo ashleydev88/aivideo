@@ -29,6 +29,7 @@ const tierLabels: Record<string, string> = {
     matrix: 'Pedagogical',
     metaphor: 'Pedagogical',
     anatomy: 'Pedagogical',
+    'contextual-overlay': 'Business',
 };
 
 const tierColors: Record<string, string> = {

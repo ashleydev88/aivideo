@@ -51,8 +51,9 @@ export const TitleCard: React.FC<{
                     }}
                 >
                     <style>{`
-                        h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; font-size: 4em; }
-                        p { opacity: 0.9; font-size: 1.5em; margin-bottom: 1em; }
+                        h1 { font-weight: 900; font-size: 3.75rem; line-height: 1; margin-bottom: 0.5rem; text-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+                        h2 { font-weight: 700; font-size: 1.5rem; line-height: 1.25; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+                        p { font-weight: 500; font-size: 1.5rem; line-height: 1.625; opacity: 0.95; margin-bottom: 1em; }
                         strong { color: ${accent_color}; }
                         ul { list-style-type: none; padding: 0; }
                      `}</style>
@@ -73,14 +74,15 @@ export const TitleCard: React.FC<{
                     {/* Main Title */}
                     <h1
                         style={{
-                            fontSize: '100px',
+                            fontSize: '3.75rem',
                             fontWeight: 900,
                             color: custom_text_color || '#1e293b',
                             textAlign: 'center',
                             padding: '0 64px',
-                            lineHeight: 1.1,
+                            lineHeight: 1,
                             opacity: opacity,
                             transform: `translateY(${titleY}px)`,
+                            textShadow: '0 4px 20px rgba(0,0,0,0.15)',
                         }}
                     >
                         {displayTitle}
@@ -90,12 +92,14 @@ export const TitleCard: React.FC<{
                     {subtitle && (
                         <p
                             style={{
-                                fontSize: '24px',
+                                fontSize: '1.5rem',
+                                fontWeight: 500,
                                 color: custom_text_color ? `${custom_text_color}cc` : '#64748b',
                                 marginTop: '24px',
                                 textAlign: 'center',
                                 padding: '0 64px',
                                 opacity: subtitleOpacity,
+                                lineHeight: 1.625,
                             }}
                         >
                             {subtitle}

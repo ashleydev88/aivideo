@@ -362,32 +362,53 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         return (
             <BackgroundEditTrigger className="w-full h-full">
                 <div
-                    className="slide-preview-content w-full h-full p-8 rounded-lg"
+                    className="slide-preview-content w-full h-full p-8 rounded-lg flex items-center justify-center"
                     style={{ backgroundColor: slide.background_color || '#0f172a', color: slide.text_color || '#ffffff' }}
                 >
-                    <AutoFitText className="items-center justify-center origin-center">
-                        <div className="w-full text-center">
-                            <style>{`
-                                .ProseMirror h1 { font-weight: 900; line-height: 1.1; margin-bottom: 0.5em; letter-spacing: -0.02em; }
-                                .ProseMirror h2 { font-weight: 900; margin-bottom: 0.5em; letter-spacing: -0.01em; }
-                                .ProseMirror p { margin-bottom: 0.5em; }
-                                .ProseMirror ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
-                                .ProseMirror li { margin-bottom: 0.5em; }
-                                .ProseMirror strong { color: ${effectiveAccentColor} !important; }
-                             `}</style>
-                            {onTextChange ? (
-                                <RichTextEditor
-                                    value={textContent}
-                                    onChange={onTextChange}
-                                    variant="minimal"
-                                />
-                            ) : (
-                                <div className="prose prose-xl dark:prose-invert max-w-none">
-                                    {parse(textContent)}
-                                </div>
-                            )}
-                        </div>
-                    </AutoFitText>
+                    <div className="w-full text-center">
+                        <style>{`
+                            .ProseMirror {
+                                --editor-default-size: 32px;
+                            }
+                            .ProseMirror h1, .prose-preview h1 { 
+                                font-weight: 950 !important; 
+                                font-size: 96px !important; 
+                                line-height: 1.05 !important; 
+                                margin-bottom: 0.5rem !important; 
+                                text-shadow: 0 15px 45px rgba(0,0,0,0.5) !important; 
+                            }
+                            .ProseMirror h2, .prose-preview h2 { 
+                                font-weight: 800 !important; 
+                                font-size: 48px !important; 
+                                line-height: 1.25 !important; 
+                                letter-spacing: 0.05em !important; 
+                                margin-bottom: 0.5rem !important; 
+                                text-shadow: 0 5px 20px rgba(0,0,0,0.3) !important;
+                            }
+                            .ProseMirror p, .prose-preview p { 
+                                font-weight: 600 !important; 
+                                font-size: 36px !important; 
+                                line-height: 1.625 !important; 
+                                margin-bottom: 0.75rem !important; 
+                                opacity: 0.95 !important; 
+                                text-shadow: 0 2px 15px rgba(0,0,0,0.2) !important;
+                            }
+                            .ProseMirror ul, .prose-preview ul { list-style-type: disc !important; text-align: left !important; padding-left: 1.5em !important; }
+                            .ProseMirror li, .prose-preview li { margin-bottom: 0.5em !important; font-size: 30px !important; font-weight: 600 !important; }
+                            .ProseMirror strong, .prose-preview strong { color: ${effectiveAccentColor} !important; font-weight: 900 !important; }
+                         `}</style>
+                        {onTextChange ? (
+                            <RichTextEditor
+                                value={textContent}
+                                onChange={onTextChange}
+                                variant="minimal"
+                            />
+                        ) : (
+                            <div className="prose-preview dark:prose-invert max-w-none">
+                                {parse(textContent)}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </BackgroundEditTrigger>
         )
@@ -411,8 +432,9 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     <AutoFitText className="items-center justify-center origin-center">
                         <div className="w-full text-center">
                             <style>{`
-                                    .ProseMirror h1 { font-weight: 900; line-height: 1.1; margin-bottom: 0.5em; letter-spacing: -0.02em; }
-                                    .ProseMirror p { opacity: 0.9; font-weight: 500; }
+                                    .ProseMirror h1 { font-weight: 900; font-size: 3.75rem; line-height: 1; margin-bottom: 0.5rem; text-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+                                    .ProseMirror h2 { font-weight: 700; font-size: 1.5rem; line-height: 1.25; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+                                    .ProseMirror p { font-weight: 500; font-size: 1.5rem; line-height: 1.625; margin-bottom: 0.75rem; opacity: 0.95; }
                                     .ProseMirror strong { color: rgba(255,255,255,0.9); }
                                  `}</style>
                             {onTextChange ? (
@@ -444,75 +466,83 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         const baseColor = slide.background_color || '#0f172a';
 
         return (
-            <div className="w-full h-full relative bg-slate-900 overflow-hidden">
-                {/* Right: Image Layer (Sits behind text partially) */}
-                <div className="absolute top-0 right-0 w-[60%] h-full bg-slate-800">
-                    {resolvedImage ? (
-                        <Image
-                            src={resolvedImage}
-                            alt={slide.prompt || "Slide Visual"}
-                            fill
-                            className="object-cover"
-                        />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-600 p-4 text-center bg-slate-200">
-                            {image ? <div className="flex flex-col items-center gap-2"><RefreshCcw className="animate-spin h-6 w-6" /> <span className="font-bold">Loading Visual...</span></div> : "No Image"}
-                        </div>
-                    )}
-                </div>
+            <ScaleContainer>
+                <div className="w-full h-full relative bg-slate-900 overflow-hidden">
+                    {/* Right: Image Layer (Sits behind text partially) */}
+                    <div className="absolute top-0 right-0 w-[60%] h-full bg-slate-800">
+                        {resolvedImage ? (
+                            <>
+                                <img
+                                    src={resolvedImage}
+                                    alt={slide.prompt || "Slide Visual"}
+                                    className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-white/70" />
+                            </>
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-600 p-4 text-center bg-slate-200">
+                                {image ? <div className="flex flex-col items-center gap-2"><RefreshCcw className="animate-spin h-6 w-6" /> <span className="font-bold">Loading Visual...</span></div> : "No Image"}
+                            </div>
+                        )}
+                    </div>
 
-                {/* Left: Text - Curved Cutout & Gradient */}
-                <BackgroundEditTrigger className="w-full h-full absolute inset-0 pointer-events-none">
-                    {/* SVG Definition for the Curve using objectBoundingBox for responsiveness */}
-                    <svg className="absolute w-0 h-0" aria-hidden="true" focusable="false">
-                        <defs>
-                            <clipPath id="hybrid-curve-clip" clipPathUnits="objectBoundingBox">
-                                <path d="M 0 0 L 0.85 0 Q 1 0.5 0.85 1 L 0 1 Z" />
-                            </clipPath>
-                        </defs>
-                    </svg>
+                    {/* Left: Text - Curved Cutout & Gradient */}
+                    <BackgroundEditTrigger className="w-full h-full absolute inset-0 pointer-events-none">
+                        {/* SVG Definition for the Curve using objectBoundingBox for responsiveness */}
+                        <svg className="absolute w-0 h-0" aria-hidden="true" focusable="false">
+                            <defs>
+                                <clipPath id="hybrid-curve-clip" clipPathUnits="objectBoundingBox">
+                                    <path d="M 0 0 L 0.85 0 Q 1 0.5 0.85 1 L 0 1 Z" />
+                                </clipPath>
+                            </defs>
+                        </svg>
 
-                    <div
-                        className="h-full w-[55%] relative z-10 pointer-events-auto flex flex-col justify-center p-24 shadow-2xl"
-                        style={{
-                            background: `linear-gradient(135deg, ${brandColor || baseColor} 0%, ${brandColor || baseColor} 60%, transparent 100%)`, // Use brand color if available
-                            backgroundColor: brandColor || baseColor, // Fallback
-                            clipPath: 'url(#hybrid-curve-clip)'
-                        }}
-                    >
-                        {/* Gradient reinforcement to ensure legibility over the curve */}
-                        <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none mix-blend-multiply" />
+                        <div
+                            className="h-full w-[55%] relative z-10 pointer-events-auto flex flex-col justify-center p-24 shadow-2xl"
+                            style={{
+                                background: `linear-gradient(135deg, ${brandColor || baseColor} 0%, ${brandColor || baseColor} 60%, transparent 100%)`, // Use brand color if available
+                                backgroundColor: brandColor || baseColor, // Fallback
+                                clipPath: 'url(#hybrid-curve-clip)'
+                            }}
+                        >
+                            {/* Gradient reinforcement to ensure legibility over the curve */}
+                            <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none mix-blend-multiply" />
 
-                        <div className="relative z-20" style={{ color: slide.text_color || '#ffffff' }}>
-                            <AutoFitText className="items-start justify-center origin-left">
-                                <div className="w-full text-left">
-                                    <style>{`
-                                        .ProseMirror h1 { 
-                                            font-weight: 900; 
-                                            margin-bottom: 0.2em; 
-                                            line-height: 0.95; 
-                                            letter-spacing: -0.03em; 
-                                            font-size: 4em;
-                                            text-wrap: balance; /* Helps prevents orphans like 's' */
-                                            text-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                                        }
-                                        .ProseMirror h2 { 
-                                            font-weight: 800; 
-                                            margin-bottom: 0.3em; 
-                                            letter-spacing: -0.02em;
-                                            font-size: 2.5em;
-                                        }
-                                        .ProseMirror p { 
-                                            margin-bottom: 0.8em; 
-                                            line-height: 1.5; 
-                                            font-size: 1.4em;
-                                            opacity: 0.95;
-                                            font-weight: 500;
-                                        }
-                                        .ProseMirror ul { list-style-type: disc; padding-left: 1.2em; }
-                                        .ProseMirror li { margin-bottom: 0.4em; font-size: 1.3em; }
-                                        .ProseMirror strong { color: ${effectiveAccentColor} !important; }
-                                     `}</style>
+                            <div className="relative z-20 max-w-2xl space-y-6" style={{ color: slide.text_color || '#ffffff' }}>
+                                {/* Typography matching contextual_overlay at 1920px base */}
+                                <style>{`
+                                .hybrid-text {
+                                    --editor-default-size: 28px;
+                                }
+                                .hybrid-text h1, .hybrid-text .ProseMirror h1 { 
+                                    font-weight: 950 !important; 
+                                    font-size: 84px !important;
+                                    line-height: 1.05 !important; 
+                                    margin-bottom: 32px !important;
+                                    text-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
+                                    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+                                }
+                                .hybrid-text h2, .hybrid-text .ProseMirror h2 { 
+                                    font-weight: 800 !important; 
+                                    font-size: 48px !important;
+                                    line-height: 1.2 !important;
+                                    letter-spacing: 0.05em !important;
+                                    margin-bottom: 24px !important;
+                                    text-shadow: 0 5px 20px rgba(0,0,0,0.4) !important;
+                                }
+                                .hybrid-text p, .hybrid-text .ProseMirror p { 
+                                    font-weight: 600 !important;
+                                    font-size: 32px !important;
+                                    line-height: 1.6 !important; 
+                                    margin-bottom: 24px !important;
+                                    opacity: 0.95 !important;
+                                    text-shadow: 0 2px 15px rgba(0,0,0,0.3) !important;
+                                }
+                                .hybrid-text ul, .hybrid-text .ProseMirror ul { list-style-type: disc !important; padding-left: 1.5em !important; }
+                                .hybrid-text li, .hybrid-text .ProseMirror li { margin-bottom: 16px !important; font-size: 30px !important; font-weight: 600 !important; }
+                                .hybrid-text strong, .hybrid-text .ProseMirror strong { color: ${effectiveAccentColor} !important; font-weight: 900 !important; }
+                            `}</style>
+                                <div className="hybrid-text">
                                     {onTextChange ? (
                                         <RichTextEditor
                                             value={textContent}
@@ -520,16 +550,21 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                                             variant="minimal"
                                         />
                                     ) : (
-                                        <div className="prose prose-2xl dark:prose-invert max-w-none">
-                                            {parse(textContent)}
+                                        <div className="max-w-none">
+                                            {/* Fallback for plain text: wrap in h1 if not HTML */}
+                                            {/<[a-z][\s\S]*>/i.test(textContent) ? (
+                                                parse(textContent)
+                                            ) : (
+                                                <h1>{textContent}</h1>
+                                            )}
                                         </div>
                                     )}
                                 </div>
-                            </AutoFitText>
+                            </div>
                         </div>
-                    </div>
-                </BackgroundEditTrigger>
-            </div>
+                    </BackgroundEditTrigger>
+                </div>
+            </ScaleContainer>
         )
     }
 
@@ -551,24 +586,25 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
 
             {/* Overlay Text Preview */}
             {slide.visual_text && (
-                <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-sm p-4 rounded-md text-white">
-                    <div className="font-mono text-xs opacity-70 mb-1">ON-SCREEN TEXT</div>
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                        {/* Does the overlay text need to be editable? Probably not, usually people use hybrid/cards for heavy text. 
-                             But if they want, we could make it editable. 
-                             For now, let's keep it read-only or minimal editable if specifically requested.
-                             User asked "edit on screen text directly".
-                             I'll assume this overlay is also on-screen text.
-                         */}
-                        {onTextChange ? (
-                            <RichTextEditor
-                                value={slide.visual_text}
-                                onChange={onTextChange}
-                                variant="minimal"
-                            />
-                        ) : (
-                            parse(slide.visual_text)
-                        )}
+                <div className="absolute bottom-8 left-8 right-8 bg-black/60 backdrop-blur-md p-8 rounded-2xl text-white">
+                    <div className="text-xl font-bold tracking-widest uppercase opacity-70 mb-2">ON-SCREEN TEXT</div>
+                    <div className="max-w-none">
+                        <style>{`
+                            .overlay-text h1 { font-weight: 900; font-size: 2rem; line-height: 1; margin-bottom: 0.5rem; }
+                            .overlay-text p { font-weight: 500; font-size: 1.25rem; line-height: 1.625; margin-bottom: 0.5rem; opacity: 0.95; }
+                            .overlay-text strong { color: var(--accent-color, #14b8a6); }
+                        `}</style>
+                        <div className="overlay-text">
+                            {onTextChange ? (
+                                <RichTextEditor
+                                    value={slide.visual_text}
+                                    onChange={onTextChange}
+                                    variant="minimal"
+                                />
+                            ) : (
+                                parse(slide.visual_text)
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

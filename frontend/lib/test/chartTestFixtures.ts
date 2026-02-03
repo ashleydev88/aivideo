@@ -271,6 +271,18 @@ export const chartTestFixtures: MotionGraph[] = [
             edge('n1', 'n5'),
         ]
     },
+    {
+        id: 'test-contextual-overlay',
+        archetype: 'contextual-overlay',
+        metadata: { title: 'Contextual Overlay Test' },
+        nodes: [
+            node('n1', 'Main Content Title', {
+                subLabel: 'TEST CATEGORY',
+                description: 'This is a description of the contextual overlay content that should be visible over the background gradient.'
+            }),
+        ],
+        edges: []
+    },
 ];
 
 export default chartTestFixtures;

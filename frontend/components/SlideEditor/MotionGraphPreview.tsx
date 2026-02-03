@@ -427,9 +427,25 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const orbitNodes = nodes.slice(1);
 
         // Increased container size and radius to prevent overlaps
-        const containerSize = 1400; // was 1000
-        const radius = 520; // was 350
+        const containerSize = 1800; // was 1600
+        const radius = 750; // was 650
         const centerXY = containerSize / 2;
+
+        // Visual centering adjustment:
+        // If orbital nodes are not evenly distributed around the circle (e.g., only 3 nodes),
+        // the geometric center of the nodes might not be the visual center of the content.
+        // We calculate a vertical offset to make the center node feel truly "middle".
+        let yOffset = 0;
+        if (orbitNodes.length > 0) {
+            const yPositions = orbitNodes.map((_, i) => {
+                const angle = (i / orbitNodes.length) * 2 * Math.PI - Math.PI / 2;
+                return Math.sin(angle) * radius;
+            });
+            const minY = Math.min(...yPositions, 0); // Include center line (0) if needed
+            const maxY = Math.max(...yPositions, 0);
+            const visualMidpoint = (minY + maxY) / 2;
+            yOffset = visualMidpoint; // Shift center node to the orbital visual midpoint
+        }
 
         return (
             <div
@@ -437,19 +453,26 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                 style={{
                     width: `${containerSize}px`,
                     height: `${containerSize}px`,
-                    // Scale down slightly to fit in standard viewports if needed
-                    transform: 'scale(0.8)'
+                    // Scale down slightly more to fit in standard viewports given larger container
+                    transform: 'scale(0.5)'
                 }}
             >
                 {/* Center node */}
-                <div className="absolute z-10" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
+                <div
+                    className="absolute z-10 transition-all duration-500"
+                    style={{
+                        left: '50%',
+                        top: '50%',
+                        transform: `translate(-50%, calc(-50% + ${yOffset}px))`
+                    }}
+                >
                     <PreviewMotionBox
                         label={centerNode.data.label}
                         icon={centerNode.data.icon}
                         variant={centerNode.data.variant || 'primary'}
                         isEditable={!!onUpdate}
                         onUpdate={(field, val) => handleNodeUpdate(centerNode.id, field, val)}
-                        className="scale-110 shadow-2xl" // Make center node slightly larger
+                        className="scale-110 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)]" // More dramatic shadow for center
                     />
                 </div>
 
@@ -462,18 +485,19 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     return (
                         <div
                             key={node.id}
-                            className="absolute"
+                            className="absolute transition-all duration-500"
                             style={{
                                 left: '50%',
                                 top: '50%',
                                 transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
-                                maxWidth: '350px' // Constrain width to prevent massive expansion
+                                maxWidth: '450px'
                             }}
                         >
                             <PreviewMotionBox
                                 label={node.data.label}
                                 icon={node.data.icon}
                                 variant={node.data.variant}
+                                description={node.data.description} // Ensure description is passed
                                 isEditable={!!onUpdate}
                                 onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
                             />
@@ -782,6 +806,18 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const mainNode = nodes[0];
         const secondaryNodes = nodes.slice(1);
 
+        const fadeColor = backgroundColor || '#0f172a';
+        const isHex = fadeColor.startsWith('#');
+
+        // Helper to get translucent versions of the background color
+        const getTranslucentColor = (alpha: number) => {
+            if (!isHex || fadeColor.length < 7) return fadeColor; // Basic fallback
+            const r = parseInt(fadeColor.slice(1, 3), 16);
+            const g = parseInt(fadeColor.slice(3, 5), 16);
+            const b = parseInt(fadeColor.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+
         return (
             <div className="w-full h-full relative flex items-center justify-start p-24">
                 {/* Background (Image or Placeholder) */}
@@ -793,11 +829,23 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                 alt="Background"
                                 className="w-full h-full object-cover"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/40 to-transparent z-10" />
+                            <div className="absolute inset-0 bg-white/70 z-[5]" />
+                            <div
+                                className="absolute inset-0 z-10"
+                                style={{
+                                    background: `linear-gradient(to right, ${getTranslucentColor(0.9)} 0%, ${getTranslucentColor(0.4)} 60%, transparent 100%)`
+                                }}
+                            />
                         </>
                     ) : (
                         <>
-                            <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/40 to-transparent z-10" />
+                            <div className="absolute inset-0 bg-white/70 z-[5]" />
+                            <div
+                                className="absolute inset-0 z-10"
+                                style={{
+                                    background: `linear-gradient(to right, ${getTranslucentColor(0.9)} 0%, ${getTranslucentColor(0.4)} 60%, transparent 100%)`
+                                }}
+                            />
                             <Lucide.Image size={120} className="text-slate-400 opacity-20" />
                             <span className="text-slate-400 font-bold text-3xl ml-4 opacity-20 uppercase tracking-widest">
                                 Visual Background
@@ -843,11 +891,20 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                     {mainNode.data.subLabel}
                                 </div>
                             )}
-                            <h2 className="text-6xl font-black text-white leading-none drop-shadow-lg">
+                            <h2
+                                className="text-7xl font-black text-white leading-tight"
+                                style={{
+                                    textShadow: '0 10px 40px rgba(0,0,0,0.6)',
+                                    filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.5))'
+                                }}
+                            >
                                 {mainNode?.data.label}
                             </h2>
                             {mainNode?.data.description && (
-                                <p className="text-2xl text-slate-200 leading-relaxed max-w-xl drop-shadow-md">
+                                <p
+                                    className="text-3xl font-semibold text-slate-100 leading-relaxed max-w-2xl"
+                                    style={{ textShadow: '0 4px 20px rgba(0,0,0,0.4)' }}
+                                >
                                     {mainNode.data.description}
                                 </p>
                             )}

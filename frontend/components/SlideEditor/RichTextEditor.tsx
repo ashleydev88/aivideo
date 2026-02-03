@@ -261,7 +261,7 @@ export default function RichTextEditor({ value, onChange, placeholder, variant =
                 {/* Global style override still needed for defaults */}
                 <style jsx global>{`
                     .ProseMirror p, .ProseMirror li {
-                        font-size: 1.75rem; 
+                        font-size: var(--editor-default-size, 1.75rem); 
                     }
                     /* Minimal editor specific styles */
                     .minimal-editor .ProseMirror {

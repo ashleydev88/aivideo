@@ -113,11 +113,11 @@ export const KineticText: React.FC<{
                         {/* We apply basic styles to overrides, but Tiptap output should be standard HTML elements */}
                         {/* You might need a global CSS to style h1, ul, li etc if Tailwind prose isn't enough or installed */}
                         <style>{`
-                            h1 { font-weight: 800; line-height: 1.1; margin-bottom: 0.5em; }
-                            h2 { font-weight: 700; margin-bottom: 0.5em; }
-                            p { margin-bottom: 0.5em; }
+                            h1 { font-weight: 900; font-size: 3.75rem; line-height: 1; margin-bottom: 0.5rem; text-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+                            h2 { font-weight: 700; font-size: 1.5rem; line-height: 1.25; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+                            p { font-weight: 600; font-size: 1.5rem; line-height: 1.625; margin-bottom: 0.5rem; }
                             ul { list-style-type: disc; text-align: left; padding-left: 1.5em; }
-                            li { margin-bottom: 0.5em; }
+                            li { margin-bottom: 0.5em; font-size: 1.25rem; }
                             strong { color: ${accent_color}; }
                          `}</style>
                         {parse(text)}
