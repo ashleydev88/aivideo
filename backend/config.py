@@ -20,163 +20,18 @@ IMAGE_PROMPT_GENERATOR_MODEL = "google/gemini-3-flash"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 ENABLE_SCRIPT_VALIDATION = True
 
-# --- STYLE PROMPTS (use {primary_color} placeholder for dynamic color injection) ---
-
-MINIMALIST_PROMPT = (
-    "A clean, modern flat vector art style inspired by high-end tech SaaS interfaces. "
-    "The aesthetic relies on geometric abstraction, ample negative space, and razor-sharp precision to convey clarity. "
-    "The palette is strictly monochromatic or duotone (shades of {primary_color} and slate) with high-contrast elements for readability. "
-    "Backgrounds are solid, muted colours or subtle geometric patterns that do not distract. "
-    "The overall look is functional, efficient, and corporate-modern, similar to 'Corporate Memphis' but more restrained and less abstract. "
-    "Scenes should focus on metaphorical representations of concepts—using icons, charts, and simplified shapes—rather than detailed character studies. "
-    "CRITICAL: Ensuring no text, signage, numbers or readable characters appear anywhere in the composition."
+from backend.prompts import (
+    STYLE_MAPPING, 
+    PEDAGOGY_INSTRUCTIONS, 
+    LEARNING_ARCS,
+    HYBRID_GENERATOR_PROMPT,
+    KINETIC_GENERATOR_PROMPT,
+    IMAGE_PROMPT_GENERATOR_PROMPT,
+    MINIMALIST_PROMPT
 )
-
-PHOTO_REALISTIC_PROMPT = (
-    "A high-resolution, cinematic stock photography aesthetic with a focus on authenticity and modern office realism. "
-    "The style utilizes soft, natural lighting (simulated window light) and shallow depth of field (bokeh) to isolate the subject from the background. "
-    "The palette is true-to-life but with a subtle {primary_color} colour-grade for a cohesive 'editorial' look. "
-    "Backgrounds should be blurred modern workspaces, glass walls, or generic corporate environments. "
-    "The overall look is trustworthy, serious, and high-production value. "
-    "Scenes should depict diverse professionals in candid, 'in-action' moments rather than stiff poses, or close-ups of relevant objects (laptops, safety gear, documents) on desks. "
-    "CRITICAL: Ensuring no text, signage, numbers or readable characters appear anywhere in the composition."
-)
-
-WATERCOLOUR_PROMPT = (
-    "A sophisticated corporate illustration in a semi-realistic, hand-drawn aesthetic. "
-    "The style features distinct, expressive charcoal or ink outlines combined with soft, "
-    "textured watercolour-style colouring. "
-    "The palette is restrained and professional: primarily navy blues, cool greys, and crisp "
-    "whites, with selective warm accents of {primary_color}, mustard yellow and beige. "
-    "Backgrounds are often simplified, airy, or fade into a white vignette. "
-    "The overall look is polished yet human, evocative of high-end editorial illustrations for "
-    "business technology. "
-    "Scenes should prioritize relevant objects, tools over human subjects where possible, "
-    "though diverse professionals and office environments can be used when a human "
-    "element is essential. "
-    "CRITICAL: Ensuring no text, signage, numbers or readable characters appear anywhere in the composition."
-)
-
-# Style mapping with prompt template, default accent hex, and color name
-STYLE_MAPPING = {
-    "Minimalist Vector": {
-        "prompt": MINIMALIST_PROMPT,
-        "default_accent": "#14b8a6",
-        "default_color_name": "teal"
-    },
-    "Photo Realistic": {
-        "prompt": PHOTO_REALISTIC_PROMPT,
-        "default_accent": "#3b82f6",
-        "default_color_name": "blue"
-    },
-    "Sophisticated Watercolour": {
-        "prompt": WATERCOLOUR_PROMPT,
-        "default_accent": "#0ea5e9",
-        "default_color_name": "sky blue"
-    },
-}
-
-# --- PEDAGOGICAL FRAMEWORKS ---
-# These inject specific learning science principles into the prompt context.
-
-PEDAGOGY_INSTRUCTIONS = {
-    "cognitive_load": (
-        "STRICT COGNITIVE LOAD CONTROL:\n"
-        "- LIMIT NARRATION: Maximum 45 words per slide (approx 18-20 seconds).\n"
-        "- ONE CONCEPT RULE: If a sentence contains 'and', 'also', or multiple commas, split it across two slides.\n"
-        "- ACTIVE VOICE: Use 'You' and 'We'. Avoid passive voice (e.g., 'Forms must be signed' -> 'You must sign the form')."
-    ),
-    "multimedia_principles": (
-        "MAYER'S MULTIMEDIA PRINCIPLES (MANDATORY):\n"
-        "1. REDUNDANCY PRINCIPLE: The On-Screen Text (visual_text) must NEVER match the Narration verbatim. "
-        "Narration explains; Visual Text anchors. \n"
-        "   - BAD: Narration says 'Wear goggles', Text says 'Wear goggles'.\n"
-        "   - GOOD: Narration says 'Always protect your eyes before entering the zone', Text says 'MANDATORY: GOGGLES'.\n"
-        "2. SIGNALING PRINCIPLE: Use cue words in narration (First, Therefore, However) to guide the learner's mental model."
-    ),
-    "visual_logic": (
-        "VISUAL-VERBAL ALIGNMENT:\n"
-        "You must select a 'visual_archetype' for every slide based on the logic of the content:\n"
-        "- 'process': For steps, workflows, or sequences.\n"
-        "- 'comparison': For 'Do vs Don't', 'Old vs New', or contrasting options.\n"
-        "- 'list': For 3+ items, requirements, or checklists.\n"
-        "- 'metaphor': For abstract concepts (e.g., an iceberg for hidden risks).\n"
-        "- 'statistic': For data, percentages, or key numbers.\n"
-        "- 'contextual_overlay': For establishing shots or emotional resonance.\n"
-        "CRITICAL: The narration must reference the visual structure (e.g., 'As you can see in this sequence...', 'Unlike the option on the left...')."
-    )
-}
-
-# --- SPECIALIZED GENERATOR PROMPTS ---
-
-HYBRID_GENERATOR_PROMPT = """
-You are a High-End Typography Designer. 
-Your task is to take a Slide Title and Narration, and create punchy, layout-appropriate visual text for a HYBRID slide (50% image, 50% text).
-
-CONTEXT:
-Title: {title}
-Narration: {narration}
-
-RULES:
-1. Use semantic HTML focusing on impact (<h1> for headers, <strong> for emphasis).
-2. Maximum 15 words total.
-3. Anchor the text to the core action or term mentioned in the narration.
-4. Do NOT repeat the narration verbatim.
-
-OUTPUT FORMAT (JSON):
-{{
-  "visual_text": "HTML string"
-}}
-"""
-
-KINETIC_GENERATOR_PROMPT = """
-You are a Motion Graphics Text Designer.
-Your task is to create high-impact, typographic visual text for a kinetic text-only slide.
-
-CONTEXT:
-Title: {title}
-Narration: {narration}
-
-RULES:
-1. Focus on one or two powerful statements.
-2. Use <h1> for the main takeaway and <strong> for critical keywords.
-3. Maximum 10 words total.
-4. This text will be the only thing on screen, so make it count.
-
-OUTPUT FORMAT (JSON):
-{{
-  "visual_text": "HTML string"
-}}
-"""
-
-IMAGE_PROMPT_GENERATOR_PROMPT = """
-You are a Professional Diffusion Prompt Engineer.
-Your task is to take a Slide Title, Narration, and Visual Archetype, and create a high-quality, descriptive image prompt for a diffusion model (SDXL).
-
-CONTEXT:
-Title: {title}
-Narration: {narration}
-Archetype: {archetype}
-
-RULES:
-1. Focus on visual description, lighting, composition, and mood.
-2. Translate abstract concepts into concrete visual metaphors or scenes.
-3. Keep the prompt between 30-60 words.
-4. DO NOT include any text, signage, or words to be rendered in the image.
-5. Focus on the core subject and environment.
-
-OUTPUT FORMAT (JSON):
-{{
-  "prompt": "The detailed diffusion prompt"
-}}
-"""
 
 # Frameworks that change based on the course goal (Duration Strategy)
-LEARNING_ARCS = {
-    "skill": "1. HOOK (Why it matters) -> 2. CONCEPT (The Rule) -> 3. STEPS (How to do it) -> 4. PITFALLS (What to avoid)",
-    "compliance": "1. RISK (The Consequence) -> 2. RULE (The Requirement) -> 3. ACTION (What you must do) -> 4. RESOURCES (Where to get help)",
-    "executive": "1. BOTTOM LINE (Key Takeaway) -> 2. CONTEXT (Why now) -> 3. STRATEGY (The Plan) -> 4. ASK (Required Decision)"
-}
+# Frameworks are now imported from prompts.py
 
 # --- DURATION STRATEGIES ---
 DURATION_STRATEGIES = {

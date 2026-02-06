@@ -35,37 +35,16 @@ def suggest_learning_outcomes(topic: str, audience: str, country: str = "UK") ->
     
     jurisdiction_instruction = f"If the topic involves compliance, safety, or legal matters, ensure alignment with {jurisdiction_info}. If the topic is a soft skill (e.g. communication, leadership), DO NOT include legal references unless explicitly relevant."
 
-    prompt = f"""You are an expert instructional designer. Generate 5 specific, measurable learning outcomes for a training course.
+    from backend.prompts import DISCOVERY_OUTCOME_PROMPT
 
-TOPIC: {topic}
-TARGET AUDIENCE: {audience_strategy['display_name']}
-LEGAL CONTEXT: {jurisdiction_instruction}
-
-AUDIENCE CONTEXT:
-- Tone: {audience_strategy['tone']}
-- Focus Areas: {', '.join(audience_strategy['focus_areas'][:4])}
-- Narrative Style: "{audience_strategy['narrative_style']}"
-
-REQUIREMENTS:
-1. Outcomes should be ACTION-ORIENTED (use verbs: Identify, Explain, Apply, Demonstrate, Report)
-2. Make them SPECIFIC to this topic and audience
-3. Keep each outcome to ONE sentence (max 15 words)
-4. Progress from simple understanding to practical application
-5. Focus on what the learner will BE ABLE TO DO after training
-
-OUTPUT FORMAT (JSON):
-{{
-  "outcomes": [
-    "Identify the key requirements of {topic}",
-    "Explain why {topic} matters in their role",
-    "Apply the correct procedure when...",
-    "Recognize warning signs or red flags",
-    "Report issues through the appropriate channels"
-  ]
-}}
-
-Return ONLY the JSON, no other text.
-"""
+    prompt = DISCOVERY_OUTCOME_PROMPT.format(
+        topic=topic,
+        audience=audience_strategy['display_name'],
+        legal_context=jurisdiction_instruction,
+        tone=audience_strategy['tone'],
+        focus_areas=', '.join(audience_strategy['focus_areas'][:4]),
+        narrative_style=audience_strategy['narrative_style']
+    )
 
     try:
         res_text = replicate_chat_completion(

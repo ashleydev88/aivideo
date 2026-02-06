@@ -26,86 +26,9 @@ class PipelineManager:
                 "visual_note": slide.get("slide_title", "")
             })
 
-        prompt = f"""
-You are a World-Class Instructional Designer and Video Director.
-Your task is to assign the optimal VISUAL FORMAT for each slide to maximize learning retention and engagement.
-
-AVAILABLE FORMATS:
-
---- STANDARD LAYOUTS ---
-
-1. "hybrid" (Image + Kinetic Text): 
-   - BEST FOR: Complex concepts needing a metaphor + definition.
-   - Layout: Image on Right, Kinetic Text on Left.
-   - Use when you need to anchor a visual metaphor while explaining a key term.
-
-2. "image" (Image Only):
-   - BEST FOR: Storytelling, emotional impact, scene-setting, or strong visual metaphors.
-   - Layout: Full screen image.
-   - Use when the narration is descriptive and the visual needs to take center stage.
-
-3. "chart" (Data/Process Visualization):
-   - BEST FOR: Processes, steps, comparisons, lists, statistics, or flow.
-   - Layout: Clean, professional animated chart/diagram types.
-   - Use whenever the text implies structure (First, Second; vs; increasing/decreasing).
-
-4. "kinetic_text" (Text Only):
-   - BEST FOR: Short powerful quotes, definitions, or critical takeaways.
-   - Layout: Large, animated typography.
-   - Use for emphasis or when no visual metaphor is strong enough.
-
---- SPECIALIZED LAYOUTS (Use for specific content patterns) ---
-
-5. "contextual_overlay" (Full-Screen Background with Glassmorphism Text):
-   - BEST FOR: Introductions, section headers, topic transitions, or setting environmental context.
-   - Layout: AI-generated full-screen background with semi-transparent text overlay.
-   - TRIGGER PATTERNS: "Welcome to...", "In this section...", "Let's explore...", section intros, topic overviews.
-   - Use when you want to establish mood/environment while presenting a headline.
-
-6. "comparison_split" (Do This vs. Not That Split-Screen):
-   - BEST FOR: Dos and Don'ts, binary choices, compliant vs. non-compliant, pros vs. cons.
-   - Layout: Vertical split-screen. Left=negative (red tint), Right=positive (green tint).
-   - TRIGGER PATTERNS: "Do/Don't", "vs", "instead of", "rather than", "correct/incorrect", "right/wrong", "compliant/non-compliant".
-   - Use when content presents a clear binary choice or contrast between two actions.
-
-7. "document_anchor" (Legal Quote / Source Citation):
-   - BEST FOR: Quoting specific legal clauses, policy citations, regulations, or official documents.
-   - Layout: Document page visual on one side, highlighted verbatim quote on the other.
-   - TRIGGER PATTERNS: "Article X", "Section Y", "According to the policy", "The regulation states", quotes with specific sources, GDPR, legal citations.
-   - Use when building authority by showing exactly where a rule comes from.
-
-8. "key_stat_breakout" (Large Statistic Display):
-   - BEST FOR: Statistics, percentages, monetary figures, key metrics, success rates.
-   - Layout: Large number/percentage (50-60% of screen) with context label below.
-   - TRIGGER PATTERNS: Specific numbers like "45%", "$2.5M", "3x increase", "90% of employees", "within 24 hours".
-   - Use when a single statistic is the main takeaway of the slide.
-
-RULES:
-- "Process" language ("steps", "stages", "flow") MUST be a "chart".
-- Lists of 3+ items should be a "chart" (List view).
-- Emotional/Scenario content works best as "image".
-- Key definitions work best as "hybrid" or "kinetic_text".
-- Use "kinetic_text" for strong, short statements (quotes, warnings, key facts).
-- NEVER assign "chart" to two consecutive slides.
-- NEVER assign "document_anchor" or "key_stat_breakout" to two consecutive slides.
-- DIVERSIFY: Avoid using the same format for more than 2 slides in a row.
-- PRIORITIZE specialized layouts when content clearly matches their trigger patterns.
-- When a slide contains a prominent statistic, prefer "key_stat_breakout" over "chart".
-- When quoting official sources verbatim, prefer "document_anchor" over "kinetic_text".
-
-INPUT SLIDES:
-{json.dumps(slides_context, indent=2)}
-
-OUTPUT (JSON):
-[
-  {{ "id": 1, "type": "contextual_overlay", "reason": "Section introduction" }},
-  {{ "id": 2, "type": "key_stat_breakout", "reason": "45% statistic is the key takeaway", "layout_data": {{ "stat_value": "45%", "stat_label": "reduction in incidents" }} }},
-  {{ "id": 3, "type": "document_anchor", "reason": "Specific GDPR citation", "layout_data": {{ "source_reference": "GDPR Article 5", "verbatim_quote": "Personal data shall be processed lawfully, fairly and in a transparent manner.", "context_note": "Principle of lawfulness" }} }},
-  {{ "id": 4, "type": "comparison_split", "reason": "Do vs Don't comparison", "layout_data": {{ "left_label": "Don't", "left_text": "Share passwords", "left_prompt": "Person handing over password", "right_label": "Do", "right_text": "Use password manager", "right_prompt": "Secure digital vault" }} }}
-]
-
-IMPORTANT: For specialized layouts (contextual_overlay, comparison_split, document_anchor, key_stat_breakout), include a "layout_data" object with the required fields for that layout type.
-"""
+        from backend.prompts import VISUAL_DIRECTOR_PROMPT
+        
+        prompt = VISUAL_DIRECTOR_PROMPT.format(slides_context=json.dumps(slides_context, indent=2))
         try:
             res_text = replicate_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
@@ -185,52 +108,15 @@ IMPORTANT: For specialized layouts (contextual_overlay, comparison_split, docume
         # Build word list for context
         word_list = [w["word"] for w in word_timestamps]
         
-        prompt = f"""You are a Kinetic Typography Director for corporate e-learning videos.
-
-TASK: Generate on-screen text moments that highlight the MOST MEMORABLE takeaways from this slide's narration.
-
-SLIDE CONTEXT:
-{content_guidance}
-
-NARRATION:
-"{narration}"
-
-USER-EDITED ON-SCREEN TEXT (PRIORITIZE THIS):
-"{visual_text}"
-
-AVAILABLE WORDS (use these exact words as trigger_word):
-{', '.join(word_list[:50])}
-
-RULES:
-1. Extract KEY TERMS only, never full sentences from the narration
-2. Each text must anchor to a specific TRIGGER WORD (exact word from narration above)
-3. Think: "What would someone screenshot to remember?"
-4. Text should be SHORT (max 5-7 words) and PUNCHY
-5. Maximum {max_events} events for this slide type
-RULE: If USER-EDITED ON-SCREEN TEXT is provided, you MUST use that text or a subset of it for your kinetic events. Do not invent new text if the user has provided specific text.
-7. Return empty array if no text is needed
-
-TEXT STYLES:
-- "header": Large title text (e.g., "Lock Your Screen")
-- "bullet": Bullet point item (e.g., "• Report within 24 hours")
-- "emphasis": Bold statement (e.g., "EVERY. SINGLE. TIME.")
-- "stat": Large number with label (e.g., "24hr Reporting Window")
-
-OUTPUT FORMAT (JSON):
-{{
-  "kinetic_events": [
-    {{
-      "text": "Short impactful text",
-      "trigger_word": "exact_word_from_narration",
-      "style": "header|bullet|emphasis|stat"
-    }}
-  ]
-}}
-
-CRITICAL: 
-- trigger_word MUST be an EXACT word from the narration
-- Return empty array {{"kinetic_events": []}} if this slide doesn't need text
-"""
+        from backend.prompts import KINETIC_TEXT_PROMPT
+        
+        prompt = KINETIC_TEXT_PROMPT.format(
+            content_guidance=content_guidance,
+            narration=narration,
+            visual_text=visual_text,
+            word_list=', '.join(word_list[:50]),
+            max_events=max_events
+        )
         try:
             res_text = replicate_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
@@ -278,52 +164,14 @@ def validate_script(script_output, context_package):
     # Use original policy for fact-checking (truncate to stay within token limits)
     policy_excerpt = context_package.get('original_policy_text', context_package.get('policy_text', ''))[:8000]
     
-    validation_prompt = f"""
-You are a quality assurance reviewer for e-learning content with expertise in policy compliance.
+    from backend.prompts import VALIDATION_PROMPT
 
-Review this video script and perform the following checks:
-
-1. COMPLETENESS: Does it cover the key points from the topics? (List any gaps)
-2. COHERENCE: Does each slide transition logically? (Flag jarring jumps)
-3. ACCURACY: Are there specific policy details, or just generic advice? (Rate 1-10)
-4. IMAGE DIVERSITY: Are image prompts varied and specific? (Flag repetitive prompts)
-5. DURATION: Does the math check out? (Sum of all slide durations should be within -5% to +15% of total target duration {context_package['duration']}min). note: Individual slides can range 10s-60s.
-
-6. FACT-CHECK (CRITICAL): For each factual claim in the script, verify it against the source policy:
-   - Extract specific claims (numbers, deadlines, procedures, requirements, definitions)
-   - Check if each claim is grounded in the original policy text below
-   - Flag any claim that appears hallucinated, exaggerated, or incorrectly stated
-   - Be especially vigilant about: numbers, timeframes, percentages, specific procedures
-
-ORIGINAL POLICY (source of truth for fact-checking):
-{policy_excerpt}
-
-TOPICS TO COVER:
-{json.dumps(context_package['topics'], indent=2)}
-
-SCRIPT TO VALIDATE:
-{json.dumps(script_output, indent=2)}
-
-OUTPUT (JSON):
-{{
-  "approved": true or false,
-  "completeness_score": 1-10,
-  "coherence_score": 1-10,
-  "accuracy_score": 1-10,
-  "image_diversity_score": 1-10,
-  "fact_check_score": 1-10,
-  "issues": ["issue 1", "issue 2"],
-  "ungrounded_claims": [
-    {{"slide": 1, "claim": "quoted claim from script", "issue": "what's wrong or not found in policy"}}
-  ],
-  "suggestions": ["suggestion 1"]
-}}
-
-APPROVAL CRITERIA:
-- Approve (true) if all scores are 7+ AND fact_check_score is 8+
-- If fact_check_score < 8, you MUST populate ungrounded_claims with specific examples
-- Otherwise set approved to false
-"""
+    validation_prompt = VALIDATION_PROMPT.format(
+        target_duration=context_package['duration'],
+        policy_excerpt=policy_excerpt,
+        topics_json=json.dumps(context_package['topics'], indent=2),
+        script_json=json.dumps(script_output, indent=2)
+    )
     
     try:
         res_text = replicate_chat_completion(

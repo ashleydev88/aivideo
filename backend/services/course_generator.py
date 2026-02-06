@@ -222,67 +222,26 @@ async def generate_topics_task(
 
         # SOURCE-FIRST PROMPT: Extract from document, then adapt for audience
         if processed_policy:
-            prompt = f"""You are an expert instructional designer specializing in creating engaging corporate training.
-
-=== STEP 1: CONTENT EXTRACTION (MANDATORY) ===
-
-Analyze the SOURCE DOCUMENT below and extract ALL key topics, procedures, requirements, and important information.
-DO NOT skip any sections. DO NOT invent topics not present in the document.
-
-SOURCE DOCUMENT (THIS IS THE PRIMARY SOURCE OF TRUTH):
-{processed_policy}
-
-=== STEP 2: AUDIENCE ADAPTATION for {audience_strategy['display_name'].upper()} ===
-
-{audience_strategy['extraction_prompt']}
-
-Prioritize these aspects for {audience_strategy['display_name']}:
-{chr(10).join(f"- {area}" for area in audience_strategy['focus_areas'])}
-
-=== STEP 3: TONE & PRESENTATION ===
-
-Apply this tone and structure to the extracted content:
-- Tone: {audience_strategy['tone']}
-- Structure: {audience_strategy['structure']}
-- Language Level: {audience_strategy['language_level']}
-- Narrative Style: "{audience_strategy['narrative_style']}"
-- Call to Action: {audience_strategy['call_to_action']}
-
-=== STEP 4: DURATION CALIBRATION ===
-
-Calibrate depth and topic count for a {duration}-MINUTE course:
-- Purpose: {duration_config['purpose']}
-- Pedagogical Goal: {duration_config.get('pedagogical_goal', 'Effective Training')}
-- Topic Count: {duration_config['topic_count']}
-- Depth Level: {duration_config['depth_level']}
-- Content Priorities: {', '.join(duration_config['content_priorities'])}
-
-{jurisdiction_context}
-
-=== OUTPUT FORMAT (JSON) ===
-{{
-  "title": "Engaging Course Title (based on document content)",
-  "learning_objective": "Clear, measurable learning outcome",
-  "document_type_detected": "Brief description of what kind of document this is (e.g., 'disciplinary policy', 'safety manual', 'onboarding guide')",
-  "topics": [
-    {{
-      "id": 1,
-      "title": "Topic Title (from document)",
-      "purpose": "What {audience_strategy['display_name']} will understand/be able to do",
-      "key_points": ["Point 1 (from document)", "Point 2", "Point 3"],
-      "estimated_slides": 3,
-      "complexity": "simple|moderate|complex"
-    }}
-  ]
-}}
-
-CRITICAL REQUIREMENTS:
-- Topics MUST come from the source document content
-- Follow the {duration_config['topic_count']} topic guideline  
-- Adapt depth to {duration_config['depth_level']}
-- Frame topics from the perspective of {audience_strategy['display_name']}
-- DO NOT generate generic topics unless explicitly in the document
-"""
+            from backend.prompts import TOPIC_GENERATION_PROMPT
+            
+            prompt = TOPIC_GENERATION_PROMPT.format(
+                source_document=processed_policy,
+                audience_display_name=audience_strategy['display_name'].upper(),
+                extraction_prompt=audience_strategy['extraction_prompt'],
+                focus_areas='\n'.join(f"- {area}" for area in audience_strategy['focus_areas']),
+                tone=audience_strategy['tone'],
+                structure=audience_strategy['structure'],
+                language_level=audience_strategy['language_level'],
+                narrative_style=audience_strategy['narrative_style'],
+                call_to_action=audience_strategy['call_to_action'],
+                duration=duration,
+                purpose=duration_config['purpose'],
+                pedagogical_goal=duration_config.get('pedagogical_goal', 'Effective Training'),
+                topic_count=duration_config['topic_count'],
+                depth_level=duration_config['depth_level'],
+                content_priorities=', '.join(duration_config['content_priorities']),
+                jurisdiction_context=jurisdiction_context
+            )
         else:
             # No source document - Use discovery context for topic generation
             # Build outcomes section if available
@@ -429,39 +388,15 @@ async def generate_structure_task(course_id: str, context_package: dict, request
         
         # STEP 1: HIGH-LEVEL OUTLINE (The Architecture)
         # We ask for just the slide titles and concepts first to ensure the arc is solid.
-        outline_prompt = f"""
-You are a World-Class Instructional Architect.
-Your goal is to design the STRUCTURE (Outline) for a high-retention video course.
-
-=== CONTEXT ===
-COURSE TITLE: {context_package['title']}
-AUDIENCE: {context_package['audience_strategy']['display_name']}
-TOTAL TIME: {context_package['duration']} minutes ({context_package['target_slides']} slides target).
-LEARNING ARC: {learning_arc}
-
-=== TASK ===
-Generate a High-Level Outline for exactly {context_package['target_slides']} slides.
-For each slide, provide:
-1. "slide_number": 1 to {context_package['target_slides']}
-2. "title": Short header (e.g., "The Problem", "The Solution")
-3. "concept": Brief description of what this slide covers (1 sentence)
-4. "visual_archetype": (image, chart, kinetic_text, comparison, process, list, metaphor)
-
-=== CRITICAL CONSTRAINT ===
-You must strictly follow the "Learning Arc" structure defined above.
-MANDATORY: The slide *before* the final conclusion loop MUST be a "Knowledge Check".
-- Title: "Quick Check"
-- Concept: A scenario-based multiple choice question (A, B, or C). 
-- Visual Archetype: "kinetic_text" (or "list" if options are long).
-
-=== OUTPUT FORMAT (JSON ONLY) ===
-{{
-  "outline": [
-    {{ "slide_number": 1, "title": "...", "concept": "...", "visual_archetype": "..." }},
-    ...
-  ]
-}}
-"""
+        from backend.prompts import OUTLINE_GENERATOR_PROMPT
+        
+        outline_prompt = OUTLINE_GENERATOR_PROMPT.format(
+            title=context_package['title'],
+            audience=context_package['audience_strategy']['display_name'],
+            duration=context_package['duration'],
+            target_slides=context_package['target_slides'],
+            learning_arc=learning_arc
+        )
         print("   🧠 Step 1: Generating Course Outline...")
         outline_res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": outline_prompt}], max_tokens=4000)
         outline_data = extract_json_from_response(outline_res)
@@ -469,61 +404,23 @@ MANDATORY: The slide *before* the final conclusion loop MUST be a "Knowledge Che
         
         # STEP 2: DETAILED SCRIPTING (The Director)
         # Now we flesh out the details using the approved outline.
-        base_prompt = f"""
-You are an Expert Video Director and Scriptwriter.
-You will now write the FULL SCRIPT for the course based on the provided OUTLINE.
-
-=== CONTEXT ===
-AUDIENCE: {context_package['audience_strategy']['display_name']}
-TONE: {context_package['audience_strategy']['tone']} ("{context_package['audience_strategy']['narrative_style']}")
-SOURCE MATERIAL: {context_package.get('policy_text', 'No source provided')[:3000]}...
-
-=== PEDAGOGICAL RULES (STRICT COMPLIANCE REQUIRED) ===
-{PEDAGOGY_INSTRUCTIONS['cognitive_load']}
-
-{PEDAGOGY_INSTRUCTIONS['multimedia_principles']}
-
-{PEDAGOGY_INSTRUCTIONS['visual_logic']}
-
-=== THE APPROVED OUTLINE (FOLLOW THIS) ===
-{json.dumps(outline, indent=2)}
-
-=== TASK ===
-Generate the final JSON script. For each slide in the outline:
-1. Write 'slide_title' (Conceptual headline, max 6 words).
-2. Write 'text' (Narration) that explains the concept.
-3. Select the best 'visual_archetype' (image, chart, kinetic_text, contextual_overlay, comparison_split, document_anchor, key_stat_breakout).
-
-=== VISUAL ARCHETYPE GUIDE ===
-- If explaining a workflow -> Use 'process'.
-- If explaining a danger -> Use 'metaphor'.
-- If listing requirements -> Use 'list'.
-- If contrasting ideas -> Use 'comparison'.
-
-=== SPECIAL VISUAL RULES ===
-- For "Knowledge Check" / "Quick Check" slides:
-   - Slide Title: THE QUESTION.
-   - Narration: Read the question. Read the options. Then say "Take a moment..." (provide a pause in wording). Then say "The correct answer is [X] because [reason]."
-   - Duration: Override the default. Set duration to at least 20000 (20 seconds) to allow thinking time.
-
-=== OUTPUT FORMAT (JSON ONLY) ===
-{{
-  "script": [
-    {{
-      "slide_number": 1,
-      "visual_archetype": "contextual_overlay", 
-      "slide_title": "{context_package['title']}",
-      "text": "Welcome. In the next few minutes, we will master the core safety protocols that keep you safe.",
-      "duration": 12000
-    }}
-    // ... continue for all slides in the outline
-  ]
-}}
-"""
+        from backend.prompts import SCRIPT_GENERATOR_PROMPT
+        
+        base_prompt = SCRIPT_GENERATOR_PROMPT.format(
+            audience=context_package['audience_strategy']['display_name'],
+            tone=context_package['audience_strategy']['tone'],
+            narrative_style=context_package['audience_strategy']['narrative_style'],
+            source_material=context_package.get('policy_text', 'No source provided')[:3000],
+            pedagogy_cognitive=PEDAGOGY_INSTRUCTIONS['cognitive_load'],
+            pedagogy_multimedia=PEDAGOGY_INSTRUCTIONS['multimedia_principles'],
+            pedagogy_visual=PEDAGOGY_INSTRUCTIONS['visual_logic'],
+            outline_json=json.dumps(outline, indent=2),
+            title=context_package['title']
+        )
         
         messages = [{"role": "user", "content": base_prompt}]
         script_plan = []
-        max_retries = 2
+        max_retries = 3
         
         for attempt in range(max_retries):
             res_text = await asyncio.to_thread(replicate_chat_completion, messages=messages, max_tokens=20000, model=LLM_MODEL_NAME)
@@ -552,12 +449,27 @@ Generate the final JSON script. For each slide in the outline:
                 feedback = (
                     f"CRITICAL QUALITY FEEDBACK:\n"
                     f"ISSUES: {json.dumps(validation_result.get('issues', []))}\n"
+                    f"Ungrounded Claims: {json.dumps(validation_result.get('ungrounded_claims', []))}\n"
                     f"Constraint Reminder: Must be exactly {context_package['target_slides']} slides.\n"
                     f"Fix these issues specifically."
                 )
                 messages.append({"role": "user", "content": feedback})
+            else:
+                # FINAL FAILURE - HALT PIPELINE
+                print(f"❌ Script Validation Failed after {max_retries} attempts. HALTING.")
+                metadata["validation_errors"] = validation_result.get("issues", [])
+                metadata["validation_last_result"] = validation_result
+                metadata["ungrounded_claims"] = validation_result.get("ungrounded_claims", [])
+                
+                supabase_admin.table("courses").update({
+                    "status": "needs_human_review",
+                    "metadata": metadata,
+                    "slide_data": script_plan # Save what we have so user can edit
+                }).eq("id", course_id).execute()
+                
+                return # STOP THE PIPELINE
 
-        if ENABLE_SCRIPT_VALIDATION and 'validation_result' in locals():
+        if ENABLE_SCRIPT_VALIDATION and 'validation_result' in locals() and validation_result.get('approved', False):
             metadata["validation_last_result"] = validation_result
             supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
 
