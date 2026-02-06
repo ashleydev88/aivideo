@@ -106,9 +106,10 @@ Narration: {narration}
 
 RULES:
 1. Use semantic HTML focusing on impact (<h1> for headers, <strong> for emphasis).
-2. Maximum 15 words total.
+2. Maximum 30 words total.
 3. Anchor the text to the core action or term mentioned in the narration.
 4. Do NOT repeat the narration verbatim.
+5. Use headers and maximum 3 bullet points or numbered items.
 
 OUTPUT FORMAT (JSON):
 {{
@@ -127,7 +128,7 @@ Narration: {narration}
 RULES:
 1. Focus on one or two powerful statements.
 2. Use <h1> for the main takeaway and <strong> for critical keywords.
-3. Maximum 10 words total.
+3. Maximum 30 words total.
 4. This text will be the only thing on screen, so make it count.
 
 OUTPUT FORMAT (JSON):
@@ -144,6 +145,14 @@ CONTEXT:
 Title: {title}
 Narration: {narration}
 Archetype: {archetype}
+
+ARCHETYPE GUIDES (Strictly frame the image based on this):
+- "hybrid": Main subject on the RIGHT (approx 50%). Left side must be empty, blurred, or negative space for text overlay.
+- "image": Standard cinematic framing. Center subject allowed. Full screen visual.
+- "contextual_overlay": Atmospheric, textured background. NO strong focal points. Ample negative space everywhere.
+- "comparison_split": Two distinct sides or contrasting elements.
+- "chart": (Note: This usually uses a graph tool, but if generating an image, showing a data-driven abstract concept).
+- "document_anchor": Close up of a paper, document, or screen with legible text focus (implied).
 
 RULES:
 1. Focus on visual description, lighting, composition, and mood.
@@ -518,3 +527,7 @@ CRITICAL:
 - trigger_word MUST be an EXACT word from the narration
 - Return empty array {{"kinetic_events": []}} if this slide doesn't need text
 """
+
+# --- LOGIC EXTRACTION ---
+
+

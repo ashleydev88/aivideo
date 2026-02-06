@@ -41,6 +41,7 @@ class MotionGraph(BaseModel):
 # --- Service Logic ---
 
 from backend.services.ai import replicate_chat_completion
+from backend.chart_prompts import ROUTER_PROMPT, SPECIALIST_PROMPTS
 from backend.utils.helpers import extract_json_from_response
 import json
 import asyncio
@@ -54,83 +55,63 @@ class LogicExtractor:
     def __init__(self):
         pass  # No client needed, uses replicate_chat_completion
 
+
     async def extract_from_text(self, text: str) -> MotionGraph:
         """
-        Parses raw text and returns a semantic MotionGraph using the AI pipeline via Replicate.
+        Parses raw text and returns a semantic MotionGraph using a 2-step AI pipeline:
+        1. Router: Determines the best archetype.
+        2. Specialist: Generates the graph structure based on that archetype.
         """
-        print("   📊 Logic Extraction: Analyzing text for visualization structure...")
-
-        system_prompt = """You are a Logic Extraction Agent for an advanced video visualization engine.
-Your goal is to parse text and map it to the **perfect semantic visualization structure**.
-
-CRITICAL: You must choose the specific ARCHETYPE that best fits the logic of the information.
-CRITICAL: ALL nodes MUST have a meaningful description. Do not leave descriptions empty or use placeholders. If no specific description exists, summarize the label.
-
-### 1. ESSENTIAL TIER (Basic Structure)
-- **"process"**: Sequential steps where order matters (A -> B -> C). Use for recipes, workflows, or instructions.
-- **"cycle"**: A repeating loop (A -> B -> C -> A). Use for feedback loops, natural cycles, or circular economies.
-- **"comparison"**: Side-by-side analysis (Pros vs Cons, Before vs After). Use for contrasting two distinct entities.
-- **"hierarchy"**: Standard tree chart (Parent -> Children). Use for organizational charts or folder structures.
-- **"grid"**: A collection of equal items. Use for feature lists, photo galleries, or item catalogs.
-- **"statistic"**: Focus on a single key number.
-
-### 2. BUSINESS TIER (Strategic Logic)
-- **"timeline"**: Chronological events. Use ONLY for history, roadmaps, or time-based sequences (Year 1, Year 2...).
-- **"funnel"**: Tapering process. Use for "Sales Funnels", "Hiring Pipelines", or filtering many items down to a few.
-- **"pyramid"**: Hierarchical importance. Use for "Maslow's Hierarchy", "Bloom's Taxonomy", or foundational levels (Base > Peak).
-- **"mindmap"**: Radial connections. Use for brainstorming, "Key Concepts", or a central idea with non-linear branches.
-
-### 3. TECHNICAL TIER (Data & Systems)
-- **"code"**: Programming logic. Use if the text contains code snippets, SQL queries, or terminal commands.
-- **"math"**: Mathematical relationships. Use for physics equations or financial formulas.
-- **"architecture"**: System diagrams. Use for "Client-Server", "Microservices", "Data Pipelines", or IT infrastructure.
-
-### 4. PEDAGOGICAL TIER (Deep Understanding)
-- **"matrix"**: 2x2 Quadrants. Use for "SWOT Analysis", "Risk vs Reward", or "Urgent vs Important" matrices.
-- **"metaphor"**: The "Iceberg" model. Use for "Surface vs Deep" or "Visible vs Hidden" concepts.
-- **"anatomy"**: Labeling parts. Use for explaining a diagram where specific parts need labels.
-
-### 5. DOCUMENT & CONTEXT TIER
-- **"document-anchor"**: Key quotes or citations. Use for highlighting specific text excerpts, regulations, or "Key Takeways" from a document.
-- **"contextual-overlay"**: Text overlaid on visual context. Use when describing a scene, a physical location, or when the text needs a visual backdrop to make sense.
-
-### OUTPUT FORMAT (JSON ONLY):
-{
-    "id": "unique-id",
-    "archetype": "one of the above strings",
-    "metadata": { "title": "Short descriptive title", "description": "Brief description" },
-    "nodes": [
-        {
-            "id": "n1",
-            "type": "motion-card",
-            "data": {
-                "label": "Title",
-                "subLabel": "Subtitle/Type (optional)",
-                "description": "Detailed explanation of this step (MANDATORY - do not leave empty). Extract from context.",
-                "icon": "lucide-icon-name-kebab-case",
-                "variant": "neutral"
-            }
-        }
-    ],
-    "edges": [
-        { "id": "e1", "source": "n1", "target": "n2", "label": "connection label (optional)" }
-    ]
-}
-
-VARIANT OPTIONS: "neutral", "primary", "secondary", "accent", "positive", "negative", "warning"
-ICON EXAMPLES: "shield", "alert-triangle", "check-circle", "users", "file-text", "lock", "clock"
-"""
+        print("   📊 Logic Extraction: Step 1 - Routing...")
 
         try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Extract the logic from this text and return a JSON MotionGraph:\n\n{text}"}
+            # --- STEP 1: ROUTING ---
+            router_messages = [
+                {"role": "system", "content": ROUTER_PROMPT},
+                {"role": "user", "content": f"Analyze this text:\n\n{text}"}
             ]
             
-            # Use the existing replicate_chat_completion (runs sync, so wrap in thread)
+            router_response = await asyncio.to_thread(
+                replicate_chat_completion,
+                messages=router_messages,
+                max_tokens=200,
+                temperature=0.1 # Low temp for precise classification
+            )
+            
+            router_data = extract_json_from_response(router_response)
+            archetype = router_data.get("archetype", "process")
+            reasoning = router_data.get("reasoning", "No valid reason provided")
+            
+            print(f"      👉 Selected Archetype: '{archetype}'")
+            print(f"      🧠 Reasoning: {reasoning}")
+
+            # --- STEP 2: GENERATION ---
+            print(f"   📊 Logic Extraction: Step 2 - Generation ({archetype})...")
+            
+            # Select the specialist driver or fallback to default
+            specialist_instruction = SPECIALIST_PROMPTS.get(archetype, SPECIALIST_PROMPTS["default"])
+            
+            # Construct the generation prompt
+            generation_system_prompt = f"""{specialist_instruction}
+
+OUTPUT FORMAT (JSON ONLY):
+{{
+    "id": "unique-id",
+    "archetype": "{archetype}",
+    "metadata": {{ "title": "Title", "description": "Brief description" }},
+    "nodes": [ {{ "id": "n1", "type": "motion-card", "data": {{ "label": "...", "description": "..." }} }} ],
+    "edges": [ {{ "id": "e1", "source": "n1", "target": "n2" }} ]
+}}
+"""
+            
+            gen_messages = [
+                {"role": "system", "content": generation_system_prompt},
+                {"role": "user", "content": f"Generate the {archetype} chart for:\n\n{text}"}
+            ]
+
             result = await asyncio.to_thread(
                 replicate_chat_completion,
-                messages=messages,
+                messages=gen_messages,
                 max_tokens=4000,
                 temperature=0.3
             )
@@ -148,10 +129,10 @@ ICON EXAMPLES: "shield", "alert-triangle", "check-circle", "users", "file-text",
             # FALLBACK: Ensure all nodes have descriptions
             for node in graph.nodes:
                 if not node.data.description or node.data.description.strip() == "":
-                    print(f"   ⚠️ Node {node.id} missing description. Auto-filling with label.")
+                    # print(f"   ⚠️ Node {node.id} missing description. Auto-filling with label.")
                     node.data.description = node.data.label
 
-            print(f"   ✅ Logic Extraction: archetype='{graph.archetype}', {len(graph.nodes)} nodes")
+            print(f"   ✅ Logic Extraction Complete: {len(graph.nodes)} nodes")
             return graph
 
         except Exception as e:
