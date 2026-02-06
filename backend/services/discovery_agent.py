@@ -7,7 +7,7 @@ suggestions for learning outcomes based on the user's topic and audience.
 
 from backend.services.ai import replicate_chat_completion
 from backend.utils.helpers import extract_json_from_response
-from backend.config import AUDIENCE_STRATEGIES
+from backend.config import AUDIENCE_STRATEGIES, DISCOVERY_AGENT_MODEL
 
 
 def suggest_learning_outcomes(topic: str, audience: str, country: str = "UK") -> list[str]:
@@ -50,7 +50,8 @@ def suggest_learning_outcomes(topic: str, audience: str, country: str = "UK") ->
         res_text = replicate_chat_completion(
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
-            temperature=0.7
+            temperature=0.7,
+            model=DISCOVERY_AGENT_MODEL
         )
         
         data = extract_json_from_response(res_text)

@@ -162,7 +162,18 @@ def validate_script(script_output, context_package):
     print("   🕵️ Validating Script Quality (with fact-checking)...")
     
     # Use original policy for fact-checking (truncate to stay within token limits)
-    policy_excerpt = context_package.get('original_policy_text', context_package.get('policy_text', ''))[:8000]
+    policy_text_raw = context_package.get('original_policy_text', context_package.get('policy_text', ''))
+    
+    if not policy_text_raw or len(policy_text_raw.strip()) < 50:
+        print("   ⚠️ No policy text found. instructing AI to skip unique fact-checking.")
+        policy_excerpt = (
+            "NO SOURCE POLICY PROVIDED. "
+            "Skip strict fact-checking against a source document. "
+            "Evaluate based on general coherence, logical flow, and best practices. "
+            "Do NOT flag issues as ungrounded claims unless they contradict common knowledge."
+        )
+    else:
+        policy_excerpt = policy_text_raw[:8000]
     
     from backend.prompts import VALIDATION_PROMPT
 

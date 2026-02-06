@@ -128,7 +128,7 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
 
     // --- Helpers ---
 
-    const addBotMessage = (content: string, step?: string) => {
+    const addBotMessage = (content: string, step?: string, delay: number = 600) => {
         setIsTyping(true);
         // Simulate thinking time for realism
         setTimeout(() => {
@@ -139,7 +139,7 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
                 content,
                 step
             }]);
-        }, 600);
+        }, delay);
     };
 
     const addUserMessage = (content: string) => {
@@ -194,10 +194,8 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
                 const defaults = (data.suggestions || []).slice(0, 3);
                 setState(prev => ({ ...prev, outcomes: defaults }));
 
-                // Add follow up message after fetch
-                setTimeout(() => {
-                    addBotMessage("Here are some recommended learning outcomes. Select the ones you want to include, or add your own.", "OUTCOMES");
-                }, 500);
+                // Add follow up message immediately (0 delay) so it appears with the chips
+                addBotMessage("Here are some recommended learning outcomes. Select the ones you want to include, or add your own.", "OUTCOMES", 0);
             } else {
                 throw new Error("Failed to fetch");
             }
@@ -208,6 +206,8 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
                 `Apply ${topic} best practices`,
                 `Identify common risks and issues`
             ]);
+            // Also show message in error case, instantly
+            addBotMessage("Here are some generalized outcomes. You can add your own.", "OUTCOMES", 0);
         } finally {
             setIsLoadingOutcomes(false);
         }

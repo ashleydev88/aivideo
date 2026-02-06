@@ -17,6 +17,7 @@ VISUAL_DIRECTOR_MODEL = "google/gemini-3-pro"
 HYBRID_GENERATOR_MODEL = "google/gemini-3-flash"
 KINETIC_GENERATOR_MODEL = "google/gemini-3-flash"
 IMAGE_PROMPT_GENERATOR_MODEL = "google/gemini-3-flash"
+DISCOVERY_AGENT_MODEL = "google/gemini-3-flash"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 ENABLE_SCRIPT_VALIDATION = True
 
