@@ -443,15 +443,31 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             
             print(f"   ⚠️ Script Validation Failed (Attempt {attempt+1}/{max_retries})")
             
+            # Print specific failure reasons to console
+            print(f"      Issues found: {len(validation_result.get('issues', []))}")
+            for issue in validation_result.get('issues', []):
+                print(f"      - {issue}")
+
             if attempt < max_retries - 1:
                 supabase_admin.table("courses").update({"status": "generating_structure"}).eq("id", course_id).execute()
                 messages.append({"role": "assistant", "content": res_text})
+                
+                # Construct detailed feedback including scores
+                scores_summary = (
+                    f"Fact-Check: {validation_result.get('fact_check_score', 'N/A')}/10, "
+                    f"Completeness: {validation_result.get('completeness_score', 'N/A')}/10, "
+                    f"Coherence: {validation_result.get('coherence_score', 'N/A')}/10, "
+                    f"Accuracy: {validation_result.get('accuracy_score', 'N/A')}/10, "
+                    f"Image Diversity: {validation_result.get('image_diversity_score', 'N/A')}/10"
+                )
+                
                 feedback = (
-                    f"CRITICAL QUALITY FEEDBACK:\n"
+                    f"CRITICAL QUALITY FEEDBACK (Validation Failed):\n"
+                    f"SCORES: {scores_summary}\n"
                     f"ISSUES: {json.dumps(validation_result.get('issues', []))}\n"
                     f"Ungrounded Claims: {json.dumps(validation_result.get('ungrounded_claims', []))}\n"
                     f"Constraint Reminder: Must be exactly {context_package['target_slides']} slides.\n"
-                    f"Fix these issues specifically."
+                    f"Fix these issues specifically. Ensure ALL scores are 7+ and Fact-Check is 8+."
                 )
                 messages.append({"role": "user", "content": feedback})
             else:

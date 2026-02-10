@@ -1,4 +1,4 @@
-from backend.config import VISUAL_DIRECTOR_MODEL
+from backend.config import VISUAL_DIRECTOR_MODEL, VALIDATION_MODEL
 from backend.services.ai import replicate_chat_completion
 from backend.utils.helpers import extract_json_from_response
 import json
@@ -187,14 +187,25 @@ def validate_script(script_output, context_package):
     try:
         res_text = replicate_chat_completion(
             messages=[{"role": "user", "content": validation_prompt}],
-            max_tokens=20000
+            max_tokens=20000,
+            model=VALIDATION_MODEL
         )
         result = extract_json_from_response(res_text)
         
         # Log fact-check results
         fact_score = result.get('fact_check_score', 'N/A')
         ungrounded = result.get('ungrounded_claims', [])
-        print(f"   📊 Fact-check score: {fact_score}/10, Ungrounded claims: {len(ungrounded)}")
+
+        # Log all scores for debugging
+        print(f"   📊 Validation Scores: "
+              f"FactCheck={fact_score}/10, "
+              f"Completeness={result.get('completeness_score', 'N/A')}/10, "
+              f"Coherence={result.get('coherence_score', 'N/A')}/10, "
+              f"Accuracy={result.get('accuracy_score', 'N/A')}/10, "
+              f"ImageDiversity={result.get('image_diversity_score', 'N/A')}/10"
+        )
+        
+        print(f"   📊 Ungrounded claims: {len(ungrounded)}")
         if ungrounded:
             for claim in ungrounded[:3]:  # Log first 3
                 print(f"      ⚠️ Slide {claim.get('slide')}: {claim.get('issue', 'Unknown issue')[:50]}...")
