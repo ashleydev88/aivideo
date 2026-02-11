@@ -11,7 +11,7 @@ from backend.services.course_generator import (
     generate_draft_visuals
 )
 from backend.services.storage import handle_failure, get_asset_url
-from backend.services.ai import replicate_chat_completion, generate_image_replicate
+from backend.services.ai import anthropic_chat_completion, generate_image_replicate
 from backend.services.pipeline import PipelineManager
 from backend.services.discovery_agent import suggest_learning_outcomes
 from backend.utils import parser, helpers

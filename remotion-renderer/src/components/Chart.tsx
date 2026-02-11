@@ -6,6 +6,7 @@ interface ChartItem {
     label: string;
     description?: string;
     icon?: string;
+    image?: string;
     color_intent?: 'primary' | 'secondary' | 'accent' | 'danger' | 'success' | 'warning';
 }
 
@@ -203,7 +204,7 @@ export const Chart: React.FC<{
                     <div className="flex flex-row items-stretch justify-center gap-12 w-full max-w-6xl px-8">
                         {data.items.slice(0, 2).map((item, i) => {
                             const spr = spring({ frame: frame - (i * 20), fps, config: springConfig });
-                            const color = getColor(item.color_intent, i === 0 ? '#3b82f6' : '#ef4444');
+                            const color = getColor(item.color_intent, i === 0 ? '#ef4444' : '#22c55e');
                             return (
                                 <React.Fragment key={i}>
                                     {i === 1 && (
@@ -217,16 +218,29 @@ export const Chart: React.FC<{
                                         </div>
                                     )}
                                     <div
-                                        className="flex-1 bg-white p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center text-center border-t-[12px]"
+                                        className="flex-1 bg-white p-8 rounded-[3.5rem] shadow-2xl flex flex-col items-center text-center border-t-[12px] overflow-hidden"
                                         style={{
                                             opacity: spr,
                                             transform: `translateX(${interpolate(spr, [0, 1], [i === 0 ? -100 : 100, 0])}px)`,
                                             borderTopColor: color
                                         }}
                                     >
-                                        <div className="mb-8 p-6 rounded-3xl" style={{ backgroundColor: `${color}15` }}>
-                                            <IconWrapper name={item.icon || (i === 0 ? 'check-circle' : 'x-circle')} color={color} size={56} />
-                                        </div>
+                                        {item.image ? (
+                                            <div className="w-full h-48 mb-6 rounded-2xl overflow-hidden shadow-inner relative">
+                                                <img
+                                                    src={item.image}
+                                                    className="w-full h-full object-cover"
+                                                    alt={item.label}
+                                                    style={{ transform: 'scale(1.05)' }}
+                                                />
+                                                <div className="absolute inset-0 bg-black/10"></div>
+                                            </div>
+                                        ) : (
+                                            <div className="mb-8 p-6 rounded-3xl" style={{ backgroundColor: `${color}15` }}>
+                                                <IconWrapper name={item.icon || (i === 0 ? 'x-circle' : 'check-circle')} color={color} size={56} />
+                                            </div>
+                                        )}
+
                                         <h3 className="text-4xl font-black text-slate-800 mb-4" style={{ color: custom_text_color || '#1e293b' }}>{item.label}</h3>
                                         <p className="text-slate-500 text-xl font-medium leading-relaxed" style={{ color: custom_text_color ? `${custom_text_color}cc` : '#64748b' }}>{item.description}</p>
                                     </div>

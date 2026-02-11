@@ -1,5 +1,5 @@
 from backend.config import VISUAL_DIRECTOR_MODEL, VALIDATION_MODEL
-from backend.services.ai import replicate_chat_completion
+from backend.services.ai import anthropic_chat_completion
 from backend.utils.helpers import extract_json_from_response
 import json
 
@@ -10,7 +10,7 @@ class PipelineManager:
     def __init__(self, client=None):
         self.client = client
 
-    def assign_visual_types(self, script_data: list) -> list:
+    async def assign_visual_types(self, script_data: list) -> list:
         """
         Visual Director Agent: Decides the visual format for each slide.
         Returns the script_data with an added 'visual_type' and 'visual_metadata' field.
@@ -27,10 +27,12 @@ class PipelineManager:
             })
 
         from backend.prompts import VISUAL_DIRECTOR_PROMPT
+        import asyncio
         
         prompt = VISUAL_DIRECTOR_PROMPT.format(slides_context=json.dumps(slides_context, indent=2))
         try:
-            res_text = replicate_chat_completion(
+            res_text = await asyncio.to_thread(
+                anthropic_chat_completion,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=2000,
                 model=VISUAL_DIRECTOR_MODEL
@@ -40,7 +42,13 @@ class PipelineManager:
             print(f"   📋 Visual Director Parsed Directives: {json.dumps(directives, indent=2)}")
             
             # Map directives back to script_data
-            directive_map = {d["id"]: d for d in directives}
+            directive_map = {}
+            for d in directives:
+                d_id = d.get("id")
+                if d_id and d_id not in directive_map:
+                    directive_map[d_id] = d
+                elif d_id:
+                    print(f"   ⚠️ Visual Director Duplicate ID Ignored: {d_id}")
             
             enriched_script = []
             type_counts = {
@@ -53,9 +61,77 @@ class PipelineManager:
                 d = directive_map.get(slide_id, {"type": "image"})
                 slide["visual_type"] = d.get("type", "image")
                 slide["visual_reason"] = d.get("reason", "")
-                # Extract layout_data for specialized layouts
-                if d.get("layout_data"):
-                    slide["layout_data"] = d["layout_data"]
+                slide["visual_reason"] = d.get("reason", "")
+                
+                # --- NEW LOGIC: Delegate Content Extraction to LogicExtractor ---
+                # For specialized types, we now use the dedicated LogicExtractor to get the content
+                vtype = slide["visual_type"]
+                
+                # Mapping Visual Director types to LogicExtractor archetypes
+                archetype_map = {
+                    "comparison_split": "comparison",
+                    "key_stat_breakout": "key-stat-breakout",
+                    "document_anchor": "document-anchor",
+                    "contextual_overlay": "contextual-overlay",
+                    "chart": "process" # Default for generic charts, though course_generator usually handles this
+                }
+                
+                mapped_archetype = archetype_map.get(vtype)
+                
+                if mapped_archetype:
+                    print(f"   🧠 Pipeline: Delegating {vtype} to LogicExtractor ({mapped_archetype})...")
+                    try:
+                        from backend.services.logic_extraction import logic_extractor
+                        text_context = f"Title: {slide.get('slide_title', '')}\nNarration: {slide.get('text', '')}"
+                        
+                        # We bypass the router and call the specialist directly by extracting with a forced archetype?
+                        # Actually logic_extractor.extract_from_text is a 2-step process. 
+                        # Ideally we'd have a method to force the archetype. 
+                        # For now, we'll let it auto-route OR we can assume the text is clear enough.
+                        # BUT, strict control is better. Let's rely on the text context being strong.
+                        # WAIT: logic_extraction.py doesn't have a 'force_archetype' param yet.
+                        # It's safer to just rely on the existing extract_from_text method for now, 
+                        # but we should inject the VISUAL TYPE into the text to guide the router.
+                        
+                        guided_text = f"[ARCHETYPE REQUEST: {mapped_archetype}]\n{text_context}"
+                        graph = await logic_extractor.extract_from_text(guided_text)
+                        
+                        # --- MAPPER: MotionGraph -> LayoutData ---
+                        layout_data = {}
+                        
+                        if vtype == "comparison_split" and len(graph.nodes) >= 2:
+                            layout_data = {
+                                "left_label": graph.nodes[0].data.label,
+                                "left_text": graph.nodes[0].data.description or "",
+                                "right_label": graph.nodes[1].data.label,
+                                "right_text": graph.nodes[1].data.description or ""
+                            }
+                        elif vtype == "key_stat_breakout" and len(graph.nodes) >= 1:
+                            layout_data = {
+                                "stat_value": graph.nodes[0].data.value or graph.nodes[0].data.label,
+                                "stat_label": graph.nodes[0].data.label if graph.nodes[0].data.value else "Statistic",
+                                "trend": "neutral"
+                            }
+                        elif vtype == "document_anchor" and len(graph.nodes) >= 2:
+                            layout_data = {
+                                "source_reference": graph.nodes[0].data.label,
+                                "verbatim_quote": graph.nodes[1].data.label,
+                                "context_note": graph.nodes[2].data.label if len(graph.nodes) > 2 else None
+                            }
+                        elif vtype == "contextual_overlay" and len(graph.nodes) >= 1:
+                            layout_data = {
+                                "headline": graph.nodes[0].data.label,
+                                "subheadline": graph.nodes[1].data.label if len(graph.nodes) > 1 else None,
+                                "background_prompt": slide.get("slide_title", "Corporate Background") # Default, will be refined by image prompter
+                            }
+                            
+                        slide["layout_data"] = layout_data
+                        
+                    except Exception as e:
+                        print(f"   ⚠️ specialized content extraction failed: {e}")
+                        # Fallback to defaults or empty
+                        slide["layout_data"] = {}
+                
                 enriched_script.append(slide)
                 # Track type distribution
                 vtype = slide["visual_type"]
@@ -118,7 +194,7 @@ class PipelineManager:
             max_events=max_events
         )
         try:
-            res_text = replicate_chat_completion(
+            res_text = anthropic_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000
             )
@@ -185,7 +261,7 @@ def validate_script(script_output, context_package):
     )
     
     try:
-        res_text = replicate_chat_completion(
+        res_text = anthropic_chat_completion(
             messages=[{"role": "user", "content": validation_prompt}],
             max_tokens=20000,
             model=VALIDATION_MODEL

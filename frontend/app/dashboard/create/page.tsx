@@ -282,7 +282,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, logoInfo }:
 
                 {/* Logo Overlay on First and Last Slides */}
                 {(index === 0 || index === slides.length - 1) && logoInfo?.url && (
-                    <div className="absolute bottom-4 left-4 z-30 w-16 h-16 bg-white/80 backdrop-blur rounded-lg border border-white/50 shadow-sm overflow-hidden p-1 flex items-center justify-center">
+                    <div className="absolute bottom-4 left-4 z-30 max-w-[120px] max-h-[64px] bg-white/80 backdrop-blur rounded-lg border border-white/50 shadow-sm overflow-hidden px-2 py-1.5 flex items-center justify-center">
                         <img
                             src={logoInfo.url.startsWith('http') ? logoInfo.url : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/course-assets/${logoInfo.url}`}
                             alt="Logo"

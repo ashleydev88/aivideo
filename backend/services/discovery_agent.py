@@ -5,7 +5,7 @@ This agent powers the conversational discovery flow, providing intelligent
 suggestions for learning outcomes based on the user's topic and audience.
 """
 
-from backend.services.ai import replicate_chat_completion
+from backend.services.ai import anthropic_chat_completion
 from backend.utils.helpers import extract_json_from_response
 from backend.config import AUDIENCE_STRATEGIES, DISCOVERY_AGENT_MODEL
 
@@ -26,14 +26,16 @@ def suggest_learning_outcomes(topic: str, audience: str, country: str = "UK") ->
     # Get audience context
     audience_strategy = AUDIENCE_STRATEGIES.get(audience, AUDIENCE_STRATEGIES["all_employees"])
 
-    # Build jurisdiction context
-    jurisdiction_info = ""
-    if country.upper() == "UK":
-        jurisdiction_info = "UK Employment Law (Equality Act 2010, HSE)"
-    else:
-        jurisdiction_info = "US Employment Law (Title VII, OSHA)"
+    # Build jurisdiction and localization context
+    from backend.config import LOCALE_CONFIG
     
-    jurisdiction_instruction = f"If the topic involves compliance, safety, or legal matters, ensure alignment with {jurisdiction_info}. If the topic is a soft skill (e.g. communication, leadership), DO NOT include legal references unless explicitly relevant."
+    country_key = country.upper() if country else "UK"
+    loc_config = LOCALE_CONFIG.get(country_key, LOCALE_CONFIG["UK"])
+    
+    # Use the centralized legal context
+    jurisdiction_instruction = loc_config["legal_context"]
+    # Get language instruction for prompt
+    language_instruction = loc_config["language_instruction"]
 
     from backend.prompts import DISCOVERY_OUTCOME_PROMPT
 
@@ -43,13 +45,14 @@ def suggest_learning_outcomes(topic: str, audience: str, country: str = "UK") ->
         legal_context=jurisdiction_instruction,
         tone=audience_strategy['tone'],
         focus_areas=', '.join(audience_strategy['focus_areas'][:4]),
-        narrative_style=audience_strategy['narrative_style']
+        narrative_style=audience_strategy['narrative_style'],
+        language_instruction=language_instruction
     )
 
     try:
-        res_text = replicate_chat_completion(
+        res_text = anthropic_chat_completion(
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
+            max_tokens=2000,
             temperature=0.7,
             model=DISCOVERY_AGENT_MODEL
         )

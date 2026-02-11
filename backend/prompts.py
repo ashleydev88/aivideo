@@ -88,6 +88,19 @@ PEDAGOGY_INSTRUCTIONS = {
     )
 }
 
+# --- SAFETY & LIABILITY ---
+
+SAFETY_AND_LIABILITY_GUARDRAILS = (
+    "SAFETY & LIABILITY GUARDRAILS (NON-NEGOTIABLE):\n"
+    "1. EMPLOYER PROTECTION: Never imply the employer is negligent or currently unsafe. Use phrasing like 'Our safety protocols are designed to...' rather than 'We are trying to fix...'.\n"
+    "2. REPORTING HIERARCHY: Always direct employees to report issues to their Supervisor, Manager, or HR *before* mentioning external bodies (unions, regulators, police) unless explicitly required by law for a specific Life-Threatening emergency.\n"
+    "   - BAD: 'Call the police if you are harassed.'\n"
+    "   - GOOD: 'Report harassment immediately to your manager or HR.'\n"
+    "3. ACTION PROTOCOLS (STOP & REPORT): In unsafe situations, instruct employees to 'Stop work and report the hazard immediately' rather than using the phrase 'Refuse to work'. 'Refusal' implies insubordination; 'Stopping for Safety' implies compliance.\n"
+    "4. NO ABSOLUTES: Avoid liability-creating absolutes like 'This machine is perfectly safe' or 'Accidents never happen'. Use qualified statements: 'When used correctly, this machine...' or 'Following these steps reduces risk...'.\n"
+    "5. EMERGENCY RESPONSE: For accidents/medical issues, the first step is usually 'Secure the area' or 'Contact on-site First Aid/Security', then 'Emergency Services' if needed. Do not jump to 'Call 999' as the first step for minor incidents."
+)
+
 LEARNING_ARCS = {
     "skill": "1. HOOK (Why it matters) -> 2. CONCEPT (The Rule) -> 3. STEPS (How to do it) -> 4. PITFALLS (What to avoid)",
     "compliance": "1. RISK (The Consequence) -> 2. RULE (The Requirement) -> 3. ACTION (What you must do) -> 4. RESOURCES (Where to get help)",
@@ -178,6 +191,7 @@ COURSE TITLE: {title}
 AUDIENCE: {audience}
 TOTAL TIME: {duration} minutes ({target_slides} slides target).
 LEARNING ARC: {learning_arc}
+LOCALIZATION: {language_instruction}
 
 === TASK ===
 Generate a High-Level Outline for exactly {target_slides} slides.
@@ -212,6 +226,9 @@ AUDIENCE: {audience}
 TONE: {tone} ("{narrative_style}")
 SOURCE MATERIAL: {source_material}...
 
+=== SAFETY & LIABILITY GUARDRAILS (CRITICAL) ===
+{safety_guardrails}
+
 === PEDAGOGICAL RULES (STRICT COMPLIANCE REQUIRED) ===
 {pedagogy_cognitive}
 
@@ -221,6 +238,9 @@ SOURCE MATERIAL: {source_material}...
 
 === THE APPROVED OUTLINE (FOLLOW THIS) ===
 {outline_json}
+
+=== LANGUAGE & SPELLING ===
+Please {language_instruction} throughout the script.
 
 === TASK ===
 Generate the final JSON script. For each slide in the outline:
@@ -266,7 +286,12 @@ Review this video script and perform the following checks:
 4. IMAGE DIVERSITY: Are image prompts varied and specific? (Flag repetitive prompts)
 5. DURATION: Does the math check out? (Sum of all slide durations should be within -5% to +15% of total target duration {target_duration}min). note: Individual slides can range 10s-60s.
 
-6. FACT-CHECK (CRITICAL): For each factual claim in the script, verify it against the source policy:
+6. SAFETY & COMPLIANCE CHECK: Does the script protect the employer and follow proper reporting lines?
+   - Flag any "Refusal of work" language (should be "Stop and Report").
+   - Flag any direct external escalation (e.g., calling 999/Police) without internal reporting first.
+   - Flag any admission of fault or unsafe conditions.
+
+7. FACT-CHECK (CRITICAL): For each factual claim in the script, verify it against the source policy:
    - Extract specific claims (numbers, deadlines, procedures, requirements, definitions)
    - Check if each claim is grounded in the original policy text below
    - Flag any claim that appears hallucinated, exaggerated, or incorrectly stated
@@ -288,6 +313,7 @@ OUTPUT (JSON):
   "coherence_score": 1-10,
   "accuracy_score": 1-10,
   "image_diversity_score": 1-10,
+  "safety_compliance_score": 1-10,
   "fact_check_score": 1-10,
   "issues": ["issue 1", "issue 2"],
   "ungrounded_claims": [
@@ -299,6 +325,7 @@ OUTPUT (JSON):
 APPROVAL CRITERIA:
 - Approve (true) if all scores are 7+ AND fact_check_score is 8+
 - If fact_check_score < 8, you MUST populate ungrounded_claims with specific examples
+- If safety_compliance_score < 7, you MUST flag specific safety language issues
 - Otherwise set approved to false
 """
 
@@ -315,12 +342,16 @@ AUDIENCE CONTEXT:
 - Focus Areas: {focus_areas}
 - Narrative Style: "{narrative_style}"
 
+LOCALIZATION:
+Please {language_instruction}
+
 REQUIREMENTS:
 1. Outcomes should be ACTION-ORIENTED (use verbs: Identify, Explain, Apply, Demonstrate, Report)
 2. Make them SPECIFIC to this topic and audience
 3. Keep each outcome to ONE sentence (max 15 words)
 4. Progress from simple understanding to practical application
 5. Focus on what the learner will BE ABLE TO DO after training
+6. Ensure all outcomes align with corporate liability protection (e.g., 'Report hazards' instead of 'Refuse unsafe tasks')
 
 OUTPUT FORMAT (JSON):
 {{
@@ -371,7 +402,6 @@ Calibrate depth and topic count for a {duration}-MINUTE course:
 - Depth Level: {depth_level}
 - Content Priorities: {content_priorities}
 
-{jurisdiction_context}
 
 === OUTPUT FORMAT (JSON) ===
 {{
@@ -473,12 +503,17 @@ INPUT SLIDES:
 OUTPUT (JSON):
 [
   {{ "id": 1, "type": "contextual_overlay", "reason": "Section introduction" }},
-  {{ "id": 2, "type": "key_stat_breakout", "reason": "45% statistic is the key takeaway", "layout_data": {{ "stat_value": "45%", "stat_label": "reduction in incidents" }} }},
-  {{ "id": 3, "type": "document_anchor", "reason": "Specific GDPR citation", "layout_data": {{ "source_reference": "GDPR Article 5", "verbatim_quote": "Personal data shall be processed lawfully, fairly and in a transparent manner.", "context_note": "Principle of lawfulness" }} }},
-  {{ "id": 4, "type": "comparison_split", "reason": "Do vs Don't comparison", "layout_data": {{ "left_label": "Don't", "left_text": "Share passwords", "left_prompt": "Person handing over password", "right_label": "Do", "right_text": "Use password manager", "right_prompt": "Secure digital vault" }} }}
+  {{ "id": 2, "type": "key_stat_breakout", "reason": "45% statistic is the key takeaway" }},
+  {{ "id": 3, "type": "document_anchor", "reason": "Specific GDPR citation" }},
+  {{ "id": 4, "type": "comparison_split", "reason": "Do vs Don't comparison" }}
 ]
 
-IMPORTANT: For specialized layouts (contextual_overlay, comparison_split, document_anchor, key_stat_breakout), include a "layout_data" object with the required fields for that layout type.
+IMPORTANT: 
+- Return EXACTLY one object per slide.
+- Do NOT repeat IDs.
+- Ensure IDs strictly match the input slide IDs.
+- Do NOT generate layout_data. Focus only on the 'type' and 'reason'.
+
 """
 
 KINETIC_TEXT_PROMPT = """You are a Kinetic Typography Director for corporate e-learning videos.

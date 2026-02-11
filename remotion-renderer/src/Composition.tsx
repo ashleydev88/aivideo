@@ -38,12 +38,13 @@ export const MainComposition: React.FC<{
                 currentFrame += durationFrames;
 
                 const hasVisualText = !!(slide.visual_text && slide.visual_text.trim().length > 0);
-                const isHybrid = slide.visual_type === 'hybrid' || (slide.visual_type === 'image' && hasVisualText);
-                const isImageOnly = slide.visual_type === 'image' && !hasVisualText;
+                const isHybrid = slide.visual_type === 'hybrid';
+                const isImageOnly = slide.visual_type === 'image';
                 const isKineticOnly = slide.visual_type === 'kinetic_text';
                 const isChart = slide.visual_type === 'chart';
                 const isTitleCard = slide.visual_type === 'title_card';
                 const isContextualOverlay = slide.visual_type === 'contextual_overlay';
+                const isComparisonSplit = slide.visual_type === 'comparison_split';
                 const hasText = slide.text || slide.visual_text;
 
                 const customBg = slide.background_color;
@@ -95,41 +96,42 @@ export const MainComposition: React.FC<{
                         {/* LAYOUT: IMAGE ONLY (Full Screen) OR CONTEXTUAL OVERLAY */}
                         {(isImageOnly || isContextualOverlay) && slide.image && (
                             <AbsoluteFill
-                                className="flex items-center justify-center"
+                                className="flex items-center justify-center p-12"
                                 style={{ backgroundColor: customBg || '#000000' }}
                             >
                                 <Img
                                     src={slide.image}
-                                    className="w-full h-full object-cover"
+                                    className="absolute inset-0 w-full h-full object-cover"
                                     style={{
                                         filter: 'contrast(1.05) saturate(1.1)',
                                     }}
                                 />
                                 {/* Overlay Text (Match Preview) */}
                                 {slide.visual_text && (
-                                    <div
-                                        className="absolute bottom-12 left-12 right-12 backdrop-blur-md p-8 rounded-2xl text-white"
-                                        style={{
-                                            backgroundColor: isContextualOverlay && accent_color
-                                                ? hexToRgba(accent_color, 0.9)
-                                                : 'rgba(0, 0, 0, 0.6)'
-                                        }}
-                                    >
-                                        <div className="text-xl font-bold tracking-widest uppercase opacity-70 mb-2">ON-SCREEN TEXT</div>
+                                    <div className="relative z-10 max-w-4xl text-center">
                                         {/<[a-z][\s\S]*>/i.test(slide.visual_text) ? (
-                                            <div className="prose prose-xl prose-invert max-w-none">
+                                            <div className="prose prose-2xl prose-invert max-w-none">
                                                 <style>{`
-                                                    h1 { font-weight: 900; font-size: 3.75rem; line-height: 1; margin-bottom: 0.5rem; text-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-                                                    h2 { font-weight: 700; font-size: 1.5rem; line-height: 1.25; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
-                                                    p { font-weight: 600; font-size: 1.5rem; line-height: 1.625; margin-bottom: 0.5rem; }
-                                                    strong { color: ${accent_color}; }
+                                                    h1, h2, p { 
+                                                        font-weight: 800 !important; 
+                                                        color: white !important;
+                                                        text-shadow: 0 4px 12px rgba(0,0,0,0.8) !important;
+                                                        text-align: center !important;
+                                                        margin: 0 !important;
+                                                    }
+                                                    h1 { font-size: 5rem !important; line-height: 1.1 !important; margin-bottom: 1rem !important; }
+                                                    h2, p { font-size: 3.5rem !important; line-height: 1.3 !important; }
+                                                    strong { color: ${accent_color} !important; }
                                                 `}</style>
                                                 {parse(slide.visual_text)}
                                             </div>
                                         ) : (
                                             <div
-                                                className="font-sans text-5xl font-black leading-tight whitespace-pre-wrap"
-                                                style={{ textShadow: '0 10px 30px rgba(0,0,0,0.3)' }}
+                                                className="font-sans font-extrabold text-white leading-tight whitespace-pre-wrap"
+                                                style={{
+                                                    fontSize: '3.5rem',
+                                                    textShadow: '0 4px 12px rgba(0,0,0,0.8)'
+                                                }}
                                             >
                                                 {slide.visual_text}
                                             </div>
@@ -186,8 +188,38 @@ export const MainComposition: React.FC<{
                             </AbsoluteFill>
                         )}
 
+                        {/* LAYOUT: COMPARISON SPLIT (Side by Side with Images) */}
+                        {isComparisonSplit && slide.layout_data && (
+                            <AbsoluteFill className="flex items-center justify-center p-8">
+                                <Chart
+                                    data={{
+                                        title: slide.visual_text || slide.text,
+                                        type: 'comparison',
+                                        items: [
+                                            {
+                                                label: slide.layout_data.left_label || "Don't",
+                                                description: slide.layout_data.left_text,
+                                                image: slide.layout_data.left_image,
+                                                color_intent: 'danger'
+                                            },
+                                            {
+                                                label: slide.layout_data.right_label || "Do",
+                                                description: slide.layout_data.right_text,
+                                                image: slide.layout_data.right_image,
+                                                color_intent: 'success'
+                                            }
+                                        ]
+                                    }}
+                                    title={slide.visual_text}
+                                    accent_color={accent_color}
+                                    custom_bg_color={customBg}
+                                    custom_text_color={customText}
+                                />
+                            </AbsoluteFill>
+                        )}
+
                         {/* FALLBACK: If no visual_type but has image, show full screen image */}
-                        {!isChart && !isImageOnly && !isKineticOnly && !isHybrid && !isTitleCard && slide.image && (
+                        {!isChart && !isImageOnly && !isKineticOnly && !isHybrid && !isTitleCard && !isComparisonSplit && slide.image && (
                             <AbsoluteFill className="flex items-center justify-center">
                                 <Img
                                     src={slide.image}
@@ -216,18 +248,12 @@ export const MainComposition: React.FC<{
                                         position: 'absolute',
                                         bottom: '40px',
                                         right: '40px',
-                                        width: '120px',
-                                        height: '120px',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                                        backdropFilter: 'blur(10px)',
-                                        borderRadius: '20px',
+                                        maxWidth: `${Math.round(200 * (logo_crop?.zoom || 1))}px`,
+                                        maxHeight: `${Math.round(120 * (logo_crop?.zoom || 1))}px`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        overflow: 'hidden',
-                                        padding: '10px',
-                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                                        border: '1px solid rgba(255, 255, 255, 0.5)'
+                                        overflow: 'hidden'
                                     }}
                                 >
                                     <Img
@@ -235,9 +261,7 @@ export const MainComposition: React.FC<{
                                         style={{
                                             maxWidth: '100%',
                                             maxHeight: '100%',
-                                            objectFit: 'contain',
-                                            transform: logo_crop ? `scale(${logo_crop.zoom || 1})` : 'none',
-                                            transformOrigin: 'center'
+                                            objectFit: 'contain'
                                         }}
                                     />
                                 </div>

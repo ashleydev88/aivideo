@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, CheckCircle2, Image as ImageIcon, Trash2, Camera, Palette } from 'lucide-react';
-import Cropper from 'react-easy-crop';
 import { Slider } from "@/components/ui/slider";
 import { SketchPicker } from 'react-color';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -20,9 +19,7 @@ export default function BrandPage() {
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [logoCrop, setLogoCrop] = useState<any>(null);
     const [tempLogo, setTempLogo] = useState<string | null>(null);
-    const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
     const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
 
     // Brand Color
@@ -41,7 +38,9 @@ export default function BrandPage() {
                 // 1. Fetch Logo from metadata (legacy/standard location)
                 const storedLogoPath = user.user_metadata?.logo_url;
                 setLogoUrl(storedLogoPath || null);
-                setLogoCrop(user.user_metadata?.logo_crop || null);
+                const storedCrop = user.user_metadata?.logo_crop || null;
+                setLogoCrop(storedCrop);
+                if (storedCrop?.zoom) setZoom(storedCrop.zoom);
 
                 // Resolve Signed URL if logo exists
                 if (storedLogoPath && !storedLogoPath.startsWith('http')) {
@@ -85,10 +84,6 @@ export default function BrandPage() {
         fetchData();
     }, []);
 
-    const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    };
-
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const file = e.target.files[0];
@@ -107,10 +102,10 @@ export default function BrandPage() {
 
         try {
             let finalLogoUrl = logoUrl;
-            let finalLogoCrop = logoCrop;
+            let finalLogoCrop = { ...(logoCrop || {}), zoom: zoom };
 
             // 1. Handle Logo Upload
-            if (tempLogo && croppedAreaPixels) {
+            if (tempLogo) {
                 const response = await fetch(tempLogo);
                 const blob = await response.blob();
                 const fileName = `logo_${user.id}_${Date.now()}.png`;
@@ -123,7 +118,7 @@ export default function BrandPage() {
                 if (uploadError) throw uploadError;
 
                 finalLogoUrl = filePath;
-                finalLogoCrop = { ...croppedAreaPixels, zoom: zoom };
+                finalLogoCrop = { zoom: zoom };
 
                 // Get signed URL for immediate display update
                 const { data: signedData } = await supabase.storage
@@ -209,26 +204,29 @@ export default function BrandPage() {
 
                         {(tempLogo || logoUrl) && (
                             <div className="space-y-6">
-                                <div className="relative w-full h-[300px] bg-slate-900 rounded-lg overflow-hidden border border-slate-200">
-                                    <Cropper
-                                        image={tempLogo || resolvedLogo || ''}
-                                        crop={crop}
-                                        zoom={zoom}
-                                        aspect={1}
-                                        onCropChange={setCrop}
-                                        onCropComplete={onCropComplete}
-                                        onZoomChange={setZoom}
+                                <div className="relative w-full h-[200px] bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
+                                    <img
+                                        src={tempLogo || resolvedLogo || ''}
+                                        alt="Logo preview"
+                                        style={{
+                                            maxWidth: '80%',
+                                            maxHeight: '80%',
+                                            objectFit: 'contain',
+                                            transform: `scale(${zoom})`,
+                                            transformOrigin: 'center',
+                                            transition: 'transform 0.2s ease'
+                                        }}
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium text-slate-500">Zoom</span>
+                                        <span className="text-xs font-medium text-slate-500">Logo Size on Slides</span>
                                         <span className="text-xs font-medium text-slate-500">{zoom.toFixed(1)}x</span>
                                     </div>
                                     <Slider
                                         value={[zoom]}
-                                        min={1}
-                                        max={3}
+                                        min={0.5}
+                                        max={2}
                                         step={0.1}
                                         onValueChange={(vals) => setZoom(vals[0])}
                                         className="w-full"

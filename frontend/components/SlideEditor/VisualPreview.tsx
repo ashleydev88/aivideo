@@ -89,10 +89,12 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
     const [resolvedImage, setResolvedImage] = useState<string | null>(null);
     const [isHovering, setIsHovering] = useState(false);
     const [brandColor, setBrandColor] = useState<string | null>(null);
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
+    const [logoCrop, setLogoCrop] = useState<any>(null);
 
-    // Fetch Brand Colour
+    // Fetch Brand Colour & Logo
     useEffect(() => {
-        const fetchBrandColor = async () => {
+        const fetchBrandData = async () => {
             const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -104,9 +106,25 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                 if (profile?.brand_colour) {
                     setBrandColor(profile.brand_colour);
                 }
+
+                // Load logo from user metadata
+                if (user.user_metadata?.logo_url) {
+                    let url = user.user_metadata.logo_url;
+                    if (!url.startsWith('http')) {
+                        // Resolve signed URL from logos bucket
+                        const { data } = await supabase.storage
+                            .from('logos')
+                            .createSignedUrl(url, 3600);
+                        if (data?.signedUrl) {
+                            url = data.signedUrl;
+                        }
+                    }
+                    setLogoUrl(url);
+                    setLogoCrop(user.user_metadata.logo_crop || null);
+                }
             }
         };
-        fetchBrandColor();
+        fetchBrandData();
     }, []);
 
     // Effective Accent Color: Brand Color overrides Slide Accent Color
@@ -212,9 +230,113 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         )
     }
 
+    // Logo Overlay - matches Remotion renderer positioning
+    const LogoOverlay = () => {
+        if (!logoUrl) return null;
+        const zoomFactor = logoCrop?.zoom || 1;
+        return (
+            <div
+                style={{
+                    position: 'absolute',
+                    bottom: '18px',
+                    right: '18px',
+                    maxWidth: `${Math.round(140 * zoomFactor)}px`,
+                    maxHeight: `${Math.round(80 * zoomFactor)}px`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    zIndex: 50,
+                    pointerEvents: 'none'
+                }}
+            >
+                <img
+                    src={logoUrl}
+                    alt="Logo"
+                    style={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        objectFit: 'contain'
+                    }}
+                />
+            </div>
+        );
+    };
+
     // 0. SPECIALIZED TYPES DETECTION
     const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay'];
     const isSpecialType = specialTypes.includes(visual_type);
+
+    const [resolvedGraphData, setResolvedGraphData] = useState<any>(null);
+
+    useEffect(() => {
+        if (!((visual_type === 'chart' && chart_data) || isSpecialType)) {
+            setResolvedGraphData(null);
+            return;
+        }
+
+        let active = true;
+
+        const resolveImages = async () => {
+            let graphData = chart_data;
+
+            if (isSpecialType) {
+                graphData = convertToMotionGraph(slide);
+            }
+
+            if (!graphData || !graphData.nodes) {
+                if (active) setResolvedGraphData(null);
+                return;
+            }
+
+            // clone to avoid mutating standard ref if needed, though we're creating new obj most of time
+            const newNodes = [...graphData.nodes];
+            let hasChanges = false;
+
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+            // Iterate and sign images
+            await Promise.all(newNodes.map(async (node: any, index: number) => {
+                if (node.data && node.data.image && !node.data.image.startsWith('http') && !node.data.image.startsWith('blob:')) {
+                    try {
+                        const res = await fetch(`${API_BASE_URL}/api/course/get-signed-url`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${session?.access_token}`
+                            },
+                            body: JSON.stringify({ path: node.data.image })
+                        });
+
+                        if (res.ok) {
+                            const data = await res.json();
+                            // Create new node object to trigger react updates if needed
+                            newNodes[index] = {
+                                ...node,
+                                data: {
+                                    ...node.data,
+                                    image: data.signed_url
+                                }
+                            };
+                            hasChanges = true;
+                        }
+                    } catch (e) {
+                        console.error("Failed to sign node image:", e);
+                    }
+                }
+            }));
+
+            if (active) {
+                setResolvedGraphData(hasChanges ? { ...graphData, nodes: newNodes } : graphData);
+            }
+        };
+
+        resolveImages();
+
+        return () => { active = false; };
+    }, [slide, visual_type, chart_data, isSpecialType]);
 
     // Fallback if no visual yet
     if (!image && !chart_data && visual_type !== 'kinetic_text' && visual_type !== 'title_card' && !isSpecialType) {
@@ -332,28 +454,31 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
     // Check if it's a chart OR one of our new specialized types
     if ((visual_type === 'chart' && chart_data) || isSpecialType) {
 
-        let graphData = chart_data;
-        if (isSpecialType) {
-            graphData = convertToMotionGraph(slide);
-        }
-
-        if (graphData) {
+        // Show loading state if we expect data but haven't processed it yet
+        if (!resolvedGraphData) {
             return (
-                <ScaleContainer>
-                    {/* Background editing for Chart might be complex due to canvas, putting wrapper around */}
-                    <BackgroundEditTrigger className="w-full h-full">
-                        <MotionGraphPreview
-                            data={graphData}
-                            accentColor={effectiveAccentColor}
-                            backgroundColor={visual_type === 'contextual_overlay' && brandColor ? brandColor : slide.background_color} // Contextual Overlay uses brand color bg
-                            textColor={slide.text_color}
-                            backgroundImage={resolvedImage}
-                            onUpdate={visual_type === 'chart' ? onChartUpdate : undefined} // Only allow chart editing for now, complex types generated from layout_data
-                        />
-                    </BackgroundEditTrigger>
-                </ScaleContainer>
+                <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
+                    Loading Chart...
+                </div>
             );
         }
+
+        return (
+            <ScaleContainer>
+                {/* Background editing for Chart might be complex due to canvas, putting wrapper around */}
+                <BackgroundEditTrigger className="w-full h-full">
+                    <MotionGraphPreview
+                        data={resolvedGraphData}
+                        accentColor={effectiveAccentColor}
+                        backgroundColor={visual_type === 'contextual_overlay' && brandColor ? brandColor : slide.background_color} // Contextual Overlay uses brand color bg
+                        textColor={slide.text_color}
+                        backgroundImage={resolvedImage}
+                        onUpdate={visual_type === 'chart' ? onChartUpdate : undefined} // Only allow chart editing for now, complex types generated from layout_data
+                    />
+                    <LogoOverlay />
+                </BackgroundEditTrigger>
+            </ScaleContainer>
+        );
     }
 
     // 2. KINETIC TEXT RENDERER
@@ -415,6 +540,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                         )}
                     </div>
                 </div>
+                <LogoOverlay />
             </BackgroundEditTrigger>
         )
     }
@@ -458,13 +584,13 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     </AutoFitText>
 
                 </div>
+                <LogoOverlay />
             </BackgroundEditTrigger>
         )
     }
 
     // 4. HYBRID RENDERER (Text Left 50%, Image Right 50% -> Now with Curve and Gradient)
-    const isHybrid = visual_type === 'hybrid' ||
-        ((visual_type === 'image' || !visual_type) && !!slide.visual_text);
+    const isHybrid = visual_type === 'hybrid' || (!visual_type && !!slide.visual_text);
 
     if (isHybrid) {
         const textContent = slide.visual_text || slide.text || "";
@@ -565,6 +691,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                             </div>
                         </div>
                     </BackgroundEditTrigger>
+                    <LogoOverlay />
                 </div>
             </ScaleContainer>
         )
@@ -588,13 +715,18 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
 
             {/* Overlay Text Preview */}
             {slide.visual_text && (
-                <div className="absolute bottom-8 left-8 right-8 bg-black/60 backdrop-blur-md p-8 rounded-2xl text-white">
-                    <div className="text-xl font-bold tracking-widest uppercase opacity-70 mb-2">ON-SCREEN TEXT</div>
-                    <div className="max-w-none">
+                <div className="absolute inset-0 flex items-center justify-center p-12">
+                    <div className="max-w-4xl w-full text-center">
                         <style>{`
-                            .overlay-text h1 { font-weight: 900; font-size: 2rem; line-height: 1; margin-bottom: 0.5rem; }
-                            .overlay-text p { font-weight: 500; font-size: 1.25rem; line-height: 1.625; margin-bottom: 0.5rem; opacity: 0.95; }
-                            .overlay-text strong { color: var(--accent-color, #14b8a6); }
+                            .overlay-text h1, .overlay-text h2, .overlay-text p { 
+                                font-weight: 800; 
+                                color: white;
+                                text-shadow: 0 4px 12px rgba(0,0,0,0.8);
+                                margin: 0;
+                            }
+                            .overlay-text h1 { font-size: 3.5rem; line-height: 1.1; }
+                            .overlay-text p, .overlay-text h2 { font-size: 2.5rem; line-height: 1.3; }
+                            .overlay-text strong { color: ${brandColor || '#ffffff'}; }
                         `}</style>
                         <div className="overlay-text">
                             {onTextChange ? (
@@ -604,12 +736,15 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                                     variant="minimal"
                                 />
                             ) : (
-                                parse(slide.visual_text)
+                                <h2 className="text-5xl font-extrabold text-white drop-shadow-lg leading-tight">
+                                    {parse(slide.visual_text)}
+                                </h2>
                             )}
                         </div>
                     </div>
                 </div>
             )}
+            <LogoOverlay />
         </div>
     );
 }

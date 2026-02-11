@@ -40,7 +40,7 @@ class MotionGraph(BaseModel):
 
 # --- Service Logic ---
 
-from backend.services.ai import replicate_chat_completion
+from backend.services.ai import anthropic_chat_completion
 from backend.chart_prompts import ROUTER_PROMPT, SPECIALIST_PROMPTS
 from backend.utils.helpers import extract_json_from_response
 import json
@@ -53,7 +53,7 @@ class LogicExtractor:
     """
     
     def __init__(self):
-        pass  # No client needed, uses replicate_chat_completion
+        pass  # No client needed, uses anthropic_chat_completion
 
 
     async def extract_from_text(self, text: str) -> MotionGraph:
@@ -72,9 +72,9 @@ class LogicExtractor:
             ]
             
             router_response = await asyncio.to_thread(
-                replicate_chat_completion,
+                anthropic_chat_completion,
                 messages=router_messages,
-                max_tokens=200,
+                max_tokens=1000,
                 temperature=0.1 # Low temp for precise classification
             )
             
@@ -110,7 +110,7 @@ OUTPUT FORMAT (JSON ONLY):
             ]
 
             result = await asyncio.to_thread(
-                replicate_chat_completion,
+                anthropic_chat_completion,
                 messages=gen_messages,
                 max_tokens=4000,
                 temperature=0.3

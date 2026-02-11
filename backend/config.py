@@ -11,14 +11,15 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 # --- CONFIGURATION ---
-LLM_MODEL_NAME = "google/gemini-3-pro"  # Primary Script Generator
-TOPIC_GENERATOR_MODEL = "google/gemini-3-pro"
-VISUAL_DIRECTOR_MODEL = "google/gemini-3-pro"
-HYBRID_GENERATOR_MODEL = "google/gemini-3-flash"
-KINETIC_GENERATOR_MODEL = "google/gemini-3-flash"
-IMAGE_PROMPT_GENERATOR_MODEL = "google/gemini-3-flash"
-DISCOVERY_AGENT_MODEL = "google/gemini-3-flash"
-VALIDATION_MODEL = "google/gemini-3-flash"
+LLM_MODEL_NAME = "claude-sonnet-4-5-20250929"  # Primary Script Generator
+TOPIC_GENERATOR_MODEL = "claude-sonnet-4-5-20250929"
+VISUAL_DIRECTOR_MODEL = "claude-sonnet-4-5-20250929"
+HYBRID_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
+KINETIC_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
+IMAGE_PROMPT_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
+DISCOVERY_AGENT_MODEL = "claude-haiku-4-5-20251001"
+VALIDATION_MODEL = "claude-haiku-4-5-20251001"
+IMAGE_GENERATION_MODEL = "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 ENABLE_SCRIPT_VALIDATION = True
 
@@ -203,5 +204,23 @@ UPLOAD_LIMITS = {
     "max_total_size_mb": 25,
     "allowed_extensions": [".pdf", ".docx", ".txt"],
     "max_text_chars": 100000  # ~40-50 pages of text
+}
+
+# --- LOCALIZATION ---
+# Configuration for region-specific language, law, and formatting
+
+LOCALE_CONFIG = {
+    "UK": {
+        "language_instruction": "use British English spelling and grammar (e.g., 'colour', 'programme', 'analyse').",
+        "legal_context": "When the source document mentions legal requirements, reference the relevant UK legal framework (e.g., Equality Act 2010, GDPR, HSE regulations).",
+        "date_format": "DD/MM/YYYY",
+        "spelling_preference": "British English"
+    },
+    "US": {
+        "language_instruction": "use American English spelling and grammar.",
+        "legal_context": "When the source document mentions legal requirements, reference the relevant US legal framework (e.g., Title VII, OSHA, ADA).",
+        "date_format": "MM/DD/YYYY",
+        "spelling_preference": "American English"
+    }
 }
 

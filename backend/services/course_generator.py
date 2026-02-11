@@ -25,7 +25,7 @@ from backend.config import (
     IMAGE_PROMPT_GENERATOR_PROMPT
 )
 from backend.db import supabase_admin
-from backend.services.ai import replicate_chat_completion, generate_image_replicate, extract_policy_essence
+from backend.services.ai import anthropic_chat_completion, generate_image_replicate, extract_policy_essence
 from backend.services.pipeline import PipelineManager, validate_script
 from backend.services.audio import generate_audio
 from backend.services.storage import upload_asset_throttled, handle_failure, get_asset_url
@@ -192,7 +192,7 @@ async def generate_topics_task(
     
     try:
         # Import strategies here to avoid circular imports
-        from backend.config import AUDIENCE_STRATEGIES, AUDIENCE_LEGACY_MAP
+        from backend.config import AUDIENCE_STRATEGIES, AUDIENCE_LEGACY_MAP, LOCALE_CONFIG
         
         # Map legacy audience values to new ones
         if target_audience in AUDIENCE_LEGACY_MAP:
@@ -213,12 +213,13 @@ async def generate_topics_task(
         if policy_text:
             processed_policy = await asyncio.to_thread(extract_policy_essence, policy_text)
 
-        # Build jurisdiction context - used for LEGAL REFERENCES only
-        jurisdiction_context = ""
-        if country.upper() == "UK":
-            jurisdiction_context = "When the source document mentions legal requirements, reference the relevant UK legal framework (e.g., Equality Act 2010, GDPR, HSE regulations)."
-        else:
-            jurisdiction_context = "When the source document mentions legal requirements, reference the relevant US legal framework (e.g., Title VII, OSHA, ADA)."
+        # Build jurisdiction and localization context
+        # Default to UK if country not found or unexpected
+        country_key = country.upper() if country else "UK"
+        loc_config = LOCALE_CONFIG.get(country_key, LOCALE_CONFIG["UK"])
+        
+        jurisdiction_context = loc_config["legal_context"]
+        language_instruction = loc_config["language_instruction"]
 
         # SOURCE-FIRST PROMPT: Extract from document, then adapt for audience
         if processed_policy:
@@ -240,7 +241,8 @@ async def generate_topics_task(
                 topic_count=duration_config['topic_count'],
                 depth_level=duration_config['depth_level'],
                 content_priorities=', '.join(duration_config['content_priorities']),
-                jurisdiction_context=jurisdiction_context
+                jurisdiction_context=jurisdiction_context,
+                language_instruction=language_instruction
             )
         else:
             # No source document - Use discovery context for topic generation
@@ -289,6 +291,7 @@ Creating a {duration}-MINUTE course:
 - Content Priorities: {', '.join(duration_config['content_priorities'])}
 
 {jurisdiction_context}
+LANGUAGE: Please {language_instruction}
 
 === YOUR TASK ===
 
@@ -327,7 +330,7 @@ REQUIREMENTS:
 """
 
 
-        res_text = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000, model=TOPIC_GENERATOR_MODEL)
+        res_text = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000, model=TOPIC_GENERATOR_MODEL)
         data = extract_json_from_response(res_text)
         
         # Use user-provided title if available, otherwise use generated title
@@ -374,6 +377,13 @@ async def generate_structure_task(course_id: str, context_package: dict, request
         strategy = DURATION_STRATEGIES.get(request.duration, DURATION_STRATEGIES[5])
         topics_list = context_package['topics']
         avg_slides_per_topic = math.floor(context_package['target_slides'] / len(topics_list)) if topics_list else 3
+        
+        # Get Localization Config
+        from backend.config import LOCALE_CONFIG
+        country = metadata.get("country", "UK")
+        country_key = country.upper() if country else "UK"
+        loc_config = LOCALE_CONFIG.get(country_key, LOCALE_CONFIG["UK"])
+        language_instruction = loc_config["language_instruction"]
 
         # 1. Determine the Learning Arc based on duration/purpose
         # Logic: Short courses are 'compliance', medium are 'skill', long are 'executive' (or map to specific duration IDs)
@@ -395,27 +405,30 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             audience=context_package['audience_strategy']['display_name'],
             duration=context_package['duration'],
             target_slides=context_package['target_slides'],
-            learning_arc=learning_arc
+            learning_arc=learning_arc,
+            language_instruction=language_instruction
         )
         print("   🧠 Step 1: Generating Course Outline...")
-        outline_res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": outline_prompt}], max_tokens=4000)
+        outline_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": outline_prompt}], max_tokens=4000)
         outline_data = extract_json_from_response(outline_res)
         outline = outline_data.get("outline", [])
         
         # STEP 2: DETAILED SCRIPTING (The Director)
         # Now we flesh out the details using the approved outline.
-        from backend.prompts import SCRIPT_GENERATOR_PROMPT
+        from backend.prompts import SCRIPT_GENERATOR_PROMPT, SAFETY_AND_LIABILITY_GUARDRAILS
         
         base_prompt = SCRIPT_GENERATOR_PROMPT.format(
             audience=context_package['audience_strategy']['display_name'],
             tone=context_package['audience_strategy']['tone'],
             narrative_style=context_package['audience_strategy']['narrative_style'],
             source_material=context_package.get('policy_text', 'No source provided')[:3000],
+            safety_guardrails=SAFETY_AND_LIABILITY_GUARDRAILS,
             pedagogy_cognitive=PEDAGOGY_INSTRUCTIONS['cognitive_load'],
             pedagogy_multimedia=PEDAGOGY_INSTRUCTIONS['multimedia_principles'],
             pedagogy_visual=PEDAGOGY_INSTRUCTIONS['visual_logic'],
             outline_json=json.dumps(outline, indent=2),
-            title=context_package['title']
+            title=context_package['title'],
+            language_instruction=language_instruction
         )
         
         messages = [{"role": "user", "content": base_prompt}]
@@ -423,7 +436,7 @@ async def generate_structure_task(course_id: str, context_package: dict, request
         max_retries = 3
         
         for attempt in range(max_retries):
-            res_text = await asyncio.to_thread(replicate_chat_completion, messages=messages, max_tokens=20000, model=LLM_MODEL_NAME)
+            res_text = await asyncio.to_thread(anthropic_chat_completion, messages=messages, max_tokens=20000, model=LLM_MODEL_NAME)
             data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
             
@@ -492,7 +505,7 @@ async def generate_structure_task(course_id: str, context_package: dict, request
         # Visual Director
         print("   🎬 AI: Assigning Visual Types...")
         pipeline = PipelineManager()
-        script_plan = await asyncio.to_thread(pipeline.assign_visual_types, script_plan)
+        script_plan = await pipeline.assign_visual_types(script_plan)
         
         # --- NEW SPECIALIZED VISUAL TEXT GENERATION ---
         print("   ✍️ AI: Generating Specialized Visual Text...")
@@ -508,14 +521,14 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             
             if vtype == "hybrid":
                 prompt = HYBRID_GENERATOR_PROMPT.format(title=title, narration=narration)
-                res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], model=HYBRID_GENERATOR_MODEL)
+                res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": prompt}], model=HYBRID_GENERATOR_MODEL)
                 data = extract_json_from_response(res)
                 slide["visual_text"] = data.get("visual_text", title) # Fallback to title
                 return slide
             
             if vtype == "kinetic_text":
                 prompt = KINETIC_GENERATOR_PROMPT.format(title=title, narration=narration)
-                res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], model=KINETIC_GENERATOR_MODEL)
+                res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": prompt}], model=KINETIC_GENERATOR_MODEL)
                 data = extract_json_from_response(res)
                 slide["visual_text"] = data.get("visual_text", title) # Fallback to title
                 return slide
@@ -530,9 +543,33 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             narration = slide.get("text", "")
             
             # Types that require an image prompt
-            if vtype in ["image", "hybrid", "contextual_overlay", "comparison_split"]:
+            # Types that require an image prompt
+            if vtype == "comparison_split":
+                # Special handling for split screen: Generate TWO prompts
+                layout_data = slide.get("layout_data", {})
+                
+                # Left Side
+                l_title = layout_data.get("left_label", "Left Side")
+                l_text = layout_data.get("left_text", "")
+                l_prompt_input = IMAGE_PROMPT_GENERATOR_PROMPT.format(title=l_title, narration=l_text, archetype="image")
+                l_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": l_prompt_input}], model=IMAGE_PROMPT_GENERATOR_MODEL)
+                l_data = extract_json_from_response(l_res)
+                layout_data["left_prompt"] = l_data.get("prompt", l_title)
+                
+                # Right Side
+                r_title = layout_data.get("right_label", "Right Side")
+                r_text = layout_data.get("right_text", "")
+                r_prompt_input = IMAGE_PROMPT_GENERATOR_PROMPT.format(title=r_title, narration=r_text, archetype="image")
+                r_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": r_prompt_input}], model=IMAGE_PROMPT_GENERATOR_MODEL)
+                r_data = extract_json_from_response(r_res)
+                layout_data["right_prompt"] = r_data.get("prompt", r_title)
+                
+                slide["layout_data"] = layout_data
+                slide["prompt"] = f"Split screen comparison: {l_title} vs {r_title}" # Fallback main prompt
+
+            elif vtype in ["image", "hybrid", "contextual_overlay"]:
                 prompt = IMAGE_PROMPT_GENERATOR_PROMPT.format(title=title, narration=narration, archetype=vtype)
-                res = await asyncio.to_thread(replicate_chat_completion, messages=[{"role": "user", "content": prompt}], model=IMAGE_PROMPT_GENERATOR_MODEL)
+                res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": prompt}], model=IMAGE_PROMPT_GENERATOR_MODEL)
                 data = extract_json_from_response(res)
                 slide["prompt"] = data.get("prompt", title) # Fallback to title
             return slide
