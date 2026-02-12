@@ -1,5 +1,6 @@
 import asyncio
 import json
+import hashlib
 import math
 import time
 import tempfile
@@ -712,6 +713,43 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         course_data = res.data[0]
         slides = course_data.get('slide_data', [])
         metadata = course_data.get('metadata', {})
+        # Idempotency: compute digest of render payload to avoid duplicate enqueues
+        def _normalize_for_digest(slides_list):
+            norm = []
+            for sl in slides_list:
+                d = dict(sl)
+                for k in ("image", "audio"):
+                    v = d.get(k)
+                    if isinstance(v, str) and v.startswith("http") and ("?" in v):
+                        d[k] = v.split("?", 1)[0]
+                norm.append(d)
+            return norm
+
+        digest_payload = {
+            "slides": _normalize_for_digest(slides),
+            "accent_color": metadata.get("accent_color", "#14b8a6"),
+            "logo_url": metadata.get("logo_url"),
+            "logo_crop": metadata.get("logo_crop"),
+        }
+        try:
+            payload_json = json.dumps(digest_payload, sort_keys=True, default=str).encode("utf-8")
+            render_digest = hashlib.sha256(payload_json).hexdigest()
+        except Exception:
+            render_digest = None
+
+        # If same digest already enqueued or rendering, short-circuit
+        try:
+            cur = supabase_admin.table("courses").select("status, metadata").eq("id", course_id).single().execute()
+            current_status = cur.data if hasattr(cur, 'data') else (cur.get('data') if isinstance(cur, dict) else None)
+            if current_status:
+                st = current_status.get("status")
+                m = current_status.get("metadata") or {}
+                if render_digest and m.get("last_render_digest") == render_digest and st in ["queued", "processing_render", "rendering"]:
+                    print(f"   🔁 Skipping duplicate enqueue for {course_id}; status={st}")
+                    return m.get("last_job_id")
+        except Exception as _e:
+            print(f"   ⚠️ Idempotency check failed: {_e}")
+
         # accent_color is stored in metadata, fallback to teal
         accent_color = metadata.get('accent_color', '#14b8a6')
         logo_url = metadata.get('logo_url')
@@ -750,6 +788,16 @@ async def trigger_remotion_render(course_id: str, user_id: str):
             print(f"   ⚠️ Failed to update metadata duration: {e}")
         
         job_id = await send_render_job_async(course_id, user_id, payload)
+        if 'render_digest' in locals() and render_digest:
+            try:
+                meta_to_update = metadata or {}
+                meta_to_update["last_render_digest"] = render_digest
+                meta_to_update["last_job_id"] = job_id
+                import time as _t
+                meta_to_update["last_enqueued_at"] = int(_t.time())
+                supabase_admin.table("courses").update({"metadata": meta_to_update}).eq("id", course_id).execute()
+            except Exception as _e:
+                print(f"   ⚠️ Failed to persist idempotency metadata: {_e}")
         
         print(f"   ✅ Job queued with ID: {job_id}")
         return job_id
