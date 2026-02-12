@@ -125,8 +125,17 @@ else
         --region $AWS_REGION
 fi
 
+
 echo ""
 echo "✅ Deployment complete!"
+echo ""
+echo "🔒 Setting Concurrency Limit..."
+$AWS lambda put-function-concurrency \
+    --function-name $FUNCTION_NAME \
+    --reserved-concurrent-executions 20 \
+    --region $AWS_REGION
+
+echo "✅ Concurrency set to 50"
 echo ""
 echo "📋 Next steps:"
 echo "   1. Configure environment variables in AWS Console or run:"

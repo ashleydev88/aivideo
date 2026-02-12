@@ -100,7 +100,7 @@ def process_render_job(course_id: str, user_id: str, payload: dict):
         privacy=Privacy.PUBLIC,
         image_format=ValidStillImageFormats.JPEG,
         input_props=payload,
-        concurrency=3,  # Safe limit: (1 Consumer + 3 Workers) * 2 Max SQS Concurrency = 8 Total Lambdas
+        concurrency=30,  # Speedup: (1 Consumer + 30 Workers). Total Render Budget = 20 Consumers * 31 = 620 Concurrent Executions
     )
     
     # 3. Start render using Remotion SDK

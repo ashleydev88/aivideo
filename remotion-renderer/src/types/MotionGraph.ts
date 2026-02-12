@@ -2,7 +2,8 @@ export type MotionArchetype =
     | 'process' | 'cycle' | 'hierarchy' | 'comparison' | 'statistic' | 'grid' // Original
     | 'timeline' | 'funnel' | 'pyramid' | 'mindmap' // Business
     | 'code' | 'math' | 'architecture' // Technical
-    | 'matrix' | 'metaphor' | 'anatomy'; // Pedagogical
+    | 'matrix' | 'metaphor' | 'anatomy' // Pedagogical
+    | 'document-anchor' | 'contextual-overlay'; // New Special Types
 
 export interface MotionNodeData {
     label: string;

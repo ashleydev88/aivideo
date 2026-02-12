@@ -707,12 +707,13 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         print(f"   ⚠️ DB Update Error: {e}")
 
     try:
-        res = supabase_admin.table("courses").select("slide_data, accent_color, metadata").eq("id", course_id).execute()
+        res = supabase_admin.table("courses").select("slide_data, metadata").eq("id", course_id).execute()
         if not res.data: return
         course_data = res.data[0]
         slides = course_data.get('slide_data', [])
-        accent_color = course_data.get('accent_color', '#14b8a6')
         metadata = course_data.get('metadata', {})
+        # accent_color is stored in metadata, fallback to teal
+        accent_color = metadata.get('accent_color', '#14b8a6')
         logo_url = metadata.get('logo_url')
         logo_crop = metadata.get('logo_crop')
 

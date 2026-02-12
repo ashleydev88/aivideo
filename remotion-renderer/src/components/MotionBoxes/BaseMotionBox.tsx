@@ -2,7 +2,7 @@ import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
 import { cn } from '../../lib/utils';
 
-interface BaseMotionBoxProps {
+export interface BaseMotionBoxProps {
     className?: string;
     children: React.ReactNode;
     delay?: number;

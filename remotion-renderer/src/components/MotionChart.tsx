@@ -17,6 +17,8 @@ import { MatrixBox } from '../components/MotionBoxes/MatrixBox';
 import { MetaphorBox } from '../components/MotionBoxes/MetaphorBox';
 import { AnatomyBox } from '../components/MotionBoxes/AnatomyBox';
 import { EdgeRenderer } from '../components/MotionBoxes/EdgeRenderer';
+import { DocumentAnchorBox } from '../components/MotionBoxes/DocumentAnchorBox';
+import { ContextualOverlayBox } from '../components/MotionBoxes/ContextualOverlayBox';
 import { Background } from '../components/Background';
 
 interface MotionChartProps {
@@ -182,6 +184,20 @@ export const MotionChart: React.FC<MotionChartProps> = ({ data }) => {
                                 } else if (data.archetype === 'anatomy') {
                                     return (
                                         <AnatomyBox
+                                            {...node.data}
+                                            delay={delay}
+                                        />
+                                    );
+                                } else if (data.archetype === 'document-anchor') {
+                                    return (
+                                        <DocumentAnchorBox
+                                            {...node.data}
+                                            delay={delay}
+                                        />
+                                    );
+                                } else if (data.archetype === 'contextual-overlay') {
+                                    return (
+                                        <ContextualOverlayBox
                                             {...node.data}
                                             delay={delay}
                                         />

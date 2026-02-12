@@ -5,6 +5,9 @@ import { Background } from './components/Background';
 import { KineticText } from './components/KineticText';
 import { Chart } from './components/Chart';
 import { TitleCard } from './components/TitleCard';
+import { MotionGraph } from './types/MotionGraph';
+import { calculateLayout } from './utils/layoutEngine';
+import { MotionChart } from './components/MotionChart';
 import './style.css';
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -27,6 +30,108 @@ export const MainComposition: React.FC<{
     logo_crop?: any;
 }> = ({ slide_data, accent_color, logo_url, logo_crop }) => {
     let currentFrame = 0;
+
+    // Helper to convert backend slide data to MotionGraph format (mirrors frontend VisualPreview.tsx)
+    const convertToMotionGraph = (slide: any): any => {
+        const { visual_type, layout_data, visual_text, text, accent_color } = slide;
+        const nodes = [];
+
+        // 1. Comparison Split
+        if (visual_type === 'comparison_split') {
+            nodes.push({
+                id: 'node-left',
+                type: 'motion-card',
+                data: {
+                    label: layout_data?.left_label || 'Option A',
+                    description: layout_data?.left_text || 'Description for option A',
+                    variant: 'negative',
+                    icon: 'x-circle',
+                    image: layout_data?.left_image
+                }
+            });
+            nodes.push({
+                id: 'node-right',
+                type: 'motion-card',
+                data: {
+                    label: layout_data?.right_label || 'Option B',
+                    description: layout_data?.right_text || 'Description for option B',
+                    variant: 'positive',
+                    icon: 'check-circle-2',
+                    image: layout_data?.right_image
+                }
+            });
+            return {
+                id: 'generated-graph',
+                archetype: 'comparison',
+                nodes,
+                edges: []
+            };
+        }
+
+        // 2. Key Stat Breakout
+        if (visual_type === 'key_stat_breakout') {
+            nodes.push({
+                id: 'stat-main',
+                type: 'motion-stat',
+                data: {
+                    label: layout_data?.stat_label || 'Key Statistic',
+                    value: layout_data?.stat_value || '100%',
+                    description: visual_text || text,
+                    variant: 'primary',
+                }
+            });
+            return {
+                id: 'generated-stat',
+                archetype: 'statistic',
+                nodes,
+                edges: []
+            };
+        }
+
+        // 3. Document Anchor
+        if (visual_type === 'document_anchor') {
+            nodes.push({
+                id: 'doc-quote',
+                type: 'motion-card',
+                data: {
+                    label: layout_data?.verbatim_quote || visual_text || "Quoted Text",
+                    subLabel: layout_data?.source_reference || "Source Document",
+                    description: layout_data?.context_note || "Key Reference",
+                    variant: 'accent',
+                    icon: 'file-text'
+                }
+            });
+            return {
+                id: 'generated-doc',
+                archetype: 'document-anchor',
+                nodes,
+                edges: []
+            };
+        }
+
+        // 4. Contextual Overlay
+        if (visual_type === 'contextual_overlay') {
+            nodes.push({
+                id: 'context-main',
+                type: 'motion-card',
+                data: {
+                    label: visual_text || "Section Title",
+                    subLabel: layout_data?.kicker || "INTRODUCTION",
+                    description: text,
+                    variant: 'neutral',
+                    icon: 'map-pin'
+                }
+            });
+            return {
+                id: 'generated-overlay',
+                archetype: 'contextual-overlay',
+                nodes,
+                edges: []
+            };
+        }
+
+        return null;
+    };
 
     return (
         <AbsoluteFill>
@@ -53,6 +158,13 @@ export const MainComposition: React.FC<{
                 // Debug logging
                 console.log(`[Slide ${i}] visual_type: ${slide.visual_type}, hasImage: ${!!slide.image}, hasText: ${!!hasText}`);
                 console.log(`[Slide ${i}] Layout flags: hybrid=${isHybrid}, imageOnly=${isImageOnly}, kineticOnly=${isKineticOnly}, chart=${isChart}, titleCard=${isTitleCard}, contextualOverlay=${isContextualOverlay}`);
+
+                // Detect special types that need conversion to MotionGraph
+                const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay'];
+                const isSpecialType = specialTypes.includes(slide.visual_type);
+
+                // Convert to MotionGraph if applicable
+                const motionGraphData = isSpecialType ? convertToMotionGraph(slide) : null;
 
                 // Title Card Logic
                 let titleCardBg = customBg;
@@ -93,8 +205,8 @@ export const MainComposition: React.FC<{
                             </AbsoluteFill>
                         )}
 
-                        {/* LAYOUT: IMAGE ONLY (Full Screen) OR CONTEXTUAL OVERLAY */}
-                        {(isImageOnly || isContextualOverlay) && slide.image && (
+                        {/* LAYOUT: IMAGE ONLY (Full Screen) */}
+                        {isImageOnly && slide.image && (
                             <AbsoluteFill
                                 className="flex items-center justify-center p-12"
                                 style={{ backgroundColor: customBg || '#000000' }}
@@ -138,6 +250,31 @@ export const MainComposition: React.FC<{
                                         )}
                                     </div>
                                 )}
+                            </AbsoluteFill>
+                        )}
+
+                        {/* LAYOUT: SPECIAL TYPES (MotionGraph) */}
+                        {isSpecialType && motionGraphData && (
+                            <AbsoluteFill className="flex items-center justify-center" style={{ backgroundColor: customBg || '#f8fafc' }}>
+                                {/* For Contextual Overlay, we might need the image background if provided */}
+                                {isContextualOverlay && slide.image && (
+                                    <>
+                                        <Img
+                                            src={slide.image}
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-white/70 z-[5]" />
+                                        <div
+                                            className="absolute inset-0 z-10"
+                                            style={{
+                                                background: `linear-gradient(to right, ${customBg || '#0f172a'}E6 0%, ${customBg || '#0f172a'}66 60%, transparent 100%)`
+                                            }}
+                                        />
+                                    </>
+                                )}
+                                <div className="z-20 w-full h-full">
+                                    <MotionChart data={motionGraphData} />
+                                </div>
                             </AbsoluteFill>
                         )}
 
@@ -188,38 +325,9 @@ export const MainComposition: React.FC<{
                             </AbsoluteFill>
                         )}
 
-                        {/* LAYOUT: COMPARISON SPLIT (Side by Side with Images) */}
-                        {isComparisonSplit && slide.layout_data && (
-                            <AbsoluteFill className="flex items-center justify-center p-8">
-                                <Chart
-                                    data={{
-                                        title: slide.visual_text || slide.text,
-                                        type: 'comparison',
-                                        items: [
-                                            {
-                                                label: slide.layout_data.left_label || "Don't",
-                                                description: slide.layout_data.left_text,
-                                                image: slide.layout_data.left_image,
-                                                color_intent: 'danger'
-                                            },
-                                            {
-                                                label: slide.layout_data.right_label || "Do",
-                                                description: slide.layout_data.right_text,
-                                                image: slide.layout_data.right_image,
-                                                color_intent: 'success'
-                                            }
-                                        ]
-                                    }}
-                                    title={slide.visual_text}
-                                    accent_color={accent_color}
-                                    custom_bg_color={customBg}
-                                    custom_text_color={customText}
-                                />
-                            </AbsoluteFill>
-                        )}
 
                         {/* FALLBACK: If no visual_type but has image, show full screen image */}
-                        {!isChart && !isImageOnly && !isKineticOnly && !isHybrid && !isTitleCard && !isComparisonSplit && slide.image && (
+                        {!isChart && !isImageOnly && !isKineticOnly && !isHybrid && !isTitleCard && !isSpecialType && slide.image && (
                             <AbsoluteFill className="flex items-center justify-center">
                                 <Img
                                     src={slide.image}

@@ -102,7 +102,7 @@ def process_render_job(course_id, user_id, payload):
             "--output", output_path,
             "--log", "verbose",
             "--yes",
-            "--concurrency", "8",
+            "--concurrency", "30",
             "--timeout", "900" 
         ]
         

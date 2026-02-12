@@ -155,17 +155,80 @@ class PipelineManager:
         Kinetic Text Agent: Generates timed on-screen text moments.
         Returns a list of kinetic_events with timing anchored to trigger words.
         
-        Args:
-            narration: The full narration text for the slide
-            word_timestamps: List of {"word": str, "start_ms": int, "end_ms": int}
-            visual_type: The slide's visual type (hybrid, kinetic_text, image, chart)
-            slide_duration_ms: Total slide duration in milliseconds
-            visual_text: The user-edited on-screen text (markdown supported)
-        
-        Returns:
-            List of kinetic_event dicts with text, trigger_word, start_ms, style
+        OPTIMIZATION: If visual_text is provided (user edited), we avoid the LLM call
+        and use a deterministic alignment algorithm to match the text to the narration.
         """
-        print(f"     ✍️ Generating Kinetic Text (using manual text: {bool(visual_text)})...")
+        
+        # 1. OPTIMIZED PATH: Deterministic Alignment
+        if visual_text:
+            print(f"     ⚡ Using Deterministic Alignment for Kinetic Text (Visual Text present)...")
+            
+            # Helper to clean words for comparison
+            def clean(w): return w.lower().strip(".,!?;:\"'()[]")
+            
+            # Map word timestamps for fast lookup (keeping order)
+            narration_words = [(clean(w["word"]), w["start_ms"]) for w in word_timestamps]
+            
+            # Split visual text into potential events
+            # Logic: Split by newlines first. If single line, split by major punctuation.
+            # If plain text, keep as single event or split by sentences?
+            # Assuming user formatted widely with newlines for kinetic breaks.
+            events_text = [t.strip() for t in visual_text.split('\n') if t.strip()]
+            
+            # If no newlines, try splitting by sentence terminators
+            if len(events_text) <= 1:
+                import re
+                events_text = [t.strip() for t in re.split(r'(?<=[.!?])\s+', visual_text) if t.strip()]
+            
+            processed_events = []
+            narr_idx = 0
+            last_start_ms = 0
+            
+            for text_chunk in events_text:
+                # Find first word of chunk in narration starting from narr_idx
+                chunk_words = text_chunk.split()
+                if not chunk_words: continue
+                
+                trigger = clean(chunk_words[0])
+                search_idx = narr_idx
+                found_match = False
+                
+                # Search forward in narration
+                while search_idx < len(narration_words):
+                    nw, start_ms = narration_words[search_idx]
+                    if nw == trigger:
+                        # Found match!
+                        processed_events.append({
+                            "text": text_chunk,
+                            "trigger_word": chunk_words[0], # Original casing
+                            "start_ms": start_ms,
+                            "style": "emphasis" if len(clean(text_chunk)) < 20 else "bullet"
+                        })
+                        last_start_ms = start_ms
+                        narr_idx = search_idx + 1 # Advance pointer
+                        found_match = True
+                        break
+                    search_idx += 1
+                
+                if not found_match:
+                    # Fallback: Space out evenly from last verified time?
+                    # Or just 500ms after last event
+                    fallback_ms = last_start_ms + 1500 if last_start_ms > 0 else 500
+                    processed_events.append({
+                        "text": text_chunk,
+                        "trigger_word": chunk_words[0],
+                        "start_ms": fallback_ms,
+                        "style": "emphasis" if len(clean(text_chunk)) < 20 else "bullet"
+                    })
+                    last_start_ms = fallback_ms
+                    print(f"     ⚠️ Trigger '{trigger}' not found, falling back to {fallback_ms}ms")
+                else:
+                    print(f"     ⚡ Aligned: '{text_chunk[:20]}...' @ {last_start_ms}ms")
+                    
+            return processed_events
+
+        # 2. LLM PATH: Generation from Narration (Only if no visual_text)
+        print(f"     ✍️ Generating Kinetic Text (using LLM)...")
         
         # Determine content type guidance based on visual_type
         if visual_type == "kinetic_text":
