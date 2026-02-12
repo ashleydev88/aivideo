@@ -103,6 +103,33 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     const [regeneratingSlideIndex, setRegeneratingSlideIndex] = useState<number | null>(null);
     const narrationRef = useRef<HTMLTextAreaElement>(null);
 
+    const [isRenderQueued, setIsRenderQueued] = useState(false);
+    const [renderStatusLabel, setRenderStatusLabel] = useState<string>('');
+
+    useEffect(() => {
+        let mounted = true;
+        const checkStatus = async () => {
+            try {
+                const supabase = createClient();
+                const { data } = await supabase.from('courses').select('status, progress').eq('id', courseId).single();
+                if (!mounted || !data) return;
+                const st = data.status as string;
+                if (['queued','processing_render','rendering'].includes(st)) {
+                    setIsRenderQueued(true);
+                    const pct = typeof data.progress === 'number' ? Math.round(data.progress) : null;
+                    setRenderStatusLabel(st === 'queued' ? 'Queued' : `Rendering${pct!==null ? ' '+pct+'%' : ''}`);
+                } else {
+                    setIsRenderQueued(false);
+                    setRenderStatusLabel('');
+                }
+            } catch {}
+        };
+        checkStatus();
+        const t = setInterval(checkStatus, 15000);
+        return () => { mounted = false; clearInterval(t); };
+    }, [courseId]);
+
+
     const currentSlide = slides[currentSlideIndex];
 
     // Auto-size narration textarea
@@ -198,6 +225,11 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     };
 
     const handleGenerateVideo = async () => {
+        if (isRenderQueued) {
+            // Already queued or rendering; prevent duplicate
+            alert(renderStatusLabel ? `Render already in progress: ${renderStatusLabel}` : "Render already in progress");
+            return;
+        }
         setIsFinalizing(true);
         try {
             // Force save first
@@ -293,9 +325,9 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                         <span className="ml-2 hidden sm:inline">{isSidebarOpen ? "Close Narration" : "Open Narration"}</span>
                     </Button>
                     <div className="h-6 w-px bg-slate-200 mx-2" />
-                    <Button onClick={handleGenerateVideo} disabled={isFinalizing} className="bg-teal-600 hover:bg-teal-700">
+                    <Button onClick={handleGenerateVideo} disabled={isFinalizing || isRenderQueued} className="bg-teal-600 hover:bg-teal-700">
                         {isFinalizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlayCircle className="mr-2 h-4 w-4" />}
-                        Generate Video
+                        ${isRenderQueued ? (renderStatusLabel || 'Queued') : 'Generate Video'}
                     </Button>
                 </div>
             </div>
