@@ -22,7 +22,7 @@ class PipelineManager:
         for idx, slide in enumerate(script_data):
             slides_context.append({
                 "id": idx + 1,  # Use 1-based index since slides don't have 'id' field
-                "text": slide.get("text", "")[:100] + "...", # Truncate for token efficiency
+                "text": slide.get("text", ""),
                 "visual_note": slide.get("slide_title", "")
             })
 

@@ -22,7 +22,8 @@ from backend.config import (
     HYBRID_GENERATOR_PROMPT,
     KINETIC_GENERATOR_PROMPT,
     IMAGE_PROMPT_GENERATOR_MODEL,
-    IMAGE_PROMPT_GENERATOR_PROMPT
+    IMAGE_PROMPT_GENERATOR_PROMPT_SINGLE,
+    BATCH_IMAGE_PROMPT_GENERATOR_PROMPT
 )
 from backend.db import supabase_admin
 from backend.services.ai import anthropic_chat_completion, generate_image_replicate, extract_policy_essence
@@ -537,48 +538,95 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             slide["visual_text"] = title
             return slide
 
-        async def refine_image_prompt(slide):
+        async def refine_comparison_prompts(slide):
+            """Handle comparison_split slides individually — they need two separate prompts from layout_data."""
             vtype = slide.get("visual_type")
-            title = slide.get("slide_title", "")
-            narration = slide.get("text", "")
+            if vtype != "comparison_split":
+                return slide
             
-            # Types that require an image prompt
-            # Types that require an image prompt
-            if vtype == "comparison_split":
-                # Special handling for split screen: Generate TWO prompts
-                layout_data = slide.get("layout_data", {})
-                
-                # Left Side
-                l_title = layout_data.get("left_label", "Left Side")
-                l_text = layout_data.get("left_text", "")
-                l_prompt_input = IMAGE_PROMPT_GENERATOR_PROMPT.format(title=l_title, narration=l_text, archetype="image")
-                l_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": l_prompt_input}], model=IMAGE_PROMPT_GENERATOR_MODEL)
-                l_data = extract_json_from_response(l_res)
-                layout_data["left_prompt"] = l_data.get("prompt", l_title)
-                
-                # Right Side
-                r_title = layout_data.get("right_label", "Right Side")
-                r_text = layout_data.get("right_text", "")
-                r_prompt_input = IMAGE_PROMPT_GENERATOR_PROMPT.format(title=r_title, narration=r_text, archetype="image")
-                r_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": r_prompt_input}], model=IMAGE_PROMPT_GENERATOR_MODEL)
-                r_data = extract_json_from_response(r_res)
-                layout_data["right_prompt"] = r_data.get("prompt", r_title)
-                
-                slide["layout_data"] = layout_data
-                slide["prompt"] = f"Split screen comparison: {l_title} vs {r_title}" # Fallback main prompt
-
-            elif vtype in ["image", "hybrid", "contextual_overlay"]:
-                prompt = IMAGE_PROMPT_GENERATOR_PROMPT.format(title=title, narration=narration, archetype=vtype)
-                res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": prompt}], model=IMAGE_PROMPT_GENERATOR_MODEL)
-                data = extract_json_from_response(res)
-                slide["prompt"] = data.get("prompt", title) # Fallback to title
+            layout_data = slide.get("layout_data", {})
+            
+            # Left Side
+            l_title = layout_data.get("left_label", "Left Side")
+            l_text = layout_data.get("left_text", "")
+            l_prompt_input = IMAGE_PROMPT_GENERATOR_PROMPT_SINGLE.format(title=l_title, narration=l_text, archetype="image")
+            l_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": l_prompt_input}], model=IMAGE_PROMPT_GENERATOR_MODEL)
+            l_data = extract_json_from_response(l_res)
+            layout_data["left_prompt"] = l_data.get("prompt", l_title)
+            
+            # Right Side
+            r_title = layout_data.get("right_label", "Right Side")
+            r_text = layout_data.get("right_text", "")
+            r_prompt_input = IMAGE_PROMPT_GENERATOR_PROMPT_SINGLE.format(title=r_title, narration=r_text, archetype="image")
+            r_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": r_prompt_input}], model=IMAGE_PROMPT_GENERATOR_MODEL)
+            r_data = extract_json_from_response(r_res)
+            layout_data["right_prompt"] = r_data.get("prompt", r_title)
+            
+            slide["layout_data"] = layout_data
+            slide["prompt"] = f"Split screen comparison: {l_title} vs {r_title}"
             return slide
 
+        async def batch_refine_image_prompts(script_plan, course_topic, style_name):
+            """
+            Single LLM call to generate image prompts for ALL image-needing slides.
+            Gives the model cross-slide awareness for diversity and course context for relevance.
+            """
+            # Collect slides that need image prompts (image, hybrid, contextual_overlay)
+            image_slides = []
+            for idx, slide in enumerate(script_plan):
+                vtype = slide.get("visual_type")
+                if vtype in ["image", "hybrid", "contextual_overlay"]:
+                    image_slides.append({
+                        "id": idx + 1,
+                        "title": slide.get("slide_title", ""),
+                        "narration": slide.get("text", ""),
+                        "archetype": vtype
+                    })
+            
+            if not image_slides:
+                return  # No slides need image prompts
+            
+            prompt = BATCH_IMAGE_PROMPT_GENERATOR_PROMPT.format(
+                course_topic=course_topic,
+                style_name=style_name,
+                slides_json=json.dumps(image_slides, indent=2)
+            )
+            
+            res = await asyncio.to_thread(
+                anthropic_chat_completion,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=4000,
+                model=IMAGE_PROMPT_GENERATOR_MODEL
+            )
+            results = extract_json_from_response(res)
+            
+            # Map results back to slides by id
+            prompt_map = {}
+            if isinstance(results, list):
+                for item in results:
+                    prompt_map[item.get("id")] = item.get("prompt", "")
+            
+            for idx, slide in enumerate(script_plan):
+                slide_id = idx + 1
+                if slide_id in prompt_map and prompt_map[slide_id]:
+                    slide["prompt"] = prompt_map[slide_id]
+                elif slide.get("visual_type") in ["image", "hybrid", "contextual_overlay"]:
+                    # Fallback to slide title if batch didn't return a prompt for this slide
+                    slide["prompt"] = slide.get("prompt", slide.get("slide_title", ""))
+
+        # Resolve course context for image prompts
+        course_topic = context_package.get('title', 'Corporate Training')
+        style_name = metadata.get('style', 'Minimalist Vector')
+
+        # Run visual text refinement, batch image prompts, and comparison prompts in parallel
         text_tasks = [refine_visual_text(slide) for slide in script_plan]
-        prompt_tasks = [refine_image_prompt(slide) for slide in script_plan]
+        comparison_tasks = [refine_comparison_prompts(slide) for slide in script_plan]
         
-        # Parallelize both text and prompt refinements
-        await asyncio.gather(*(text_tasks + prompt_tasks))
+        await asyncio.gather(
+            *text_tasks,
+            *comparison_tasks,
+            batch_refine_image_prompts(script_plan, course_topic, style_name)
+        )
 
         
         # Generate Draft Visuals

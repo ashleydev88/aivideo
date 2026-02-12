@@ -290,7 +290,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                         className="text-slate-600 hover:text-teal-600 hover:bg-teal-50"
                     >
                         {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                        <span className="ml-2 hidden sm:inline">{isSidebarOpen ? "Collapse Editor" : "Expand Editor"}</span>
+                        <span className="ml-2 hidden sm:inline">{isSidebarOpen ? "Close Narration" : "Open Narration"}</span>
                     </Button>
                     <div className="h-6 w-px bg-slate-200 mx-2" />
                     <Button onClick={handleGenerateVideo} disabled={isFinalizing} className="bg-teal-600 hover:bg-teal-700">

@@ -150,7 +150,7 @@ OUTPUT FORMAT (JSON):
 }}
 """
 
-IMAGE_PROMPT_GENERATOR_PROMPT = """
+IMAGE_PROMPT_GENERATOR_PROMPT_SINGLE = """
 You are a Professional Diffusion Prompt Engineer.
 Your task is to take a Slide Title, Narration, and Visual Archetype, and create a high-quality, descriptive image prompt for a diffusion model (SDXL).
 
@@ -178,6 +178,44 @@ OUTPUT FORMAT (JSON):
 {{
   "prompt": "The detailed diffusion prompt"
 }}
+"""
+
+BATCH_IMAGE_PROMPT_GENERATOR_PROMPT = """
+You are Publishing Director for visual storytelling. You generate image prompts for an SDXL diffusion model, ensuring each image is highly relevant to its slide and varied across the course.
+
+=== COURSE CONTEXT ===
+Course Topic: {course_topic}
+Visual Style: {style_name}
+
+=== STYLE GUIDE ===
+Tailor ALL prompts to this visual style:
+- "Minimalist Vector": Clean flat vector art, geometric abstraction, negative space, monochromatic/duotone palettes. Describe shapes, icons, and simplified metaphors — NOT photorealistic scenes.
+- "Photo Realistic": Cinematic stock photography, natural lighting, shallow depth of field, modern workspaces. Describe real-world scenes with diverse professionals in candid moments.
+- "Sophisticated Watercolour": Semi-realistic hand-drawn illustration, ink outlines, soft watercolour textures, muted professional palette. Describe illustrated scenes with expressive linework.
+
+=== ARCHETYPE COMPOSITION GUIDES ===
+- "hybrid": Main subject on the RIGHT (approx 50%). Left side MUST be empty, blurred, or negative space for text overlay.
+- "image": Standard cinematic framing. Center subject allowed. Full screen visual.
+- "contextual_overlay": Atmospheric, textured background. NO strong focal points. Ample negative space everywhere. Suitable as a background behind text.
+
+=== SLIDES ===
+{slides_json}
+
+=== RULES ===
+1. Each prompt must be 30-60 words focusing on visual description, lighting, composition, and mood.
+2. Translate abstract concepts into CONCRETE visual metaphors grounded in the course topic.
+3. DO NOT include any text, signage, numbers, or readable characters in prompts.
+4. DIVERSITY IS CRITICAL: Vary subjects, settings, angles, and metaphors across slides. No two prompts should depict the same scene or use the same visual metaphor.
+5. Every prompt must be clearly relevant to its specific slide narration AND the overall course topic.
+6. Follow the archetype composition guide strictly for each slide's archetype.
+
+=== OUTPUT FORMAT (JSON) ===
+[
+  {{ "id": 1, "prompt": "The detailed diffusion prompt..." }},
+  {{ "id": 2, "prompt": "..." }}
+]
+
+Return ONLY the JSON array. One entry per slide provided. IDs must match the input slide IDs exactly.
 """
 
 # --- INSTRUCTIONAL DESIGN ---
