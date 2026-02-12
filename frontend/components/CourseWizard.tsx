@@ -729,10 +729,10 @@ function FileUploader({ onUploadComplete }: { onUploadComplete: (files: File[], 
             const data = await res.json();
             onUploadComplete(validFiles, data.text);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Upload Error:", error);
             // Show error to user? For now just log and potentially clear state
-            alert(`Upload failed: ${error.message}`);
+            alert(`Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`);
             setFiles([]); // Reset files
         } finally {
             setIsUploading(false);

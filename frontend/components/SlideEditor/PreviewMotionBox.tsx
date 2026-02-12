@@ -5,8 +5,10 @@
  * Renders node cards without animation for slide preview.
  */
 import React from 'react';
+import parse from 'html-react-parser';
 import * as Lucide from 'lucide-react';
 import { getVariantColor } from '@/lib/types/MotionGraph';
+import RichTextEditor from './RichTextEditor';
 
 interface PreviewMotionBoxProps {
     label: string;
@@ -26,12 +28,12 @@ const getIconComponent = (iconName?: string) => {
         .split('-')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join('');
-    return (Lucide as any)[pascalCase] || Lucide.Box;
+    const icons = Lucide as unknown as Record<string, React.ComponentType<{ size?: number; strokeWidth?: number }>>;
+    return icons[pascalCase] || Lucide.Box;
 };
 
 export const PreviewMotionBox: React.FC<PreviewMotionBoxProps> = ({
     label,
-    subLabel,
     description,
     icon,
     variant = 'neutral',
@@ -40,8 +42,6 @@ export const PreviewMotionBox: React.FC<PreviewMotionBoxProps> = ({
     onUpdate,
 }) => {
     const color = getVariantColor(variant);
-    const IconComponent = getIconComponent(icon);
-
     return (
         <div
             className={`bg-white rounded-3xl shadow-xl border-2 border-slate-100 overflow-hidden ${className}`}
@@ -57,36 +57,34 @@ export const PreviewMotionBox: React.FC<PreviewMotionBoxProps> = ({
                     className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-md mb-2"
                     style={{ backgroundColor: color }}
                 >
-                    <IconComponent size={32} strokeWidth={2.5} />
+                    {React.createElement(getIconComponent(icon), { size: 32, strokeWidth: 2.5 })}
                 </div>
 
                 {/* Text */}
                 <div className="w-full">
                     {isEditable ? (
-                        <textarea
-                            value={label}
-                            onChange={(e) => onUpdate?.('label', e.target.value)}
-                            className="font-black text-slate-800 text-2xl leading-tight mb-2 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none resize-none"
-                            rows={label.length > 20 ? 3 : 2}
-                            style={{ fieldSizing: "content" } as any}
-                        />
+                        <div className="text-2xl font-black leading-tight mb-2 text-slate-800">
+                            <RichTextEditor
+                                value={label}
+                                onChange={(value) => onUpdate?.('label', value)}
+                                variant="minimal"
+                            />
+                        </div>
                     ) : (
-                        <h3 className="font-black text-slate-800 text-2xl leading-tight mb-2">{label}</h3>
+                        <div className="font-black text-slate-800 text-2xl leading-tight mb-2">{parse(label)}</div>
                     )}
 
                     {(description || isEditable) && (
                         isEditable ? (
-                            <textarea
-                                value={description || ''}
-                                onChange={(e) => onUpdate?.('description', e.target.value)}
-                                className="text-lg text-slate-500 mt-2 leading-relaxed bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none resize-none"
-                                rows={3}
-                                placeholder="Description..."
-                            />
+                            <div className="text-lg text-slate-500 mt-2 leading-relaxed">
+                                <RichTextEditor
+                                    value={description || ''}
+                                    onChange={(value) => onUpdate?.('description', value)}
+                                    variant="minimal"
+                                />
+                            </div>
                         ) : (
-                            <p className="text-lg text-slate-500 mt-2 line-clamp-3 leading-relaxed">
-                                {description}
-                            </p>
+                            <div className="text-lg text-slate-500 mt-2 line-clamp-3 leading-relaxed">{parse(description || '')}</div>
                         )
                     )}
                 </div>
@@ -111,27 +109,30 @@ export const PreviewStatBox: React.FC<PreviewMotionBoxProps & { value?: string |
     return (
         <div className="bg-white rounded-[2rem] shadow-2xl p-10 text-center min-w-[320px] border-t-8" style={{ borderTopColor: color }}>
             {isEditable ? (
-                <input
-                    value={value || label}
-                    onChange={(e) => onUpdate?.(value ? 'value' : 'label', e.target.value)}
-                    className="text-7xl font-black mb-4 tracking-tighter bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none"
-                    style={{ color }}
-                />
+                <div className="text-7xl font-black mb-4 tracking-tighter" style={{ color }}>
+                    <RichTextEditor
+                        value={String(value || label)}
+                        onChange={(nextValue) => onUpdate?.(value ? 'value' : 'label', nextValue)}
+                        variant="minimal"
+                    />
+                </div>
             ) : (
                 <div className="text-7xl font-black mb-4 tracking-tighter" style={{ color }}>
-                    {value || label}
+                    {parse(String(value || label))}
                 </div>
             )}
 
             {isEditable ? (
-                <input
-                    value={description || (value ? label : '')}
-                    onChange={(e) => onUpdate?.('description', e.target.value)} // Note: logic for label fallback is tricky here, simplified
-                    className="text-3xl font-black text-slate-700 bg-transparent text-center w-full focus:bg-slate-50 focus:ring-1 focus:ring-slate-300 rounded outline-none"
-                />
+                <div className="text-3xl font-black text-slate-700">
+                    <RichTextEditor
+                        value={description || (value ? label : '')}
+                        onChange={(nextValue) => onUpdate?.('description', nextValue)}
+                        variant="minimal"
+                    />
+                </div>
             ) : (
                 <div className="text-3xl font-black text-slate-700">
-                    {description || (value ? label : '')}
+                    {parse(description || (value ? label : ''))}
                 </div>
             )}
         </div>

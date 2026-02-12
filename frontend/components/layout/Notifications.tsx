@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bell, CheckCircle, FileText, Video, AlertCircle } from "lucide-react";
+import { Bell, FileText, Video, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Popover,
@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/popover";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
 
 interface NotificationItem {
     id: string;
@@ -18,6 +17,18 @@ interface NotificationItem {
     title: string;
     time: string;
     link: string;
+}
+
+interface CourseNotificationRecord {
+    id: string;
+    name?: string;
+    status: string;
+    created_at: string;
+    metadata?: {
+        failure_notice?: boolean;
+        failed_at?: number;
+        viewed_result?: boolean;
+    };
 }
 
 export function Notifications() {
@@ -48,7 +59,7 @@ export function Notifications() {
 
                 const newNotifications: NotificationItem[] = [];
 
-                courses.forEach((course: any) => {
+                (courses as CourseNotificationRecord[]).forEach((course) => {
                     if (course.metadata?.failure_notice) {
                         newNotifications.push({
                             id: course.id,
@@ -137,7 +148,7 @@ export function Notifications() {
                             <Bell className="mb-2 h-8 w-8 opacity-20" />
                             <p>No new notifications</p>
                             <p className="text-xs">
-                                Check "Recent Projects" for history
+                                Check &quot;Recent Projects&quot; for history
                             </p>
                         </div>
                     ) : (

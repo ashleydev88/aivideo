@@ -56,8 +56,10 @@ export function SeamlessPlayer({ slides, autoPlay = true }: SeamlessPlayerProps)
         const audio = audioRef.current;
         if (!audio || !currentSlide) return;
 
-        setIsLoading(true);
-        setSlideProgress(0);
+        requestAnimationFrame(() => {
+            setIsLoading(true);
+            setSlideProgress(0);
+        });
         audio.src = currentSlide.audio;
         audio.load();
 

@@ -1,20 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import parse from 'html-react-parser';
 import Image from 'next/image';
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import {
-    Activity,
-    Box,
-    Layers,
-    Shield,
-    Target,
-    TrendingUp,
-    User,
-    Zap,
     RefreshCcw,
-    CheckCircle2,
     Palette
 } from "lucide-react";
 import {
@@ -26,27 +15,144 @@ import { cn, isLightColor } from "@/lib/utils";
 import { MotionGraphPreview } from './MotionGraphPreview';
 import { AutoFitText } from './AutoFitText';
 import RichTextEditor from './RichTextEditor';
+import { MotionGraph, MotionNode } from '@/lib/types/MotionGraph';
 
 interface VisualPreviewProps {
-    slide: any; // We'll define a stricter type later or reuse the one from Editor
+    slide: SlidePreviewData;
     aspectRatio?: string;
-    onChartUpdate?: (newData: any) => void;
+    onChartUpdate?: (newData: MotionGraph) => void;
     onTextChange?: (newText: string) => void;
     onBackgroundChange?: (newColor: string) => void;
+    onSlideFieldChange?: (field: keyof SlidePreviewData, value: unknown) => void;
 }
 
-// Icon mapper for charts
-const IconMap: Record<string, any> = {
-    "activity": Activity,
-    "box": Box,
-    "layers": Layers,
-    "shield": Shield,
-    "target": Target,
-    "trending-up": TrendingUp,
-    "user": User,
-    "zap": Zap,
-    "refresh-cw": RefreshCcw,
-    "default": Box
+interface SlideLayoutData {
+    left_label?: string;
+    left_text?: string;
+    left_image?: string;
+    right_label?: string;
+    right_text?: string;
+    right_image?: string;
+    stat_label?: string;
+    stat_value?: string;
+    verbatim_quote?: string;
+    source_reference?: string;
+    context_note?: string;
+    kicker?: string;
+    [key: string]: unknown;
+}
+
+interface SlidePreviewData {
+    visual_type?: string;
+    layout?: string;
+    image?: string;
+    chart_data?: MotionGraph;
+    visual_text?: string;
+    text?: string;
+    prompt?: string;
+    background_color?: string;
+    text_color?: string;
+    accent_color?: string;
+    layout_data?: SlideLayoutData;
+}
+
+interface LogoCrop {
+    zoom?: number;
+}
+
+interface BackgroundEditWrapperProps {
+    children: React.ReactNode;
+    className?: string;
+    onBackgroundChange?: (newColor: string) => void;
+    backgroundColor?: string;
+    isContextualOverlayType: boolean;
+}
+
+const BackgroundEditWrapper: React.FC<BackgroundEditWrapperProps> = ({
+    children,
+    className,
+    onBackgroundChange,
+    backgroundColor,
+    isContextualOverlayType
+}) => {
+    if (!onBackgroundChange) return <>{children}</>;
+    const isLightBg = isLightColor(backgroundColor);
+
+    return (
+        <div className={`relative group/bg ${className}`}>
+            {children}
+            <div className="absolute top-4 right-4 z-50 opacity-0 group-hover/bg:opacity-100 transition-opacity">
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <button
+                            className={cn(
+                                "backdrop-blur-md border p-2 rounded-full shadow-sm transition-colors cursor-pointer",
+                                isLightBg
+                                    ? "bg-black/5 border-black/10 hover:bg-black/10"
+                                    : "bg-white/10 border-white/20 hover:bg-white/20"
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <Palette className={cn(
+                                "w-4 h-4 drop-shadow-md",
+                                isLightBg ? "text-slate-900" : "text-white"
+                            )} />
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-3" align="end" side="bottom">
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-500">
+                                {isContextualOverlayType ? 'Overlay Color' : 'Background Color'}
+                            </label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="color"
+                                    value={backgroundColor || (isContextualOverlayType ? '#0f172a' : '#000000')}
+                                    onChange={(e) => onBackgroundChange(e.target.value)}
+                                    className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                                />
+                                <span className="text-xs font-mono text-slate-600 uppercase bg-slate-100 px-2 py-1 rounded">
+                                    {backgroundColor || 'Default'}
+                                </span>
+                            </div>
+                        </div>
+                    </PopoverContent>
+                </Popover>
+            </div>
+        </div>
+    );
+};
+
+const LogoOverlay: React.FC<{ logoUrl: string | null; logoCrop: LogoCrop | null }> = ({ logoUrl, logoCrop }) => {
+    if (!logoUrl) return null;
+    const zoomFactor = logoCrop?.zoom || 1;
+    return (
+        <div
+            style={{
+                position: 'absolute',
+                bottom: '40px',
+                right: '40px',
+                maxWidth: `${Math.round(200 * zoomFactor)}px`,
+                maxHeight: `${Math.round(120 * zoomFactor)}px`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                zIndex: 50,
+                pointerEvents: 'none'
+            }}
+        >
+            <img
+                src={logoUrl}
+                alt="Logo"
+                style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain'
+                }}
+            />
+        </div>
+    );
 };
 
 const ScaleContainer = ({ children }: { children: React.ReactNode }) => {
@@ -84,13 +190,13 @@ const ScaleContainer = ({ children }: { children: React.ReactNode }) => {
     );
 };
 
-export default function VisualPreview({ slide, aspectRatio = "video", onChartUpdate, onTextChange, onBackgroundChange }: VisualPreviewProps) {
-    const { visual_type, layout, image, chart_data } = slide;
+export default function VisualPreview({ slide, onChartUpdate, onTextChange, onBackgroundChange, onSlideFieldChange }: VisualPreviewProps) {
+    const { visual_type, image, chart_data } = slide;
+    const isContextualOverlayType = visual_type === 'contextual_overlay' || visual_type === 'contextual-overlay';
     const [resolvedImage, setResolvedImage] = useState<string | null>(null);
-    const [isHovering, setIsHovering] = useState(false);
     const [brandColor, setBrandColor] = useState<string | null>(null);
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
-    const [logoCrop, setLogoCrop] = useState<any>(null);
+    const [logoCrop, setLogoCrop] = useState<LogoCrop | null>(null);
 
     // Fetch Brand Colour & Logo
     useEffect(() => {
@@ -120,7 +226,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                         }
                     }
                     setLogoUrl(url);
-                    setLogoCrop(user.user_metadata.logo_crop || null);
+                    setLogoCrop((user.user_metadata.logo_crop as LogoCrop) || null);
                 }
             }
         };
@@ -176,109 +282,99 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         return () => { isMounted = false; };
     }, [image]);
 
-
-    // Helper for background edit trigger - renders a floating palette button that doesn't interfere with text selection
-    const BackgroundEditTrigger = ({ children, className }: { children: React.ReactNode, className?: string }) => {
-        if (!onBackgroundChange) return <>{children}</>;
-        const isLightBg = isLightColor(slide.background_color);
-
-        return (
-            <div
-                className={`relative group/bg ${className}`}
-                onMouseEnter={() => setIsHovering(true)}
-                onMouseLeave={() => setIsHovering(false)}
-            >
-                {children}
-                {/* Floating Palette Button - positioned in corner, clickable */}
-                <div className="absolute top-4 right-4 z-50 opacity-0 group-hover/bg:opacity-100 transition-opacity">
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <button
-                                className={cn(
-                                    "backdrop-blur-md border p-2 rounded-full shadow-sm transition-colors cursor-pointer",
-                                    isLightBg
-                                        ? "bg-black/5 border-black/10 hover:bg-black/10"
-                                        : "bg-white/10 border-white/20 hover:bg-white/20"
-                                )}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <Palette className={cn(
-                                    "w-4 h-4 drop-shadow-md",
-                                    isLightBg ? "text-slate-900" : "text-white"
-                                )} />
-                            </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-3" align="end" side="bottom">
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-slate-500">Background Color</label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="color"
-                                        value={slide.background_color || '#000000'}
-                                        onChange={(e) => onBackgroundChange(e.target.value)}
-                                        className="w-8 h-8 rounded cursor-pointer border-0 p-0"
-                                    />
-                                    <span className="text-xs font-mono text-slate-600 uppercase bg-slate-100 px-2 py-1 rounded">
-                                        {slide.background_color || 'Default'}
-                                    </span>
-                                </div>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
-                </div>
-            </div>
-        )
-    }
-
-    // Logo Overlay - matches Remotion renderer positioning
-    const LogoOverlay = () => {
-        if (!logoUrl) return null;
-        const zoomFactor = logoCrop?.zoom || 1;
-        return (
-            <div
-                style={{
-                    position: 'absolute',
-                    bottom: '40px',
-                    right: '40px',
-                    maxWidth: `${Math.round(200 * zoomFactor)}px`,
-                    maxHeight: `${Math.round(120 * zoomFactor)}px`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    zIndex: 50,
-                    pointerEvents: 'none'
-                }}
-            >
-                <img
-                    src={logoUrl}
-                    alt="Logo"
-                    style={{
-                        maxWidth: '100%',
-                        maxHeight: '100%',
-                        objectFit: 'contain'
-                    }}
-                />
-            </div>
-        );
-    };
-
     // 0. SPECIALIZED TYPES DETECTION
-    const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay'];
+    const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay', 'contextual-overlay'];
     const isSpecialType = specialTypes.includes(visual_type);
 
-    const [resolvedGraphData, setResolvedGraphData] = useState<any>(null);
+    const convertToMotionGraph = (slideData: SlidePreviewData): MotionGraph | null => {
+        const { visual_type: type, layout_data, visual_text, text } = slideData;
+        const nodes: MotionNode[] = [];
 
-    useEffect(() => {
-        if (!((visual_type === 'chart' && chart_data) || isSpecialType)) {
-            setResolvedGraphData(null);
-            return;
+        if (type === 'comparison_split') {
+            nodes.push({
+                id: 'node-left',
+                type: 'motion-card',
+                data: {
+                    label: layout_data?.left_label || 'Option A',
+                    description: layout_data?.left_text || 'Description for option A',
+                    variant: 'negative',
+                    icon: 'x-circle',
+                    image: typeof layout_data?.left_image === 'string' ? layout_data.left_image : undefined
+                }
+            });
+            nodes.push({
+                id: 'node-right',
+                type: 'motion-card',
+                data: {
+                    label: layout_data?.right_label || 'Option B',
+                    description: layout_data?.right_text || 'Description for option B',
+                    variant: 'positive',
+                    icon: 'check-circle-2',
+                    image: typeof layout_data?.right_image === 'string' ? layout_data.right_image : undefined
+                }
+            });
+            return { id: 'generated-graph', archetype: 'comparison', nodes, edges: [] };
         }
 
+        if (type === 'key_stat_breakout') {
+            nodes.push({
+                id: 'stat-main',
+                type: 'motion-stat',
+                data: {
+                    label: layout_data?.stat_label || 'Key Statistic',
+                    value: layout_data?.stat_value || '100%',
+                    description: visual_text || text || '',
+                    variant: 'primary',
+                }
+            });
+            return { id: 'generated-stat', archetype: 'statistic', nodes, edges: [] };
+        }
+
+        if (type === 'document_anchor') {
+            nodes.push({
+                id: 'doc-quote',
+                type: 'motion-card',
+                data: {
+                    label: layout_data?.verbatim_quote || visual_text || 'Quoted Text',
+                    subLabel: layout_data?.source_reference || 'Source Document',
+                    description: layout_data?.context_note || 'Key Reference',
+                    variant: 'accent',
+                    icon: 'file-text'
+                }
+            });
+            return { id: 'generated-doc', archetype: 'document-anchor', nodes, edges: [] };
+        }
+
+        if (type === 'contextual_overlay' || type === 'contextual-overlay') {
+            nodes.push({
+                id: 'context-main',
+                type: 'motion-card',
+                data: {
+                    label: visual_text || 'Section Title',
+                    subLabel: layout_data?.kicker || 'INTRODUCTION',
+                    description: text || '',
+                    variant: 'neutral',
+                    icon: 'map-pin'
+                }
+            });
+            return { id: 'generated-overlay', archetype: 'contextual-overlay', nodes, edges: [] };
+        }
+
+        return null;
+    };
+
+    const [resolvedGraphData, setResolvedGraphData] = useState<MotionGraph | null>(null);
+
+    useEffect(() => {
         let active = true;
 
         const resolveImages = async () => {
-            let graphData = chart_data;
+            if (!((visual_type === 'chart' && chart_data) || isSpecialType)) {
+                if (active) setResolvedGraphData(null);
+                return;
+            }
+
+            let graphData: MotionGraph | null = chart_data || null;
 
             if (isSpecialType) {
                 graphData = convertToMotionGraph(slide);
@@ -298,7 +394,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
             const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
             // Iterate and sign images
-            await Promise.all(newNodes.map(async (node: any, index: number) => {
+            await Promise.all(newNodes.map(async (node: MotionNode, index: number) => {
                 if (node.data && node.data.image && !node.data.image.startsWith('http') && !node.data.image.startsWith('blob:')) {
                     try {
                         const res = await fetch(`${API_BASE_URL}/api/course/get-signed-url`, {
@@ -347,109 +443,6 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         );
     }
 
-    // Helper to convert backend slide data to MotionGraph format
-    const convertToMotionGraph = (slide: any): any => {
-        const { visual_type, layout_data, visual_text, text, accent_color } = slide;
-        const nodes = [];
-
-        // 1. Comparison Split
-        if (visual_type === 'comparison_split') {
-            nodes.push({
-                id: 'node-left',
-                type: 'motion-card',
-                data: {
-                    label: layout_data?.left_label || 'Option A',
-                    description: layout_data?.left_text || 'Description for option A',
-                    variant: 'negative',
-                    icon: 'x-circle',
-                    image: layout_data?.left_image
-                }
-            });
-            nodes.push({
-                id: 'node-right',
-                type: 'motion-card',
-                data: {
-                    label: layout_data?.right_label || 'Option B',
-                    description: layout_data?.right_text || 'Description for option B',
-                    variant: 'positive',
-                    icon: 'check-circle-2',
-                    image: layout_data?.right_image
-                }
-            });
-            return {
-                id: 'generated-graph',
-                archetype: 'comparison', // Maps to standard comparison
-                nodes,
-                edges: []
-            };
-        }
-
-        // 2. Key Stat Breakout
-        if (visual_type === 'key_stat_breakout') {
-            nodes.push({
-                id: 'stat-main',
-                type: 'motion-stat',
-                data: {
-                    label: layout_data?.stat_label || 'Key Statistic',
-                    value: layout_data?.stat_value || '100%',
-                    description: visual_text || text,
-                    variant: 'primary',
-                }
-            });
-            return {
-                id: 'generated-stat',
-                archetype: 'statistic',
-                nodes,
-                edges: []
-            };
-        }
-
-        // 3. Document Anchor
-        if (visual_type === 'document_anchor') {
-            nodes.push({
-                id: 'doc-quote',
-                type: 'motion-card',
-                data: {
-                    label: layout_data?.verbatim_quote || visual_text || "Quoted Text",
-                    subLabel: layout_data?.source_reference || "Source Document",
-                    description: layout_data?.context_note || "Key Reference",
-                    variant: 'accent',
-                    icon: 'file-text'
-                }
-            });
-            return {
-                id: 'generated-doc',
-                archetype: 'document-anchor',
-                nodes,
-                edges: []
-            };
-        }
-
-        // 4. Contextual Overlay
-        if (visual_type === 'contextual_overlay') {
-            nodes.push({
-                id: 'context-main',
-                type: 'motion-card',
-                data: {
-                    label: visual_text || "Section Title",
-                    subLabel: layout_data?.kicker || "INTRODUCTION",
-                    description: text,
-                    variant: 'neutral',
-                    icon: 'map-pin'
-                }
-            });
-            return {
-                id: 'generated-overlay',
-                archetype: 'contextual-overlay',
-                nodes,
-                edges: []
-            };
-        }
-
-        return null;
-    };
-
-
     // 1. CHART RENDERER (Including new types that map to MotionGraph)
     // Check if it's a chart OR one of our new specialized types
     if ((visual_type === 'chart' && chart_data) || isSpecialType) {
@@ -463,20 +456,78 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
             );
         }
 
+        const handleSpecialGraphUpdate = (newData: MotionGraph) => {
+            const firstNode = newData.nodes[0];
+            const secondNode = newData.nodes[1];
+            if (!firstNode) return;
+
+            if (visual_type === 'contextual_overlay' || visual_type === 'contextual-overlay') {
+                onTextChange?.(firstNode.data.label || '');
+                onSlideFieldChange?.('text', firstNode.data.description || '');
+                onSlideFieldChange?.('layout_data', {
+                    ...(slide.layout_data || {}),
+                    kicker: firstNode.data.subLabel || ''
+                });
+                return;
+            }
+
+            if (visual_type === 'comparison_split') {
+                onSlideFieldChange?.('layout_data', {
+                    ...(slide.layout_data || {}),
+                    left_label: firstNode.data.label || '',
+                    left_text: firstNode.data.description || '',
+                    right_label: secondNode?.data.label || '',
+                    right_text: secondNode?.data.description || '',
+                });
+                return;
+            }
+
+            if (visual_type === 'key_stat_breakout') {
+                onSlideFieldChange?.('layout_data', {
+                    ...(slide.layout_data || {}),
+                    stat_label: firstNode.data.label || '',
+                    stat_value: typeof firstNode.data.value === 'string' ? firstNode.data.value : String(firstNode.data.value || ''),
+                });
+                onTextChange?.(firstNode.data.description || '');
+                return;
+            }
+
+            if (visual_type === 'document_anchor') {
+                onTextChange?.(firstNode.data.label || '');
+                onSlideFieldChange?.('layout_data', {
+                    ...(slide.layout_data || {}),
+                    verbatim_quote: firstNode.data.label || '',
+                    source_reference: firstNode.data.subLabel || '',
+                    context_note: firstNode.data.description || '',
+                });
+            }
+        };
+
         return (
             <ScaleContainer>
                 {/* Background editing for Chart might be complex due to canvas, putting wrapper around */}
-                <BackgroundEditTrigger className="w-full h-full">
+                <BackgroundEditWrapper
+                    className="w-full h-full"
+                    onBackgroundChange={onBackgroundChange}
+                    backgroundColor={slide.background_color}
+                    isContextualOverlayType={isContextualOverlayType}
+                >
                     <MotionGraphPreview
                         data={resolvedGraphData}
                         accentColor={effectiveAccentColor}
-                        backgroundColor={visual_type === 'contextual_overlay' && brandColor ? brandColor : slide.background_color} // Contextual Overlay uses brand color bg
+                        backgroundColor={slide.background_color}
                         textColor={slide.text_color}
                         backgroundImage={resolvedImage}
-                        onUpdate={visual_type === 'chart' ? onChartUpdate : undefined} // Only allow chart editing for now, complex types generated from layout_data
+                        onUpdate={
+                            visual_type === 'chart'
+                                ? onChartUpdate
+                                : isSpecialType
+                                    ? handleSpecialGraphUpdate
+                                    : undefined
+                        }
                     />
-                    <LogoOverlay />
-                </BackgroundEditTrigger>
+                    <LogoOverlay logoUrl={logoUrl} logoCrop={logoCrop} />
+                </BackgroundEditWrapper>
             </ScaleContainer>
         );
     }
@@ -487,7 +538,12 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
 
         return (
             <ScaleContainer>
-                <BackgroundEditTrigger className="w-full h-full">
+                <BackgroundEditWrapper
+                    className="w-full h-full"
+                    onBackgroundChange={onBackgroundChange}
+                    backgroundColor={slide.background_color}
+                    isContextualOverlayType={isContextualOverlayType}
+                >
                     <div
                         className="slide-preview-content w-full h-full p-8 flex items-center justify-center transition-all duration-500"
                         style={{
@@ -541,8 +597,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                             )}
                         </div>
                     </div>
-                    <LogoOverlay />
-                </BackgroundEditTrigger>
+                    <LogoOverlay logoUrl={logoUrl} logoCrop={logoCrop} />
+                </BackgroundEditWrapper>
             </ScaleContainer>
         )
     }
@@ -555,7 +611,12 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
 
         return (
             <ScaleContainer>
-                <BackgroundEditTrigger className="w-full h-full">
+                <BackgroundEditWrapper
+                    className="w-full h-full"
+                    onBackgroundChange={onBackgroundChange}
+                    backgroundColor={slide.background_color}
+                    isContextualOverlayType={isContextualOverlayType}
+                >
                     <div
                         className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center"
                         style={{
@@ -587,8 +648,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                         </AutoFitText>
 
                     </div>
-                    <LogoOverlay />
-                </BackgroundEditTrigger>
+                    <LogoOverlay logoUrl={logoUrl} logoCrop={logoCrop} />
+                </BackgroundEditWrapper>
             </ScaleContainer>
         )
     }
@@ -619,7 +680,12 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                     </div>
 
                     {/* Left: Text - Curved Cutout & Gradient */}
-                    <BackgroundEditTrigger className="w-full h-full absolute inset-0 pointer-events-none">
+                    <BackgroundEditWrapper
+                        className="w-full h-full absolute inset-0 pointer-events-none"
+                        onBackgroundChange={onBackgroundChange}
+                        backgroundColor={slide.background_color}
+                        isContextualOverlayType={isContextualOverlayType}
+                    >
                         {/* SVG Definition for the Curve using objectBoundingBox for responsiveness */}
                         <svg className="absolute w-0 h-0" aria-hidden="true" focusable="false">
                             <defs>
@@ -694,8 +760,8 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                                 </div>
                             </div>
                         </div>
-                    </BackgroundEditTrigger>
-                    <LogoOverlay />
+                    </BackgroundEditWrapper>
+                    <LogoOverlay logoUrl={logoUrl} logoCrop={logoCrop} />
                 </div>
             </ScaleContainer>
         )
@@ -749,7 +815,7 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
                         </div>
                     </div>
                 )}
-                <LogoOverlay />
+                <LogoOverlay logoUrl={logoUrl} logoCrop={logoCrop} />
             </div>
         </ScaleContainer>
     );

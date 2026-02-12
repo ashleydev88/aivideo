@@ -6,7 +6,8 @@ import TextAlign from '@tiptap/extension-text-align'
 import { Color } from '@tiptap/extension-color'
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
 import { Extension } from '@tiptap/core'
-import React, { useEffect } from 'react'
+import React from 'react'
+import type { LucideIcon } from 'lucide-react'
 import {
     Bold,
     Italic,
@@ -57,7 +58,7 @@ interface RichTextEditorProps {
     variant?: 'default' | 'minimal';
 }
 
-export default function RichTextEditor({ value, onChange, placeholder, variant = 'default' }: RichTextEditorProps) {
+export default function RichTextEditor({ value, onChange, variant = 'default' }: RichTextEditorProps) {
     // Basic Markdown-to-HTML converter for legacy slides
     const processInitialValue = (val: string) => {
         if (!val) return "";
@@ -76,7 +77,7 @@ export default function RichTextEditor({ value, onChange, placeholder, variant =
         // 3. Bullets: - Text -> <ul><li>Text</li></ul>
         const lines = html.split('\n');
         let inList = false;
-        let newLines = [];
+        const newLines = [];
 
         for (const line of lines) {
             if (line.trim().startsWith('- ')) {
@@ -146,7 +147,7 @@ export default function RichTextEditor({ value, onChange, placeholder, variant =
     const currentFontSize = editor.getAttributes('textStyle').fontSize || "";
     const currentColor = editor.getAttributes('textStyle').color || "#000000"; // Default black
 
-    const ToolbarButton = ({ onClick, isActive, icon: Icon, title, label }: any) => (
+    const ToolbarButton = ({ onClick, isActive, icon: Icon, title, label }: { onClick: () => void; isActive: boolean; icon: LucideIcon; title: string; label?: string }) => (
         <button
             onClick={(e) => { e.preventDefault(); onClick(); }}
             className={`p-1.5 rounded hover:bg-slate-200 transition-colors flex items-center gap-1 ${isActive ? 'bg-slate-200 text-slate-900' : 'text-slate-500'}`}
@@ -158,7 +159,7 @@ export default function RichTextEditor({ value, onChange, placeholder, variant =
     )
 
     // Common toolbar content for reuse
-    const ToolbarContent = () => (
+    const renderToolbarContent = () => (
         <>
             <ToolbarButton
                 onClick={() => editor.chain().focus().toggleBold().run()}
@@ -291,7 +292,7 @@ export default function RichTextEditor({ value, onChange, placeholder, variant =
                         className="z-[99999]"
                     >
                         <div className="flex items-center gap-1 border border-slate-200 bg-white shadow-lg rounded-full p-1.5 px-3 animate-in fade-in zoom-in duration-200">
-                            <ToolbarContent />
+                            {renderToolbarContent()}
                         </div>
                     </BubbleMenu>
                 )}
@@ -313,7 +314,7 @@ export default function RichTextEditor({ value, onChange, placeholder, variant =
                 }
             `}</style>
             <div className="flex items-center gap-1 border-b border-slate-100 bg-slate-50/50 p-1 px-2 flex-wrap">
-                <ToolbarContent />
+                {renderToolbarContent()}
             </div>
             <EditorContent editor={editor} className="cursor-text" />
         </div>

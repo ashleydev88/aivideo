@@ -61,7 +61,7 @@ export const AutoFitText = ({
         const bufferedScale = Math.min(newScale, maxScale) * 0.98;
         const finalScale = Math.max(bufferedScale, minScale);
 
-        setScale(finalScale);
+        requestAnimationFrame(() => setScale(finalScale));
 
     }, [children, maxScale, minScale]);
 

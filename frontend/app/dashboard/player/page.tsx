@@ -111,9 +111,9 @@ function PlayerContent() {
                     const freshUrl = await getSignedUrl(data.video_url, session.access_token);
                     setVideoUrl(freshUrl);
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error("Error fetching project:", err);
-                setError(err.message || "Failed to load project");
+                setError(err instanceof Error ? err.message : "Failed to load project");
             } finally {
                 setLoading(false);
             }

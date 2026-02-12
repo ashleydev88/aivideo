@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, CheckCircle2, Image as ImageIcon, Trash2, Camera, Palette } from 'lucide-react';
@@ -13,11 +14,11 @@ export default function BrandPage() {
     const supabase = createClient();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<User | null>(null);
 
     // Form States
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
-    const [logoCrop, setLogoCrop] = useState<any>(null);
+    const [logoCrop, setLogoCrop] = useState<Record<string, unknown> | null>(null);
     const [tempLogo, setTempLogo] = useState<string | null>(null);
     const [zoom, setZoom] = useState(1);
     const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
@@ -155,9 +156,9 @@ export default function BrandPage() {
 
             setTimeout(() => setMessage(null), 3000);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Save error:", error);
-            setMessage({ text: error.message || "Failed to update settings", type: "error" });
+            setMessage({ text: error instanceof Error ? error.message : "Failed to update settings", type: "error" });
         } finally {
             setSaving(false);
         }

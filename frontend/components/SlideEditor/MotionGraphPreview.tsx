@@ -8,8 +8,9 @@
 import React from 'react';
 import parse from 'html-react-parser';
 import * as Lucide from 'lucide-react';
-import { MotionGraph, MotionNode, getVariantColor } from '@/lib/types/MotionGraph';
+import { MotionGraph, getVariantColor } from '@/lib/types/MotionGraph';
 import { PreviewMotionBox, PreviewStatBox } from './PreviewMotionBox';
+import RichTextEditor from './RichTextEditor';
 
 interface MotionGraphPreviewProps {
     data: MotionGraph;
@@ -27,7 +28,8 @@ const getIcon = (iconName?: string) => {
         .split('-')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join('');
-    return (Lucide as any)[pascalCase] || Lucide.Box;
+    const icons = Lucide as unknown as Record<string, React.ComponentType<{ size?: number; color?: string; className?: string; strokeWidth?: number }>>;
+    return icons[pascalCase] || Lucide.Box;
 };
 
 export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
@@ -57,13 +59,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         return (
             <div className="w-full flex flex-col items-center justify-center mb-16">
                 {onUpdate ? (
-                    <textarea
-                        value={title}
-                        onChange={(e) => handleTitleUpdate(e.target.value)}
-                        className="text-7xl font-black tracking-tight uppercase text-center max-w-7xl mx-auto bg-transparent w-full resize-none outline-none focus:ring-2 focus:ring-teal-500 rounded p-2"
-                        rows={1}
-                        style={{ color: textColor, fieldSizing: 'content' } as any}
-                    />
+                    <div className="text-7xl font-black tracking-tight uppercase text-center max-w-7xl mx-auto" style={{ color: textColor }}>
+                        <RichTextEditor
+                            value={title}
+                            onChange={handleTitleUpdate}
+                            variant="minimal"
+                        />
+                    </div>
                 ) : (
                     <div
                         className="text-7xl font-black tracking-tight uppercase text-center max-w-7xl mx-auto"
@@ -211,7 +213,6 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         // Scaled values
         const gap = Math.round(24 * clampedScale);
         const padding = Math.round(32 * clampedScale);
-        const iconContainerPadding = Math.round(16 * clampedScale);
         const iconSize = Math.round(40 * clampedScale);
         const labelFontSize = Math.round(30 * clampedScale);
         const descFontSize = Math.round(20 * clampedScale);
@@ -251,12 +252,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                             </div>
                             <div className="w-full min-w-0">
                                 {onUpdate ? (
-                                    <input
-                                        value={node.data.label}
-                                        onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                        className="font-black text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
-                                        style={{ fontSize: `${labelFontSize}px` }}
-                                    />
+                                    <div className="font-black text-slate-800" style={{ fontSize: `${labelFontSize}px` }}>
+                                        <RichTextEditor
+                                            value={node.data.label}
+                                            onChange={(value) => handleNodeUpdate(node.id, 'label', value)}
+                                            variant="minimal"
+                                        />
+                                    </div>
                                 ) : (
                                     <h4
                                         className="font-black text-slate-800 break-words"
@@ -268,13 +270,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
                                 {(node.data.description || onUpdate) && (
                                     onUpdate ? (
-                                        <input
-                                            value={node.data.description || ''}
-                                            onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
-                                            className="text-slate-500 mt-1 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
-                                            style={{ fontSize: `${descFontSize}px` }}
-                                            placeholder="Description"
-                                        />
+                                        <div className="text-slate-500 mt-1" style={{ fontSize: `${descFontSize}px` }}>
+                                            <RichTextEditor
+                                                value={node.data.description || ''}
+                                                onChange={(value) => handleNodeUpdate(node.id, 'description', value)}
+                                                variant="minimal"
+                                            />
+                                        </div>
                                     ) : (
                                         <p
                                             className="text-slate-500 line-clamp-2 mt-1"
@@ -309,7 +311,6 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         // Scaled values
         const gap = Math.round(48 * clampedScale);
         const padding = Math.round(32 * clampedScale);
-        const iconContainerPadding = Math.round(20 * clampedScale);
         const iconSize = Math.round(48 * clampedScale);
         const labelFontSize = Math.round(30 * clampedScale);
         const descFontSize = Math.round(20 * clampedScale);
@@ -361,13 +362,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                         {React.createElement(getIcon(node.data.icon), { size: iconSize, color: '#ffffff' })}
                                     </div>
                                     {onUpdate ? (
-                                        <textarea
-                                            value={node.data.label}
-                                            onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                            className="font-black text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded min-w-0 flex-1 resize-none"
-                                            style={{ fontSize: `${labelFontSize}px`, fieldSizing: 'content' } as any}
-                                            rows={1}
-                                        />
+                                        <div className="font-black text-slate-800 bg-transparent w-full min-w-0 flex-1" style={{ fontSize: `${labelFontSize}px` }}>
+                                            <RichTextEditor
+                                                value={node.data.label}
+                                                onChange={(value) => handleNodeUpdate(node.id, 'label', value)}
+                                                variant="minimal"
+                                            />
+                                        </div>
                                     ) : (
                                         <h4
                                             className="font-black text-slate-800 leading-tight min-w-0 flex-1 pb-1"
@@ -380,14 +381,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
                                 {(node.data.description || onUpdate) && (
                                     onUpdate ? (
-                                        <textarea
-                                            value={node.data.description || ''}
-                                            onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
-                                            className="text-slate-500 mt-2 leading-relaxed bg-transparent w-full resize-none outline-none focus:bg-slate-50 rounded flex-1"
-                                            style={{ fontSize: `${descFontSize}px` }}
-                                            rows={2}
-                                            placeholder="Description"
-                                        />
+                                        <div className="text-slate-500 mt-2 leading-relaxed bg-transparent w-full flex-1" style={{ fontSize: `${descFontSize}px` }}>
+                                            <RichTextEditor
+                                                value={node.data.description || ''}
+                                                onChange={(value) => handleNodeUpdate(node.id, 'description', value)}
+                                                variant="minimal"
+                                            />
+                                        </div>
                                     ) : (
                                         <p
                                             className="text-slate-500 mt-2 leading-relaxed"
@@ -430,8 +430,6 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         // Increased container size and radius to prevent overlaps
         const containerSize = 1800; // was 1600
         const radius = 750; // was 650
-        const centerXY = containerSize / 2;
-
         // Visual centering adjustment:
         // If orbital nodes are not evenly distributed around the circle (e.g., only 3 nodes),
         // the geometric center of the nodes might not be the visual center of the content.
@@ -517,22 +515,25 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     <div className="flex items-center gap-4 mb-4">
                         <Lucide.Code size={32} className="text-teal-400" />
                         {onUpdate ? (
-                            <input
-                                value={node.data.label}
-                                onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                className="text-teal-400 text-2xl font-mono bg-transparent w-full outline-none focus:ring-1 focus:ring-teal-500 rounded"
-                            />
+                            <div className="text-teal-400 text-2xl font-mono bg-transparent w-full">
+                                <RichTextEditor
+                                    value={node.data.label}
+                                    onChange={(value) => handleNodeUpdate(node.id, 'label', value)}
+                                    variant="minimal"
+                                />
+                            </div>
                         ) : (
                             <span className="text-teal-400 text-2xl font-mono">{node.data.label}</span>
                         )}
                     </div>
                     {onUpdate ? (
-                        <textarea
-                            value={node.data.description || ''}
-                            onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
-                            className="text-slate-100 font-mono text-2xl w-full bg-transparent resize-none outline-none focus:ring-1 focus:ring-teal-500 rounded p-2"
-                            rows={4}
-                        />
+                        <div className="text-slate-100 font-mono text-2xl w-full bg-transparent">
+                            <RichTextEditor
+                                value={node.data.description || ''}
+                                onChange={(value) => handleNodeUpdate(node.id, 'description', value)}
+                                variant="minimal"
+                            />
+                        </div>
                     ) : (
                         <pre className="text-slate-100 font-mono text-2xl overflow-x-auto p-2">
                             {node.data.description || '// code here'}
@@ -559,23 +560,26 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                 {React.createElement(getIcon(node.data.icon), { size: 56, color })}
                             </div>
                             {onUpdate ? (
-                                <input
-                                    value={node.data.label}
-                                    onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                    className="font-black text-slate-800 text-2xl bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
-                                />
+                                <div className="font-black text-slate-800 text-2xl bg-transparent w-full text-center">
+                                    <RichTextEditor
+                                        value={node.data.label}
+                                        onChange={(value) => handleNodeUpdate(node.id, 'label', value)}
+                                        variant="minimal"
+                                    />
+                                </div>
                             ) : (
                                 <h4 className="font-black text-slate-800 text-2xl">{node.data.label}</h4>
                             )}
 
                             {(node.data.subLabel || onUpdate) && (
                                 onUpdate ? (
-                                    <input
-                                        value={node.data.subLabel || ''}
-                                        onChange={(e) => handleNodeUpdate(node.id, 'subLabel', e.target.value)}
-                                        className="text-lg text-slate-500 mt-2 bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
-                                        placeholder="Sub-label"
-                                    />
+                                    <div className="text-lg text-slate-500 mt-2 bg-transparent w-full text-center">
+                                        <RichTextEditor
+                                            value={node.data.subLabel || ''}
+                                            onChange={(value) => handleNodeUpdate(node.id, 'subLabel', value)}
+                                            variant="minimal"
+                                        />
+                                    </div>
                                 ) : (
                                     <p className="text-lg text-slate-500 mt-2">{node.data.subLabel}</p>
                                 )
@@ -590,7 +594,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     // 2x2 Matrix
     const renderMatrix = () => (
         <div className="grid grid-cols-2 gap-8 w-full max-w-6xl">
-            {nodes.slice(0, 4).map((node, i) => {
+            {nodes.slice(0, 4).map((node) => {
                 const color = getVariantColor(node.data.variant, accentColor);
                 return (
                     <div
@@ -600,11 +604,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     >
                         <h4 className="font-black text-slate-800 text-3xl">
                             {onUpdate ? (
-                                <input
-                                    value={node.data.label}
-                                    onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                    className="bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
-                                />
+                                <div className="bg-transparent w-full text-center">
+                                    <RichTextEditor
+                                        value={node.data.label}
+                                        onChange={(value) => handleNodeUpdate(node.id, 'label', value)}
+                                        variant="minimal"
+                                    />
+                                </div>
                             ) : (
                                 node.data.label
                             )}
@@ -612,13 +618,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         {(node.data.description || onUpdate) && (
                             <div className="text-xl text-slate-500 mt-4 leading-relaxed">
                                 {onUpdate ? (
-                                    <textarea
-                                        value={node.data.description || ''}
-                                        onChange={(e) => handleNodeUpdate(node.id, 'description', e.target.value)}
-                                        className="bg-transparent w-full resize-none outline-none focus:bg-slate-50 rounded text-center"
-                                        rows={2}
-                                        placeholder="Description"
-                                    />
+                                    <div className="bg-transparent w-full text-center">
+                                        <RichTextEditor
+                                            value={node.data.description || ''}
+                                            onChange={(value) => handleNodeUpdate(node.id, 'description', value)}
+                                            variant="minimal"
+                                        />
+                                    </div>
                                 ) : (
                                     node.data.description
                                 )}
@@ -646,11 +652,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         {surfaceNodes.map(node => (
                             <div key={node.id} className="bg-white rounded-2xl p-6 shadow-sm">
                                 {onUpdate ? (
-                                    <input
-                                        value={node.data.label}
-                                        onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                        className="font-bold text-slate-700 text-2xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
-                                    />
+                                    <div className="font-bold text-slate-700 text-2xl bg-transparent w-full">
+                                        <RichTextEditor
+                                            value={node.data.label}
+                                            onChange={(value) => handleNodeUpdate(node.id, 'label', value)}
+                                            variant="minimal"
+                                        />
+                                    </div>
                                 ) : (
                                     <span className="font-bold text-slate-700 text-2xl">{node.data.label}</span>
                                 )}
@@ -668,11 +676,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         {deepNodes.map(node => (
                             <div key={node.id} className="bg-white rounded-2xl p-6 shadow-sm">
                                 {onUpdate ? (
-                                    <input
-                                        value={node.data.label}
-                                        onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                        className="font-bold text-slate-700 text-2xl bg-transparent w-full outline-none focus:bg-slate-50 rounded"
-                                    />
+                                    <div className="font-bold text-slate-700 text-2xl bg-transparent w-full">
+                                        <RichTextEditor
+                                            value={node.data.label}
+                                            onChange={(value) => handleNodeUpdate(node.id, 'label', value)}
+                                            variant="minimal"
+                                        />
+                                    </div>
                                 ) : (
                                     <span className="font-bold text-slate-700 text-2xl">{node.data.label}</span>
                                 )}
@@ -699,11 +709,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         className: 'mx-auto mb-4'
                     })}
                     {onUpdate ? (
-                        <input
-                            value={centerNode?.data.label}
-                            onChange={(e) => handleNodeUpdate(centerNode.id, 'label', e.target.value)}
-                            className="font-black text-slate-800 text-4xl bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
-                        />
+                        <div className="font-black text-slate-800 text-4xl bg-transparent w-full text-center">
+                            <RichTextEditor
+                                value={centerNode?.data.label || ''}
+                                onChange={(value) => handleNodeUpdate(centerNode.id, 'label', value)}
+                                variant="minimal"
+                            />
+                        </div>
                     ) : (
                         <h3 className="font-black text-slate-800 text-4xl">{centerNode?.data.label}</h3>
                     )}
@@ -725,11 +737,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                             style={pos}
                         >
                             {onUpdate ? (
-                                <input
-                                    value={node.data.label}
-                                    onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                    className="font-bold text-slate-700 bg-transparent w-full text-center outline-none focus:bg-slate-50 rounded"
-                                />
+                                <div className="font-bold text-slate-700 bg-transparent w-full text-center">
+                                    <RichTextEditor
+                                        value={node.data.label}
+                                        onChange={(value) => handleNodeUpdate(node.id, 'label', value)}
+                                        variant="minimal"
+                                    />
+                                </div>
                             ) : (
                                 <span className="font-bold text-slate-700">{node.data.label}</span>
                             )}
@@ -752,16 +766,16 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
                     <div className="space-y-8">
                         {onUpdate ? (
-                            <textarea
-                                value={quoteNode?.data.label}
-                                onChange={(e) => handleNodeUpdate(quoteNode.id, 'label', e.target.value)}
-                                className="font-black text-5xl text-slate-800 leading-tight w-full bg-transparent resize-none outline-none focus:bg-slate-50 rounded"
-                                rows={3}
-                                placeholder="Quote or key text..."
-                            />
+                            <div className="font-black text-5xl text-slate-800 leading-tight w-full bg-transparent">
+                                <RichTextEditor
+                                    value={quoteNode?.data.label || ''}
+                                    onChange={(value) => handleNodeUpdate(quoteNode.id, 'label', value)}
+                                    variant="minimal"
+                                />
+                            </div>
                         ) : (
                             <blockquote className="font-black text-5xl text-slate-800 leading-tight">
-                                "{quoteNode?.data.label}"
+                                &ldquo;{parse(quoteNode?.data.label || '')}&rdquo;
                             </blockquote>
                         )}
 
@@ -769,18 +783,20 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                             <div className="w-16 h-1 w-16 rounded-full" style={{ backgroundColor: color }} />
                             {onUpdate ? (
                                 <div className="w-full flex flex-col gap-2">
-                                    <input
-                                        value={quoteNode?.data.subLabel || ''}
-                                        onChange={(e) => handleNodeUpdate(quoteNode.id, 'subLabel', e.target.value)}
-                                        className="font-bold text-slate-600 text-2xl bg-transparent outline-none focus:bg-slate-50 rounded"
-                                        placeholder="Author / Source"
-                                    />
-                                    <input
-                                        value={quoteNode?.data.description || ''}
-                                        onChange={(e) => handleNodeUpdate(quoteNode.id, 'description', e.target.value)}
-                                        className="text-slate-400 text-xl bg-transparent outline-none focus:bg-slate-50 rounded"
-                                        placeholder="Context / Date"
-                                    />
+                                    <div className="font-bold text-slate-600 text-2xl bg-transparent">
+                                        <RichTextEditor
+                                            value={quoteNode?.data.subLabel || ''}
+                                            onChange={(value) => handleNodeUpdate(quoteNode.id, 'subLabel', value)}
+                                            variant="minimal"
+                                        />
+                                    </div>
+                                    <div className="text-slate-400 text-xl bg-transparent">
+                                        <RichTextEditor
+                                            value={quoteNode?.data.description || ''}
+                                            onChange={(value) => handleNodeUpdate(quoteNode.id, 'description', value)}
+                                            variant="minimal"
+                                        />
+                                    </div>
                                 </div>
                             ) : (
                                 <div>
@@ -806,6 +822,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         // Find main text node and potentially secondary nodes
         const mainNode = nodes[0];
         const secondaryNodes = nodes.slice(1);
+        if (!mainNode) return null;
 
         const fadeColor = backgroundColor || '#0f172a';
         const isHex = fadeColor.startsWith('#');
@@ -860,54 +877,85 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                 {/* Content Overlay */}
                 <div className="relative z-20 max-w-2xl space-y-8">
                     {onUpdate ? (
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-4">
-                                <Lucide.MapPin size={32} className="text-white" />
-                                <input
-                                    value={mainNode?.data.subLabel || ''}
-                                    onChange={(e) => handleNodeUpdate(mainNode.id, 'subLabel', e.target.value)}
-                                    className="text-white font-bold tracking-widest uppercase text-xl bg-transparent w-full outline-none focus:ring-1 focus:ring-teal-500 rounded"
-                                    placeholder="LOCATION / CONTEXT"
+                        <div className="space-y-6 contextual-overlay-editor">
+                            <style>{`
+                                .contextual-overlay-editor .ProseMirror {
+                                    --editor-default-size: 24px;
+                                }
+                                .contextual-overlay-editor .kicker .ProseMirror p {
+                                    text-transform: uppercase !important;
+                                    letter-spacing: 0.2em !important;
+                                    font-size: 24px !important;
+                                    font-weight: 800 !important;
+                                    margin: 0 !important;
+                                }
+                                .contextual-overlay-editor .headline .ProseMirror p,
+                                .contextual-overlay-editor .headline .ProseMirror h1,
+                                .contextual-overlay-editor .headline .ProseMirror h2 {
+                                    font-size: 96px !important;
+                                    line-height: 1.05 !important;
+                                    font-weight: 950 !important;
+                                    margin: 0 !important;
+                                    text-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
+                                }
+                                .contextual-overlay-editor .description .ProseMirror p {
+                                    font-size: 42px !important;
+                                    line-height: 1.45 !important;
+                                    font-weight: 600 !important;
+                                    margin: 0 !important;
+                                    color: #e2e8f0 !important;
+                                    text-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+                                }
+                            `}</style>
+                            <div className="flex items-start gap-4 text-white">
+                                <Lucide.MapPin size={32} className="mt-3" />
+                                <div className="kicker w-full">
+                                    <RichTextEditor
+                                        value={mainNode?.data.subLabel || ''}
+                                        onChange={(value) => handleNodeUpdate(mainNode.id, 'subLabel', value)}
+                                        variant="minimal"
+                                    />
+                                </div>
+                            </div>
+                            <div className="headline text-white">
+                                <RichTextEditor
+                                    value={mainNode?.data.label || ''}
+                                    onChange={(value) => handleNodeUpdate(mainNode.id, 'label', value)}
+                                    variant="minimal"
                                 />
                             </div>
-                            <textarea
-                                value={mainNode?.data.label}
-                                onChange={(e) => handleNodeUpdate(mainNode.id, 'label', e.target.value)}
-                                className="text-6xl font-black text-white leading-none bg-transparent w-full resize-none outline-none focus:ring-1 focus:ring-teal-500 rounded p-2"
-                                rows={2}
-                            />
-                            <textarea
-                                value={mainNode?.data.description || ''}
-                                onChange={(e) => handleNodeUpdate(mainNode.id, 'description', e.target.value)}
-                                className="text-2xl text-slate-200 leading-relaxed bg-transparent w-full resize-none outline-none focus:ring-1 focus:ring-teal-500 rounded p-2"
-                                rows={3}
-                                placeholder="Description..."
-                            />
+                            <div className="description text-slate-200">
+                                <RichTextEditor
+                                    value={mainNode?.data.description || ''}
+                                    onChange={(value) => handleNodeUpdate(mainNode.id, 'description', value)}
+                                    variant="minimal"
+                                />
+                            </div>
                         </div>
                     ) : (
                         <>
                             {mainNode?.data.subLabel && (
                                 <div className="flex items-center gap-4 text-white font-bold tracking-widest uppercase text-xl animate-fade-in-up">
                                     <Lucide.MapPin size={32} />
-                                    {mainNode.data.subLabel}
+                                    <div>{parse(mainNode.data.subLabel)}</div>
                                 </div>
                             )}
-                            <h2
+                            <div
                                 className="text-7xl font-black text-white leading-tight"
                                 style={{
                                     textShadow: '0 10px 40px rgba(0,0,0,0.6)',
                                     filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.5))'
                                 }}
                             >
-                                {mainNode?.data.label}
-                            </h2>
+                                {parse(mainNode?.data.label || '')}
+                            </div>
                             {mainNode?.data.description && (
-                                <p
+                                <div
                                     className="text-3xl font-semibold text-slate-100 leading-relaxed max-w-2xl"
                                     style={{ textShadow: '0 4px 20px rgba(0,0,0,0.4)' }}
                                 >
-                                    {mainNode.data.description}
-                                </p>
+                                    {parse(mainNode.data.description)}
+                                </div>
                             )}
                         </>
                     )}

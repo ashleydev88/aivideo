@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,7 @@ export default function SettingsPage() {
     const supabase = createClient();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<User | null>(null);
     const [subscription, setSubscription] = useState<string>("free");
 
     // Form States
@@ -78,9 +79,9 @@ export default function SettingsPage() {
             // Clear success message after 3 seconds
             setTimeout(() => setMessage(null), 3000);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Save error:", error);
-            setMessage({ text: error.message || "Failed to update settings", type: "error" });
+            setMessage({ text: error instanceof Error ? error.message : "Failed to update settings", type: "error" });
         } finally {
             setSaving(false);
         }

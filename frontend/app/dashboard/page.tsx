@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,10 +57,11 @@ interface Project {
     name: string;
     metadata?: {
         duration?: number;
-        topics?: any[];
+        topics?: unknown[];
         failure_notice?: string;
         last_error?: string;
-        [key: string]: any;
+        actual_duration?: number;
+        [key: string]: unknown;
     };
     video_url?: string;
     progress?: number;
@@ -77,7 +79,7 @@ export default function DashboardPage() {
     const supabase = createClient();
     const [loading, setLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [showGenerationModal, setShowGenerationModal] = useState(false);
     const { activeGeneration, clearGeneration } = useCourseGeneration();
@@ -273,7 +275,7 @@ export default function DashboardPage() {
         });
     };
 
-    const formatDuration = (metadata: any) => {
+    const formatDuration = (metadata: Project["metadata"]) => {
         if (metadata?.actual_duration) {
             const totalSeconds = Math.round(metadata.actual_duration / 1000);
             const minutes = Math.floor(totalSeconds / 60);
@@ -518,7 +520,7 @@ export default function DashboardPage() {
                                                         <Button variant="ghost" size="sm" disabled className="text-slate-500 min-w-[140px] justify-start">
                                                             <Loader2 className="h-4 w-4 mr-2 animate-spin text-teal-600" />
                                                             {project.status === 'queued' ? (
-                                                                `Queued${typeof queuePositions[project.id] === 'number' ? \` (pos ${queuePositions[project.id]} )\` : ''}`
+                                                                `Queued${typeof queuePositions[project.id] === 'number' ? ` (pos ${queuePositions[project.id]} )` : ''}`
                                                             ) : (['rendering', 'processing_render'].includes(project.status)) ? (
                                                                 `Rendering ${Math.round(project.progress || 0)}%`
                                                             ) : (

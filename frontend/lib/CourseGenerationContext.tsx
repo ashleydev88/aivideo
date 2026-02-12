@@ -11,7 +11,7 @@ export interface GenerationProgress {
     progress: number;
     error: string | null;
     videoUrl: string | null;
-    slideData: any[] | null;
+    slideData: unknown[] | null;
 }
 
 interface CourseGenerationContextType {
@@ -35,26 +35,23 @@ export function useCourseGeneration() {
 
 export function CourseGenerationProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
-    const [activeGeneration, setActiveGeneration] = useState<GenerationProgress | null>(null);
-    const pollInterval = useRef<NodeJS.Timeout | null>(null);
-
-    // Restore from localStorage on mount
-    useEffect(() => {
+    const [activeGeneration, setActiveGeneration] = useState<GenerationProgress | null>(() => {
+        if (typeof window === "undefined") return null;
         const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                if (parsed.courseId && parsed.status !== "completed" && parsed.status !== "error") {
-                    setActiveGeneration(parsed);
-                } else {
-                    // Clear stale data
-                    localStorage.removeItem(STORAGE_KEY);
-                }
-            } catch {
-                localStorage.removeItem(STORAGE_KEY);
+        if (!stored) return null;
+        try {
+            const parsed = JSON.parse(stored) as GenerationProgress;
+            if (parsed.courseId && parsed.status !== "completed" && parsed.status !== "error") {
+                return parsed;
             }
+            localStorage.removeItem(STORAGE_KEY);
+            return null;
+        } catch {
+            localStorage.removeItem(STORAGE_KEY);
+            return null;
         }
-    }, []);
+    });
+    const pollInterval = useRef<NodeJS.Timeout | null>(null);
 
     // Persist to localStorage whenever activeGeneration changes
     useEffect(() => {

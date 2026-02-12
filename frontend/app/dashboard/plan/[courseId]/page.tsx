@@ -14,12 +14,28 @@ interface Topic {
     key_points: string[];
 }
 
+interface CourseRecord {
+    id: string;
+    name: string;
+    status: string;
+    metadata: {
+        topics?: Topic[];
+        duration?: number;
+        learning_objective?: string;
+        country?: string;
+        processed_policy?: string;
+        style?: string;
+        accent_color?: string;
+        color_name?: string;
+    };
+}
+
 export default function PlanPage() {
     const params = useParams();
     const router = useRouter();
     const courseId = params.courseId as string;
     const [loading, setLoading] = useState(true);
-    const [course, setCourse] = useState<any>(null);
+    const [course, setCourse] = useState<CourseRecord | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -153,11 +169,12 @@ export default function PlanPage() {
             // Success
             router.push('/dashboard');
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("HandleNext Error:", error);
-            setError(error.message || "Failed to start design phase");
+            const message = error instanceof Error ? error.message : "Failed to start design phase";
+            setError(message);
             setIsGenerating(false);
-            alert(`Error: ${error.message || "Failed"}`);
+            alert(`Error: ${message}`);
         }
     };
 

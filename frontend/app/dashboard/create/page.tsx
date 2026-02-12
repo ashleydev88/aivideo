@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { CheckCircle2, PlayCircle } from 'lucide-react';
+import type { Session } from '@supabase/supabase-js';
 import CourseWizard from '@/components/CourseWizard';
 // PlanningEditor removed (unused)
 
@@ -20,6 +21,20 @@ interface Slide {
     duration: number;
     visual_text?: string;
     layout?: 'split' | 'text_only' | 'image_only';
+}
+
+interface WizardState {
+    topic: string;
+    title: string;
+    style: string;
+    duration: number;
+    policyText: string;
+    learningObjective?: string;
+    logoUrl?: string;
+    logoCrop?: Record<string, unknown> | null;
+    accentColor?: string;
+    colorName?: string;
+    validationEnabled?: boolean;
 }
 
 export interface Topic {
@@ -67,7 +82,7 @@ const RichTextRenderer = ({ text }: { text: string }) => {
                             className="pl-6 border-l-4 border-teal-500 italic text-2xl text-slate-600 font-serif text-animate-in"
                             style={{ animationDelay }}
                         >
-                            "{trimmed.replace(/^[>"]+/, '').replace(/"$/, '').trim()}"
+                            &ldquo;{trimmed.replace(/^[>"]+/, '').replace(/"$/, '').trim()}&rdquo;
                         </div>
                     );
                 }
@@ -110,8 +125,9 @@ const KEN_BURNS_EFFECTS = [
 
 // --- PLAYER COMPONENT (Split Screen) ---
 function SeamlessPlayer({ slides = [], onReset, videoUrl, logoInfo }:
-    { slides: Slide[], onReset: () => void, videoUrl?: string, logoInfo?: { url: string, crop: any } }) {
+    { slides: Slide[], onReset: () => void, videoUrl?: string, logoInfo?: { url: string, crop: Record<string, unknown> | null } }) {
 
+    const safeSlides = Array.isArray(slides) ? slides : [];
     const [index, setIndex] = useState(0);
     const [hasStarted, setHasStarted] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -119,20 +135,16 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, logoInfo }:
 
     // Randomly assign Ken Burns effect to each slide (memoized for consistency)
     const slideEffects = useMemo(() =>
-        slides.map(() => KEN_BURNS_EFFECTS[Math.floor(Math.random() * KEN_BURNS_EFFECTS.length)]),
-        [slides.length]
+        safeSlides.map(() => KEN_BURNS_EFFECTS[Math.floor(Math.random() * KEN_BURNS_EFFECTS.length)]),
+        [safeSlides.length]
     );
 
-    if (!slides || !Array.isArray(slides) || slides.length === 0) {
-        return <div className="text-slate-600 p-4">Waiting for slide data...</div>;
-    }
-
     useEffect(() => {
-        if (index < slides.length - 1) {
+        if (index < safeSlides.length - 1) {
             const nextImg = new Image();
-            if (slides[index + 1]) nextImg.src = slides[index + 1].image;
+            if (safeSlides[index + 1]) nextImg.src = safeSlides[index + 1].image;
         }
-    }, [index, slides]);
+    }, [index, safeSlides]);
 
     useEffect(() => {
         if (hasStarted && audioRef.current) {
@@ -144,17 +156,21 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, logoInfo }:
 
     const handleNext = useCallback(() => {
         setIndex((currentIndex) => {
-            if (currentIndex < slides.length - 1) return currentIndex + 1;
+            if (currentIndex < safeSlides.length - 1) return currentIndex + 1;
             return currentIndex;
         });
-    }, [slides.length]);
+    }, [safeSlides.length]);
 
     useEffect(() => {
         if (!hasStarted) return;
-        const duration = slides[index]?.duration || 15000;
+        const duration = safeSlides[index]?.duration || 15000;
         const timer = setTimeout(handleNext, duration);
         return () => clearTimeout(timer);
-    }, [index, slides, handleNext, hasStarted]);
+    }, [index, safeSlides, handleNext, hasStarted]);
+
+    if (safeSlides.length === 0) {
+        return <div className="text-slate-600 p-4">Waiting for slide data...</div>;
+    }
 
     const startCourse = () => {
         setHasStarted(true);
@@ -183,7 +199,7 @@ function SeamlessPlayer({ slides = [], onReset, videoUrl, logoInfo }:
         }
     };
 
-    const currentSlide = slides[index];
+    const currentSlide = safeSlides[index];
     const layout = currentSlide.layout || 'split';
 
     // Decide Layout Logic
@@ -316,7 +332,7 @@ function DashboardCreatePageContent() {
     const [isProcessing, setIsProcessing] = useState(false);
     const router = useRouter();
     const supabase = createClient();
-    const [session, setSession] = useState<any>(null);
+    const [session, setSession] = useState<Session | null>(null);
     const searchParams = useSearchParams();
     const initialId = searchParams.get('id');
 
@@ -330,7 +346,7 @@ function DashboardCreatePageContent() {
     const [courseId, setCourseId] = useState<string | null>(null);
     const [country, setCountry] = useState<"USA" | "UK">("UK");
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
-    const [logoCrop, setLogoCrop] = useState<any>(null);
+    const [logoCrop, setLogoCrop] = useState<Record<string, unknown> | null>(null);
     const [accentColor, setAccentColor] = useState("#14b8a6"); // Default teal
     const [colorName, setColorName] = useState("teal");
     const [brandDefaultColor, setBrandDefaultColor] = useState<string | null>(null);
@@ -412,7 +428,7 @@ function DashboardCreatePageContent() {
 
 
     // --- STEP 1: WIZARD COMPLETION ---
-    const handleWizardComplete = async (wizardState: any) => {
+    const handleWizardComplete = async (wizardState: WizardState) => {
         setIsLoading(true);
         setIsProcessing(true);
 
@@ -587,7 +603,7 @@ function DashboardCreatePageContent() {
                                 Create Your Course
                             </h1>
                             <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                                Let's build a high-impact video course together. Just answer a few questions to get started.
+                                Let&apos;s build a high-impact video course together. Just answer a few questions to get started.
                             </p>
                         </div>
                         <CourseWizard

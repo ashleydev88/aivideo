@@ -29,7 +29,8 @@ const getColor = (intent: string | undefined, accent: string) => {
 const IconWrapper: React.FC<{ name: string; color: string; size?: number }> = ({ name, color, size = 32 }) => {
     // Dynamic icon lookup with fallback
     const iconName = name ? (name.charAt(0).toUpperCase() + name.slice(1).replace(/-./g, x => x[1].toUpperCase())) : 'Box';
-    const IconComponent = (Lucide as any)[iconName] || Lucide.Box;
+    const icons = Lucide as unknown as Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>>;
+    const IconComponent = icons[iconName] || Lucide.Box;
     return <IconComponent size={size} color={color} strokeWidth={2.5} />;
 };
 

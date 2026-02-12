@@ -12,7 +12,7 @@ export default function StructurePage() {
     const router = useRouter();
     const courseId = params.courseId as string;
     const [loading, setLoading] = useState(true);
-    const [course, setCourse] = useState<any>(null);
+    const [course, setCourse] = useState<Record<string, unknown> | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -49,7 +49,7 @@ export default function StructurePage() {
                 const { data } = await supabase.from("courses").select("status, slide_data").eq("id", courseId).single();
                 // Check if status changed or if we hit a terminal state in DB
                 if (data && data.status !== course?.status) {
-                    setCourse((prev: any) => ({ ...prev, ...data }));
+                    setCourse((prev) => ({ ...(prev || {}), ...data }));
                 }
             }, 3000);
         }

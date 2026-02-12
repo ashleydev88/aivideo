@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Shield, UserX, Building, Check, X, FileText, Zap, Brain, FilePenLine, Palette, AudioWaveform, Code2, Lock, Monitor, Users, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import ProcessVisualization from '../components/ProcessVisualization';
 
 // Animation Variants
@@ -18,7 +19,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants: any = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
@@ -265,11 +266,11 @@ export default function Home() {
               </h2>
 
               <p className="text-lg leading-8 text-slate-600 mb-8">
-                Talking heads add <span className="text-slate-900 font-semibold">'Extraneous Cognitive Load'</span>—distracting your team from the policy details. We use Kinetic Typography and Congruent Imagery to focus attention on the message.
+                Talking heads add <span className="text-slate-900 font-semibold">&lsquo;Extraneous Cognitive Load&rsquo;</span>-distracting your team from the policy details. We use Kinetic Typography and Congruent Imagery to focus attention on the message.
               </p>
 
               <blockquote className="text-sm text-slate-500 italic border-l-2 border-teal-200 pl-4 mx-auto max-w-md bg-white/50 p-4 rounded-r-md">
-                "Built on the principles of Mayer's Multimedia Learning Theory."
+                &ldquo;Built on the principles of Mayer&rsquo;s Multimedia Learning Theory.&rdquo;
               </blockquote>
             </div>
           </div>

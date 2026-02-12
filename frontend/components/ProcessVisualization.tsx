@@ -195,7 +195,7 @@ export default function ProcessVisualization() {
                                             duration: 0.2,
                                             repeat: Infinity,
                                             repeatType: "reverse",
-                                            delay: Math.random() * 0.5
+                                            delay: (i % 6) * 0.08
                                         }}
                                     />
                                 ))}

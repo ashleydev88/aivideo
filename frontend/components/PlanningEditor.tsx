@@ -18,9 +18,11 @@ export default function PlanningEditor({ topics, duration, initialTitle, initial
 
     // Sync from props
     useEffect(() => {
-        if (topics && topics.length > 0) setTopics(topics);
-        if (initialTitle) setTitle(initialTitle);
-        if (initialLearningObjective) setLearningObjective(initialLearningObjective);
+        queueMicrotask(() => {
+            if (topics && topics.length > 0) setTopics(topics);
+            if (initialTitle) setTitle(initialTitle);
+            if (initialLearningObjective) setLearningObjective(initialLearningObjective);
+        });
     }, [topics, initialTitle, initialLearningObjective]);
 
     const handleTopicChange = (index: number, field: keyof Topic, val: string | string[]) => {

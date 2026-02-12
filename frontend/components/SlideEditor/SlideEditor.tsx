@@ -31,14 +31,16 @@ interface Slide {
     text: string;
     visual_text: string;
     layout: "split" | "text_only" | "image_only";
-    visual_type: "image" | "hybrid" | "chart" | "kinetic_text" | "title_card";
+    visual_type: "image" | "hybrid" | "chart" | "kinetic_text" | "title_card" | "comparison_split" | "key_stat_breakout" | "document_anchor" | "contextual_overlay" | "contextual-overlay";
     prompt: string;
     duration: number;
     image?: string;
-    chart_data?: any;
-    timestamps?: any;
+    chart_data?: unknown;
+    timestamps?: unknown;
     background_color?: string;
     text_color?: string;
+    accent_color?: string;
+    layout_data?: Record<string, unknown>;
     is_assessment?: boolean;
     assessment_data?: {
         question: string;
@@ -70,7 +72,7 @@ const SidebarSection = ({
     rightElement
 }: {
     title: string,
-    icon: any,
+    icon: React.ComponentType<{ className?: string }>,
     iconColor: string,
     isOpen: boolean,
     onToggle: () => void,
@@ -176,7 +178,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         return () => clearTimeout(timer);
     }, [slides]);
 
-    const handleUpdateSlide = (field: keyof Slide, value: any) => {
+    const handleUpdateSlide = (field: keyof Slide, value: unknown) => {
         const newSlides = [...slides];
         newSlides[currentSlideIndex] = { ...newSlides[currentSlideIndex], [field]: value };
         setSlides(newSlides);
@@ -353,8 +355,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         return { bg: '#000000', text: '#ffffff' };
     };
 
-    const defaults = getSlideDefaults(currentSlide);
-
     // Collapsible Section State
     const [openSections, setOpenSections] = useState({
         narration: true,
@@ -489,9 +489,10 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                     )}>
                         <VisualPreview
                             slide={currentSlide}
-                            onChartUpdate={(newData: any) => handleUpdateSlide("chart_data", newData)}
+                            onChartUpdate={(newData) => handleUpdateSlide("chart_data", newData)}
                             onTextChange={(val: string) => handleUpdateSlide("visual_text", val)}
                             onBackgroundChange={(val: string) => handleUpdateSlide("background_color", val)}
+                            onSlideFieldChange={(field, value) => handleUpdateSlide(field as keyof Slide, value)}
                         />
                     </div>
 

@@ -33,7 +33,7 @@ export default function CourseStructureEditor({ courseId, initialSlides, onFinal
     const [isSaving, setIsSaving] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
 
-    const handleSlideChange = (index: number, field: keyof Slide, value: any) => {
+    const handleSlideChange = (index: number, field: keyof Slide, value: unknown) => {
         const newSlides = [...slides];
         newSlides[index] = { ...newSlides[index], [field]: value };
         setSlides(newSlides);
