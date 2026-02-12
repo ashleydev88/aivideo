@@ -734,3 +734,59 @@ async def get_signed_url(request: Request, authorization: str = Header(None)):
     except Exception as e:
         print(f"❌ Signed URL Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate signed URL")
+
+
+@router.get("/render-status/{course_id}")
+async def render_status(course_id: str, authorization: str = Header(None)):
+    """
+    Returns realtime render status for a course:
+    - status and progress from courses table
+    - approximate queue size and position while queued
+    """
+    user_id = get_user_id_from_token(authorization)
+
+    # Ensure the course belongs to the user
+    res = supabase_admin.table("courses").select("id, user_id, status, progress, created_at, metadata").eq("id", course_id).single().execute()
+    if not res.data or res.data.get('user_id') != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    course = res.data
+    status = course.get('status')
+    progress = int(course.get('progress') or 0)
+
+    # Defaults
+    queue_size = None
+    queue_position = None
+
+    # While queued, compute an approximate position
+    if status == 'queued':
+        try:
+            # Prefer counting queued courses in DB to reflect app-level queue
+            q = supabase_admin.table("courses").select("id", count="exact").eq("status", "queued").execute()
+            queue_size = (q.count or 0) if hasattr(q, 'count') else (q.get('count') if isinstance(q, dict) else None)
+        except Exception:
+            queue_size = None
+
+        # Fallback to SQS approximation if configured
+        try:
+            import os
+            import boto3
+            queue_url = os.getenv('VIDEO_RENDER_QUEUE_URL')
+            region = os.getenv('AWS_REGION', 'eu-west-2')
+            if (queue_size is None) and queue_url:
+                sqs = boto3.client('sqs', region_name=region)
+                attrs = sqs.get_queue_attributes(QueueUrl=queue_url, AttributeNames=['ApproximateNumberOfMessages'])
+                queue_size = int(attrs['Attributes'].get('ApproximateNumberOfMessages', '0'))
+        except Exception:
+            pass
+
+        # Position approximation: number of queued jobs (including this task)
+        if isinstance(queue_size, int):
+            queue_position = max(queue_size, 1)
+
+    return {
+        "status": status,
+        "progress": progress,
+        "queue_size": queue_size,
+        "queue_position": queue_position
+    }

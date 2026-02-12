@@ -81,6 +81,8 @@ export default function DashboardPage() {
     const [profile, setProfile] = useState<Profile | null>(null);
     const [showGenerationModal, setShowGenerationModal] = useState(false);
     const { activeGeneration, clearGeneration } = useCourseGeneration();
+    const [queuePositions, setQueuePositions] = useState<Record<string, number | null>>({});
+    const [accessToken, setAccessToken] = useState<string | null>(null);
 
     // Rename state
     const [isRenameOpen, setIsRenameOpen] = useState(false);
@@ -116,6 +118,7 @@ export default function DashboardPage() {
                 console.error("Error fetching courses:", coursesRes.error);
             } else {
                 setProjects(coursesRes.data || []);
+                setAccessToken(session.access_token);
             }
 
             if (profileRes.data) {
@@ -212,6 +215,39 @@ export default function DashboardPage() {
             fetchProjects();
         }
     }, [activeGeneration, loading, fetchProjects]);
+    // Poll queue positions for queued projects
+    useEffect(() => {
+        if (!accessToken) return;
+        const queued = projects.filter(p => p.status === 'queued');
+        if (queued.length === 0) return;
+
+        let stopped = false;
+
+        const fetchQueue = async () => {
+            const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const updates: Record<string, number | null> = {};
+            await Promise.all(queued.map(async (p) => {
+                try {
+                    const res = await fetch(`${API_BASE}/api/course/render-status/${p.id}`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    updates[p.id] = typeof data.queue_position === 'number' ? data.queue_position : (typeof data.queue_size === 'number' ? data.queue_size : null);
+                } catch (e) {
+                    // ignore
+                }
+            }));
+            if (!stopped && Object.keys(updates).length) {
+                setQueuePositions(prev => ({ ...prev, ...updates }));
+            }
+        };
+
+        // Initial and interval
+        fetchQueue();
+        const t = setInterval(fetchQueue, 15000);
+        return () => { stopped = true; clearInterval(t); };
+    }, [projects, accessToken]);
 
     const handleDelete = async (id: string) => {
         if (!confirm("Are you sure you want to delete this project?")) return;
@@ -482,8 +518,8 @@ export default function DashboardPage() {
                                                         <Button variant="ghost" size="sm" disabled className="text-slate-500 min-w-[140px] justify-start">
                                                             <Loader2 className="h-4 w-4 mr-2 animate-spin text-teal-600" />
                                                             {project.status === 'queued' ? (
-                                                                "Queued"
-                                                            ) : project.status === 'rendering' ? (
+                                                                `Queued${typeof queuePositions[project.id] === 'number' ? \` (pos ${queuePositions[project.id]} )\` : ''}`
+                                                            ) : (['rendering', 'processing_render'].includes(project.status)) ? (
                                                                 `Rendering ${Math.round(project.progress || 0)}%`
                                                             ) : (
                                                                 "Processing"
