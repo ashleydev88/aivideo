@@ -134,16 +134,28 @@ async def upload_asset_throttled(file_content, filename, content_type, user_id: 
 
 def get_asset_url(path_or_url, validity=600):
     """
-    Helper to resolve a path or URL. 
-    If it's a storage path (no scheme), generates a signed URL.
-    Validity defaults to 10 mins (600s), but can be extended for rendering jobs.
+    Resolve a storage path or passthrough URL to a fetchable URL.
+    - If already a full URL, return as-is.
+    - If a storage path, sign it from the correct bucket.
+      Heuristics: default to `course-assets`; if the path looks like a logo asset, use `logos`.
     """
-    if not path_or_url: return None
-    if path_or_url.startswith("http"): return path_or_url
-    
+    if not path_or_url:
+        return None
+    if isinstance(path_or_url, str) and path_or_url.startswith("http"):
+        return path_or_url
+
+    # Bucket heuristics
+    bucket = "course-assets"
     try:
-        # Generate signed URL 
-        res = supabase_admin.storage.from_("course-assets").create_signed_url(path_or_url, validity)
+        path_str = str(path_or_url)
+        if "/logo_" in path_str or path_str.startswith("logo_") or "_logo_" in path_str:
+            bucket = "logos"
+    except Exception:
+        pass
+
+    try:
+        # Generate signed URL from inferred bucket
+        res = supabase_admin.storage.from_(bucket).create_signed_url(path_or_url, validity)
         print(f"   🔐 Sign URL response type: {type(res)}, keys: {res.keys() if isinstance(res, dict) else 'N/A'}")
         
         # Handle dict response (standard in recent SDKs)

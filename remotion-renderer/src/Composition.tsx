@@ -195,13 +195,18 @@ export const MainComposition: React.FC<{
                         {/* LAYOUT: CHART (Full Screen) */}
                         {isChart && slide.chart_data && (
                             <AbsoluteFill className="flex items-center justify-center p-8">
-                                <Chart
-                                    data={slide.chart_data}
-                                    title={slide.visual_text}
-                                    accent_color={accent_color}
-                                    custom_bg_color={customBg}
-                                    custom_text_color={customText}
-                                />
+                                {/* Support both legacy ChartData and new MotionGraph shapes */}
+                                {slide.chart_data?.nodes && slide.chart_data?.archetype ? (
+                                    <MotionChart data={slide.chart_data as MotionGraph} />
+                                ) : (
+                                    <Chart
+                                        data={slide.chart_data}
+                                        title={slide.visual_text}
+                                        accent_color={accent_color}
+                                        custom_bg_color={customBg}
+                                        custom_text_color={customText}
+                                    />
+                                )}
                             </AbsoluteFill>
                         )}
 

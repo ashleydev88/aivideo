@@ -719,14 +719,16 @@ async def trigger_remotion_render(course_id: str, user_id: str):
 
         # Sign URLs for Lambda
         print("   🔑 Signing assets for Lambda...")
+        # Use 5 hours (18000s) to ensure URLs remain valid during render
+        SIGN_VALIDITY = 18000
         for slide in slides:
             if slide.get("audio") and not slide["audio"].startswith("http"):
-                 slide["audio"] = get_asset_url(slide["audio"], 3600)
+                 slide["audio"] = get_asset_url(slide["audio"], SIGN_VALIDITY)
             if slide.get("image") and not slide["image"].startswith("http"):
-                 slide["image"] = get_asset_url(slide["image"], 3600)
+                 slide["image"] = get_asset_url(slide["image"], SIGN_VALIDITY)
 
         if logo_url and not logo_url.startswith("http"):
-             logo_url = get_asset_url(logo_url, 3600)
+             logo_url = get_asset_url(logo_url, SIGN_VALIDITY)
 
         payload = {
             "slide_data": slides,
