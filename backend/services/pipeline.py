@@ -2,6 +2,7 @@ from backend.config import VISUAL_DIRECTOR_MODEL, VALIDATION_MODEL
 from backend.services.ai import anthropic_chat_completion
 from backend.utils.helpers import extract_json_from_response
 import json
+import re
 
 class PipelineManager:
     """
@@ -35,7 +36,11 @@ class PipelineManager:
                 anthropic_chat_completion,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=2000,
-                model=VISUAL_DIRECTOR_MODEL
+                model=VISUAL_DIRECTOR_MODEL,
+                telemetry={
+                    "stage": "visual_assignment",
+                    "agent_name": "visual_director"
+                }
             )
             print(f"   📋 Visual Director Raw Response: {res_text[:500]}...")
             directives = extract_json_from_response(res_text)
@@ -259,7 +264,11 @@ class PipelineManager:
         try:
             res_text = anthropic_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=1000
+                max_tokens=1000,
+                telemetry={
+                    "stage": "kinetic_text_generation",
+                    "agent_name": "kinetic_text_agent"
+                }
             )
             print(f"     ✍️ Kinetic Text Raw: {res_text[:300]}...")
             result = extract_json_from_response(res_text)
@@ -295,64 +304,203 @@ class PipelineManager:
 def validate_script(script_output, context_package):
     """
     Validates script quality before proceeding to media generation.
-    Includes fact-checking against the original policy to catch hallucinations.
+    Uses a two-pass approach:
+    1) Quality/Safety checks (no source policy required)
+    2) Claim-level fact-checking against retrieved policy chunks
     Returns: dict with 'approved' (bool), 'issues' (list), 'ungrounded_claims' (list), 'suggestions' (list)
     """
     print("   🕵️ Validating Script Quality (with fact-checking)...")
-    
-    # Use original policy for fact-checking (truncate to stay within token limits)
+
+    def _tokenize(text: str) -> set:
+        return set(re.findall(r"[a-zA-Z0-9]{3,}", (text or "").lower()))
+
+    def _chunk_policy(text: str, chunk_size: int = 1800, overlap: int = 250) -> list:
+        chunks = []
+        if not text:
+            return chunks
+        start = 0
+        idx = 1
+        length = len(text)
+        while start < length:
+            end = min(length, start + chunk_size)
+            chunk = text[start:end].strip()
+            if chunk:
+                chunks.append({"id": f"c{idx}", "text": chunk})
+                idx += 1
+            if end >= length:
+                break
+            start = max(0, end - overlap)
+        return chunks
+
+    def _top_evidence_for_claim(claim_text: str, chunks: list, top_k: int = 3) -> list:
+        claim_tokens = _tokenize(claim_text)
+        scored = []
+        for ch in chunks:
+            chunk_tokens = _tokenize(ch["text"])
+            overlap = len(claim_tokens.intersection(chunk_tokens))
+            if overlap > 0:
+                scored.append((overlap, ch))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [item[1] for item in scored[:top_k]]
+
     policy_text_raw = context_package.get('original_policy_text', context_package.get('policy_text', ''))
-    
-    if not policy_text_raw or len(policy_text_raw.strip()) < 50:
-        print("   ⚠️ No policy text found. instructing AI to skip unique fact-checking.")
-        policy_excerpt = (
-            "NO SOURCE POLICY PROVIDED. "
-            "Skip strict fact-checking against a source document. "
-            "Evaluate based on general coherence, logical flow, and best practices. "
-            "Do NOT flag issues as ungrounded claims unless they contradict common knowledge."
-        )
-    else:
-        policy_excerpt = policy_text_raw[:8000]
-    
-    from backend.prompts import VALIDATION_PROMPT
 
-    validation_prompt = VALIDATION_PROMPT.format(
-        target_duration=context_package['duration'],
-        policy_excerpt=policy_excerpt,
-        topics_json=json.dumps(context_package['topics'], indent=2),
-        script_json=json.dumps(script_output, indent=2)
-    )
-    
     try:
-        res_text = anthropic_chat_completion(
-            messages=[{"role": "user", "content": validation_prompt}],
-            max_tokens=20000,
-            model=VALIDATION_MODEL
+        # Pass 1: Quality/Safety validation (no source-policy grounding here)
+        from backend.prompts import (
+            QUALITY_VALIDATION_PROMPT,
+            CLAIM_EXTRACTION_PROMPT,
+            CLAIM_GROUNDEDNESS_PROMPT
         )
-        result = extract_json_from_response(res_text)
-        
-        # Log fact-check results
-        fact_score = result.get('fact_check_score', 'N/A')
-        ungrounded = result.get('ungrounded_claims', [])
 
-        # Log all scores for debugging
-        print(f"   📊 Validation Scores: "
-              f"FactCheck={fact_score}/10, "
-              f"Completeness={result.get('completeness_score', 'N/A')}/10, "
-              f"Coherence={result.get('coherence_score', 'N/A')}/10, "
-              f"Accuracy={result.get('accuracy_score', 'N/A')}/10, "
-              f"ImageDiversity={result.get('image_diversity_score', 'N/A')}/10"
+        quality_prompt = QUALITY_VALIDATION_PROMPT.format(
+            target_duration=context_package['duration'],
+            topics_json=json.dumps(context_package['topics'], indent=2),
+            script_json=json.dumps(script_output, indent=2)
         )
-        
-        print(f"   📊 Ungrounded claims: {len(ungrounded)}")
-        if ungrounded:
-            for claim in ungrounded[:3]:  # Log first 3
-                print(f"      ⚠️ Slide {claim.get('slide')}: {claim.get('issue', 'Unknown issue')[:50]}...")
-        
+        quality_res_text = anthropic_chat_completion(
+            messages=[{"role": "user", "content": quality_prompt}],
+            max_tokens=3500,
+            model=VALIDATION_MODEL,
+            telemetry={
+                "stage": "validation_quality",
+                "agent_name": "quality_validator"
+            }
+        )
+        quality_result = extract_json_from_response(quality_res_text)
+
+        # Pass 2: Claim-level fact checking with evidence retrieval
+        ungrounded_claims = []
+        fact_check_score = 8  # neutral-good default when no source exists
+        fact_issues = []
+
+        if policy_text_raw and len(policy_text_raw.strip()) >= 50:
+            print("   🔎 Fact-check: extracting claims...")
+            claim_prompt = CLAIM_EXTRACTION_PROMPT.format(
+                script_json=json.dumps(script_output, indent=2)
+            )
+            claim_res_text = anthropic_chat_completion(
+                messages=[{"role": "user", "content": claim_prompt}],
+                max_tokens=2500,
+                model=VALIDATION_MODEL,
+                telemetry={
+                    "stage": "validation_claim_extraction",
+                    "agent_name": "claim_extractor"
+                }
+            )
+            claim_result = extract_json_from_response(claim_res_text)
+            extracted_claims = claim_result.get("claims", []) if isinstance(claim_result, dict) else []
+            extracted_claims = extracted_claims[:60]  # hard cap for token/cost control
+
+            if extracted_claims:
+                policy_chunks = _chunk_policy(policy_text_raw)
+                claims_with_evidence = []
+
+                for c in extracted_claims:
+                    claim_text = c.get("claim", "")
+                    top_chunks = _top_evidence_for_claim(claim_text, policy_chunks, top_k=3)
+                    claims_with_evidence.append({
+                        "slide": c.get("slide"),
+                        "claim": claim_text,
+                        "type": c.get("type", "other"),
+                        "evidence": [
+                            {"id": ch["id"], "text": ch["text"][:900]}
+                            for ch in top_chunks
+                        ]
+                    })
+
+                groundedness_prompt = CLAIM_GROUNDEDNESS_PROMPT.format(
+                    claims_with_evidence_json=json.dumps(claims_with_evidence, indent=2)
+                )
+                groundedness_res_text = anthropic_chat_completion(
+                    messages=[{"role": "user", "content": groundedness_prompt}],
+                    max_tokens=5000,
+                    model=VALIDATION_MODEL,
+                    telemetry={
+                        "stage": "validation_claim_groundedness",
+                        "agent_name": "groundedness_checker"
+                    }
+                )
+                groundedness_result = extract_json_from_response(groundedness_res_text)
+
+                results = groundedness_result.get("results", []) if isinstance(groundedness_result, dict) else []
+                provided_score = groundedness_result.get("fact_check_score") if isinstance(groundedness_result, dict) else None
+
+                for r in results:
+                    if not r.get("grounded", False):
+                        issue = r.get("issue", "Claim not supported by provided policy evidence.")
+                        ungrounded_claims.append({
+                            "slide": r.get("slide"),
+                            "claim": r.get("claim", ""),
+                            "issue": issue
+                        })
+                        fact_issues.append(f"Slide {r.get('slide')}: {issue}")
+
+                if isinstance(provided_score, (int, float)):
+                    fact_check_score = int(max(1, min(10, round(provided_score))))
+                else:
+                    total = len(results)
+                    grounded = len([r for r in results if r.get("grounded", False)])
+                    if total > 0:
+                        fact_check_score = int(max(1, min(10, round((grounded / total) * 10))))
+            else:
+                print("   ℹ️ No factual claims extracted; assigning high fact-check score by default.")
+                fact_check_score = 10
+        else:
+            print("   ⚠️ No source policy provided; skipping strict claim-grounded fact-check.")
+
+        completeness_score = int(quality_result.get('completeness_score', 0))
+        coherence_score = int(quality_result.get('coherence_score', 0))
+        accuracy_score = int(quality_result.get('accuracy_score', 0))
+        image_diversity_score = int(quality_result.get('image_diversity_score', 0))
+        safety_score = int(quality_result.get('safety_compliance_score', 0))
+
+        issues = []
+        issues.extend(quality_result.get('issues', []) if isinstance(quality_result.get('issues', []), list) else [])
+        issues.extend(fact_issues[:20])
+
+        suggestions = quality_result.get('suggestions', [])
+        if not isinstance(suggestions, list):
+            suggestions = []
+        if ungrounded_claims:
+            suggestions.append("Revise or remove ungrounded factual claims, then re-run validation.")
+
+        approved = (
+            completeness_score >= 7 and
+            coherence_score >= 7 and
+            accuracy_score >= 7 and
+            image_diversity_score >= 7 and
+            safety_score >= 7 and
+            fact_check_score >= 8
+        )
+
+        result = {
+            "approved": approved,
+            "completeness_score": completeness_score,
+            "coherence_score": coherence_score,
+            "accuracy_score": accuracy_score,
+            "image_diversity_score": image_diversity_score,
+            "safety_compliance_score": safety_score,
+            "fact_check_score": fact_check_score,
+            "issues": issues,
+            "ungrounded_claims": ungrounded_claims,
+            "suggestions": suggestions
+        }
+
+        print(
+            "   📊 Validation Scores: "
+            f"FactCheck={fact_check_score}/10, "
+            f"Completeness={completeness_score}/10, "
+            f"Coherence={coherence_score}/10, "
+            f"Accuracy={accuracy_score}/10, "
+            f"ImageDiversity={image_diversity_score}/10, "
+            f"Safety={safety_score}/10"
+        )
+        print(f"   📊 Ungrounded claims: {len(ungrounded_claims)}")
         return result
+
     except Exception as e:
         print(f"   ⚠️ Validation Error: {e}")
-        # Return a safe fallback so the process doesn't crash and delete the course
         return {
             "approved": False,
             "issues": [f"Validation process failed: {str(e)}"],

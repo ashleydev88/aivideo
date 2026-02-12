@@ -75,7 +75,11 @@ class LogicExtractor:
                 anthropic_chat_completion,
                 messages=router_messages,
                 max_tokens=1000,
-                temperature=0.1 # Low temp for precise classification
+                temperature=0.1, # Low temp for precise classification
+                telemetry={
+                    "stage": "logic_router",
+                    "agent_name": "logic_extractor_router"
+                }
             )
             
             router_data = extract_json_from_response(router_response)
@@ -113,7 +117,12 @@ OUTPUT FORMAT (JSON ONLY):
                 anthropic_chat_completion,
                 messages=gen_messages,
                 max_tokens=4000,
-                temperature=0.3
+                temperature=0.3,
+                telemetry={
+                    "stage": "logic_specialist_generation",
+                    "agent_name": "logic_extractor_specialist",
+                    "metadata": {"archetype": archetype}
+                }
             )
             
             # Parse JSON from response

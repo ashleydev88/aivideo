@@ -1,11 +1,12 @@
 import replicate
 import requests
 import json
-from backend.config import REPLICATE_API_TOKEN, LLM_MODEL_NAME, IMAGE_GENERATION_MODEL
+from backend.config import REPLICATE_API_TOKEN, LLM_MODEL_NAME, IMAGE_GENERATION_MODEL, ENABLE_LLM_TELEMETRY
 
 import anthropic
 import os
 import time
+from typing import Optional, Dict, Any
 
 # --- CONFIGURE ANTHROPIC ---
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
@@ -13,12 +14,64 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
     print("⚠️ WARNING: ANTHROPIC_API_KEY not found in environment variables.")
 
-def anthropic_chat_completion(messages, max_tokens=2048, temperature=0.7, model=LLM_MODEL_NAME):
+def _safe_int(value):
+    try:
+        return int(value) if value is not None else None
+    except Exception:
+        return None
+
+def _record_llm_telemetry(
+    *,
+    model: str,
+    success: bool,
+    latency_ms: int,
+    input_tokens: Optional[int] = None,
+    output_tokens: Optional[int] = None,
+    total_tokens: Optional[int] = None,
+    error_message: Optional[str] = None,
+    telemetry: Optional[Dict[str, Any]] = None
+):
+    """
+    Best-effort telemetry logger for all Anthropic calls.
+    Writes to public.llm_telemetry via supabase service role client.
+    Never raises.
+    """
+    telemetry = telemetry or {}
+    if not ENABLE_LLM_TELEMETRY:
+        return
+    try:
+        from backend.db import supabase_admin
+        row = {
+            "course_id": telemetry.get("course_id"),
+            "user_id": telemetry.get("user_id"),
+            "stage": telemetry.get("stage", "unspecified"),
+            "agent_name": telemetry.get("agent_name"),
+            "model": model,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "latency_ms": latency_ms,
+            "success": success,
+            "error_message": (error_message[:1000] if error_message else None),
+            "metadata": telemetry.get("metadata")
+        }
+        supabase_admin.table("llm_telemetry").insert(row).execute()
+    except Exception as _telemetry_error:
+        print(f"   ⚠️ LLM telemetry write failed: {_telemetry_error}")
+
+def anthropic_chat_completion(
+    messages,
+    max_tokens=2048,
+    temperature=0.7,
+    model=LLM_MODEL_NAME,
+    telemetry: Optional[Dict[str, Any]] = None
+):
     """
     Wraps Anthropic Claude chat completion.
     Translates OpenAI-style messages to Anthropic format.
     """
     print(f"   🤖 Calling {model} via Anthropic...")
+    started_at = time.time()
     
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -49,6 +102,22 @@ def anthropic_chat_completion(messages, max_tokens=2048, temperature=0.7, model=
             kwargs["system"] = system_instruction
             
         response = client.messages.create(**kwargs)
+
+        usage = getattr(response, "usage", None)
+        input_tokens = _safe_int(getattr(usage, "input_tokens", None)) if usage else None
+        output_tokens = _safe_int(getattr(usage, "output_tokens", None)) if usage else None
+        total_tokens = (input_tokens + output_tokens) if (input_tokens is not None and output_tokens is not None) else None
+        latency_ms = int((time.time() - started_at) * 1000)
+
+        _record_llm_telemetry(
+            model=model,
+            success=True,
+            latency_ms=latency_ms,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            telemetry=telemetry
+        )
         
         return response.content[0].text
         
@@ -57,6 +126,14 @@ def anthropic_chat_completion(messages, max_tokens=2048, temperature=0.7, model=
         # Improve error logging for rate limits/overloaded
         if "rate_limit_error" in str(e) or "overloaded_error" in str(e):
              print("   ⚠️ Rate limit or Overloaded. Please retry later.")
+        latency_ms = int((time.time() - started_at) * 1000)
+        _record_llm_telemetry(
+            model=model,
+            success=False,
+            latency_ms=latency_ms,
+            error_message=str(e),
+            telemetry=telemetry
+        )
         raise e
 
 def generate_image_replicate(prompt, archetype="image", seed=None):
@@ -164,7 +241,12 @@ OUTPUT: The condensed policy with only substantive content. No commentary."""
             messages=messages,
             max_tokens=4096, # Claude max output
             temperature=0.3,
-            model=DISCOVERY_AGENT_MODEL # Use Haiku for this bulk task
+            model=DISCOVERY_AGENT_MODEL, # Use Haiku for this bulk task
+            telemetry={
+                "stage": "policy_preprocess",
+                "agent_name": "policy_essence_extractor",
+                "metadata": {"input_chars": len(policy_text)}
+            }
         )
         
         condensed_length = len(result)

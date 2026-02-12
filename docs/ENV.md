@@ -11,6 +11,7 @@ Backend (`backend/.env`)
 - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION: AWS creds for SQS and other SDK usage
 - REMOTION_AWS_ACCESS_KEY_ID / REMOTION_AWS_SECRET_ACCESS_KEY / REMOTION_AWS_REGION: AWS creds for Remotion (if used locally)
 - VIDEO_RENDER_QUEUE_URL: SQS queue URL for render jobs
+- ENABLE_LLM_TELEMETRY: Optional (`true`/`false`, default `true`) to toggle writes to `public.llm_telemetry`
 
 Frontend (`frontend/.env.local`)
 - NEXT_PUBLIC_SUPABASE_URL: Supabase project URL

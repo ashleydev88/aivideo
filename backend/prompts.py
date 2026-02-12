@@ -77,14 +77,14 @@ PEDAGOGY_INSTRUCTIONS = {
     ),
     "visual_logic": (
         "VISUAL-VERBAL ALIGNMENT:\n"
-        "You must select a 'visual_archetype' for every slide based on the logic of the content:\n"
+        "Design narration so the downstream Visual Director can assign the best visual format from content logic:\n"
         "- 'process': For steps, workflows, or sequences.\n"
         "- 'comparison': For 'Do vs Don't', 'Old vs New', or contrasting options.\n"
         "- 'list': For 3+ items, requirements, or checklists.\n"
         "- 'metaphor': For abstract concepts (e.g., an iceberg for hidden risks).\n"
         "- 'statistic': For data, percentages, or key numbers.\n"
         "- 'contextual_overlay': For establishing shots or emotional resonance.\n"
-        "CRITICAL: The narration must reference the visual structure (e.g., 'As you can see in this sequence...', 'Unlike the option on the left...')."
+        "CRITICAL: The narration must reference the likely visual structure (e.g., 'As you can see in this sequence...', 'Unlike the option on the left...')."
     )
 }
 
@@ -237,19 +237,17 @@ For each slide, provide:
 1. "slide_number": 1 to {target_slides}
 2. "title": Short header (e.g., "The Problem", "The Solution")
 3. "concept": Brief description of what this slide covers (1 sentence)
-4. "visual_archetype": (image, chart, kinetic_text, comparison, process, list, metaphor)
 
 === CRITICAL CONSTRAINT ===
 You must strictly follow the "Learning Arc" structure defined above.
 MANDATORY: The slide *before* the final conclusion loop MUST be a "Knowledge Check".
 - Title: "Quick Check"
 - Concept: A scenario-based multiple choice question (A, B, or C). 
-- Visual Archetype: "kinetic_text" (or "list" if options are long).
 
 === OUTPUT FORMAT (JSON ONLY) ===
 {{
   "outline": [
-    {{ "slide_number": 1, "title": "...", "concept": "...", "visual_archetype": "..." }},
+    {{ "slide_number": 1, "title": "...", "concept": "..." }},
     ...
   ]
 }}
@@ -284,13 +282,11 @@ Please {language_instruction} throughout the script.
 Generate the final JSON script. For each slide in the outline:
 1. Write 'slide_title' (Conceptual headline, max 6 words).
 2. Write 'text' (Narration) that explains the concept.
-3. Select the best 'visual_archetype' (image, chart, kinetic_text, contextual_overlay, comparison_split, document_anchor, key_stat_breakout).
+3. Write 'duration' in milliseconds, typically between 10000 and 30000 unless content needs more time.
 
-=== VISUAL ARCHETYPE GUIDE ===
-- If explaining a workflow -> Use 'process'.
-- If explaining a danger -> Use 'metaphor'.
-- If listing requirements -> Use 'list'.
-- If contrasting ideas -> Use 'comparison'.
+=== VISUAL ASSIGNMENT OWNERSHIP ===
+Do NOT output visual type fields (e.g., visual_archetype, visual_type).
+Visual formats are assigned by a dedicated Visual Director stage after script generation.
 
 === SPECIAL VISUAL RULES ===
 - For "Knowledge Check" / "Quick Check" slides:
@@ -303,7 +299,6 @@ Generate the final JSON script. For each slide in the outline:
   "script": [
     {{
       "slide_number": 1,
-      "visual_archetype": "contextual_overlay", 
       "slide_title": "{title}",
       "text": "Welcome. In the next few minutes, we will master the core safety protocols that keep you safe.",
       "duration": 12000
@@ -313,30 +308,23 @@ Generate the final JSON script. For each slide in the outline:
 }}
 """
 
-VALIDATION_PROMPT = """
+QUALITY_VALIDATION_PROMPT = """
 You are a quality assurance reviewer for e-learning content with expertise in policy compliance.
 
-Review this video script and perform the following checks:
-
+Review this video script and perform ONLY these checks:
 1. COMPLETENESS: Does it cover the key points from the topics? (List any gaps)
 2. COHERENCE: Does each slide transition logically? (Flag jarring jumps)
 3. ACCURACY: Are there specific policy details, or just generic advice? (Rate 1-10)
 4. IMAGE DIVERSITY: Are image prompts varied and specific? (Flag repetitive prompts)
-5. DURATION: Does the math check out? (Sum of all slide durations should be within -5% to +15% of total target duration {target_duration}min). note: Individual slides can range 10s-60s.
-
-6. SAFETY & COMPLIANCE CHECK: Does the script protect the employer and follow proper reporting lines?
+5. DURATION: Does the math check out? (Sum of all slide durations should be within -5% to +15% of total target duration {target_duration}min). Individual slides can range 10s-60s.
+6. SAFETY & COMPLIANCE CHECK:
    - Flag any "Refusal of work" language (should be "Stop and Report").
    - Flag any direct external escalation (e.g., calling 999/Police) without internal reporting first.
    - Flag any admission of fault or unsafe conditions.
 
-7. FACT-CHECK (CRITICAL): For each factual claim in the script, verify it against the source policy:
-   - Extract specific claims (numbers, deadlines, procedures, requirements, definitions)
-   - Check if each claim is grounded in the original policy text below
-   - Flag any claim that appears hallucinated, exaggerated, or incorrectly stated
-   - Be especially vigilant about: numbers, timeframes, percentages, specific procedures
-
-ORIGINAL POLICY (source of truth for fact-checking):
-{policy_excerpt}
+IMPORTANT:
+- Do NOT perform fact-checking against source policy in this prompt.
+- Focus only on instructional quality, safety, and structural checks.
 
 TOPICS TO COVER:
 {topics_json}
@@ -346,25 +334,76 @@ SCRIPT TO VALIDATE:
 
 OUTPUT (JSON):
 {{
-  "approved": true or false,
   "completeness_score": 1-10,
   "coherence_score": 1-10,
   "accuracy_score": 1-10,
   "image_diversity_score": 1-10,
   "safety_compliance_score": 1-10,
-  "fact_check_score": 1-10,
   "issues": ["issue 1", "issue 2"],
-  "ungrounded_claims": [
-    {{"slide": 1, "claim": "quoted claim from script", "issue": "what's wrong or not found in policy"}}
-  ],
   "suggestions": ["suggestion 1"]
 }}
+"""
 
-APPROVAL CRITERIA:
-- Approve (true) if all scores are 7+ AND fact_check_score is 8+
-- If fact_check_score < 8, you MUST populate ungrounded_claims with specific examples
-- If safety_compliance_score < 7, you MUST flag specific safety language issues
-- Otherwise set approved to false
+CLAIM_EXTRACTION_PROMPT = """
+You are a factual-claim extractor for e-learning script validation.
+
+TASK:
+Extract explicit factual claims from the script that should be verified against source policy.
+
+Include claims such as:
+- numbers, percentages, thresholds, deadlines
+- required procedures and step order
+- legal/regulatory assertions
+- role/responsibility requirements
+- mandatory actions and penalties
+
+Do NOT include generic motivational language or obvious non-factual phrasing.
+
+SCRIPT JSON:
+{script_json}
+
+OUTPUT (JSON ONLY):
+{{
+  "claims": [
+    {{
+      "slide": 1,
+      "claim": "Employees must report incidents within 24 hours.",
+      "type": "deadline"
+    }}
+  ]
+}}
+"""
+
+CLAIM_GROUNDEDNESS_PROMPT = """
+You are a strict groundedness checker.
+
+TASK:
+For each claim, judge whether it is supported by the provided policy evidence snippets.
+Use only the evidence snippets. Do not use outside knowledge.
+
+INPUT CLAIMS + EVIDENCE:
+{claims_with_evidence_json}
+
+OUTPUT (JSON ONLY):
+{{
+  "fact_check_score": 1-10,
+  "results": [
+    {{
+      "slide": 1,
+      "claim": "Employees must report incidents within 24 hours.",
+      "grounded": true,
+      "confidence": 0.93,
+      "evidence_ids": ["c12", "c19"],
+      "issue": ""
+    }}
+  ]
+}}
+
+SCORING:
+- 9-10: Nearly all claims grounded with clear evidence.
+- 7-8: Most claims grounded, few weak/ambiguous.
+- 5-6: Mixed grounding.
+- <5: Many ungrounded claims.
 """
 
 # --- DISCOVERY ---
@@ -602,5 +641,3 @@ CRITICAL:
 """
 
 # --- LOGIC EXTRACTION ---
-
-

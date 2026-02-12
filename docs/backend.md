@@ -21,3 +21,6 @@ Selected Endpoints
 Notes
 - Requires Supabase service role for admin DB operations.
 - Uses Anthropic for LLM. Ensure `ffmpeg` installed for audio duration (MoviePy).
+- Script generation no longer emits visual type fields; visual format assignment is handled later by the Visual Director stage in the backend pipeline.
+- Validation uses a two-pass flow: (1) quality/safety scoring, then (2) claim extraction + evidence-grounded fact-check against retrieved policy chunks.
+- LLM telemetry is logged for all Anthropic calls to `public.llm_telemetry` (stage, model, tokens, latency, success/error). Toggle with `ENABLE_LLM_TELEMETRY=false`.

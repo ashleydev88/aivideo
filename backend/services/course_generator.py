@@ -332,7 +332,17 @@ REQUIREMENTS:
 """
 
 
-        res_text = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": prompt}], max_tokens=3000, model=TOPIC_GENERATOR_MODEL)
+        res_text = await asyncio.to_thread(
+            anthropic_chat_completion,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=3000,
+            model=TOPIC_GENERATOR_MODEL,
+            telemetry={
+                "course_id": course_id,
+                "stage": "topic_generation",
+                "agent_name": "topic_generator"
+            }
+        )
         data = extract_json_from_response(res_text)
         
         # Use user-provided title if available, otherwise use generated title
@@ -411,7 +421,17 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             language_instruction=language_instruction
         )
         print("   🧠 Step 1: Generating Course Outline...")
-        outline_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": outline_prompt}], max_tokens=4000)
+        outline_res = await asyncio.to_thread(
+            anthropic_chat_completion,
+            messages=[{"role": "user", "content": outline_prompt}],
+            max_tokens=4000,
+            telemetry={
+                "course_id": course_id,
+                "user_id": request.user_id,
+                "stage": "outline_generation",
+                "agent_name": "outline_generator"
+            }
+        )
         outline_data = extract_json_from_response(outline_res)
         outline = outline_data.get("outline", [])
         
@@ -438,7 +458,19 @@ async def generate_structure_task(course_id: str, context_package: dict, request
         max_retries = 3
         
         for attempt in range(max_retries):
-            res_text = await asyncio.to_thread(anthropic_chat_completion, messages=messages, max_tokens=20000, model=LLM_MODEL_NAME)
+            res_text = await asyncio.to_thread(
+                anthropic_chat_completion,
+                messages=messages,
+                max_tokens=20000,
+                model=LLM_MODEL_NAME,
+                telemetry={
+                    "course_id": course_id,
+                    "user_id": request.user_id,
+                    "stage": "script_generation",
+                    "agent_name": "script_generator",
+                    "metadata": {"attempt": attempt + 1}
+                }
+            )
             data = extract_json_from_response(res_text)
             script_plan = data.get("script", [])
             
@@ -523,14 +555,34 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             
             if vtype == "hybrid":
                 prompt = HYBRID_GENERATOR_PROMPT.format(title=title, narration=narration)
-                res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": prompt}], model=HYBRID_GENERATOR_MODEL)
+                res = await asyncio.to_thread(
+                    anthropic_chat_completion,
+                    messages=[{"role": "user", "content": prompt}],
+                    model=HYBRID_GENERATOR_MODEL,
+                    telemetry={
+                        "course_id": course_id,
+                        "user_id": request.user_id,
+                        "stage": "visual_text_hybrid",
+                        "agent_name": "hybrid_text_refiner"
+                    }
+                )
                 data = extract_json_from_response(res)
                 slide["visual_text"] = data.get("visual_text", title) # Fallback to title
                 return slide
             
             if vtype == "kinetic_text":
                 prompt = KINETIC_GENERATOR_PROMPT.format(title=title, narration=narration)
-                res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": prompt}], model=KINETIC_GENERATOR_MODEL)
+                res = await asyncio.to_thread(
+                    anthropic_chat_completion,
+                    messages=[{"role": "user", "content": prompt}],
+                    model=KINETIC_GENERATOR_MODEL,
+                    telemetry={
+                        "course_id": course_id,
+                        "user_id": request.user_id,
+                        "stage": "visual_text_kinetic",
+                        "agent_name": "kinetic_text_refiner"
+                    }
+                )
                 data = extract_json_from_response(res)
                 slide["visual_text"] = data.get("visual_text", title) # Fallback to title
                 return slide
@@ -551,7 +603,17 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             l_title = layout_data.get("left_label", "Left Side")
             l_text = layout_data.get("left_text", "")
             l_prompt_input = IMAGE_PROMPT_GENERATOR_PROMPT_SINGLE.format(title=l_title, narration=l_text, archetype="image")
-            l_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": l_prompt_input}], model=IMAGE_PROMPT_GENERATOR_MODEL)
+            l_res = await asyncio.to_thread(
+                anthropic_chat_completion,
+                messages=[{"role": "user", "content": l_prompt_input}],
+                model=IMAGE_PROMPT_GENERATOR_MODEL,
+                telemetry={
+                    "course_id": course_id,
+                    "user_id": request.user_id,
+                    "stage": "comparison_prompt_left",
+                    "agent_name": "image_prompt_refiner"
+                }
+            )
             l_data = extract_json_from_response(l_res)
             layout_data["left_prompt"] = l_data.get("prompt", l_title)
             
@@ -559,7 +621,17 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             r_title = layout_data.get("right_label", "Right Side")
             r_text = layout_data.get("right_text", "")
             r_prompt_input = IMAGE_PROMPT_GENERATOR_PROMPT_SINGLE.format(title=r_title, narration=r_text, archetype="image")
-            r_res = await asyncio.to_thread(anthropic_chat_completion, messages=[{"role": "user", "content": r_prompt_input}], model=IMAGE_PROMPT_GENERATOR_MODEL)
+            r_res = await asyncio.to_thread(
+                anthropic_chat_completion,
+                messages=[{"role": "user", "content": r_prompt_input}],
+                model=IMAGE_PROMPT_GENERATOR_MODEL,
+                telemetry={
+                    "course_id": course_id,
+                    "user_id": request.user_id,
+                    "stage": "comparison_prompt_right",
+                    "agent_name": "image_prompt_refiner"
+                }
+            )
             r_data = extract_json_from_response(r_res)
             layout_data["right_prompt"] = r_data.get("prompt", r_title)
             
@@ -597,7 +669,13 @@ async def generate_structure_task(course_id: str, context_package: dict, request
                 anthropic_chat_completion,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=4000,
-                model=IMAGE_PROMPT_GENERATOR_MODEL
+                model=IMAGE_PROMPT_GENERATOR_MODEL,
+                telemetry={
+                    "course_id": course_id,
+                    "user_id": request.user_id,
+                    "stage": "batch_image_prompt_generation",
+                    "agent_name": "batch_image_prompt_generator"
+                }
             )
             results = extract_json_from_response(res)
             

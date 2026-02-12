@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
@@ -15,14 +14,15 @@ import {
     PlayCircle,
     Loader2,
     RefreshCcw,
-    MonitorPlay,
     FileText,
     ImageIcon,
     PanelRightOpen,
-    PanelRightClose
+    PanelRightClose,
+    ListChecks,
+    Plus,
+    Trash2
 } from "lucide-react";
 import VisualPreview from "./VisualPreview";
-import RichTextEditor from "./RichTextEditor";
 import { createClient } from "@/lib/supabase/client";
 
 interface Slide {
@@ -39,7 +39,17 @@ interface Slide {
     timestamps?: any;
     background_color?: string;
     text_color?: string;
+    is_assessment?: boolean;
+    assessment_data?: {
+        question: string;
+        options: string[];
+        correct_index: number;
+        explanation: string;
+        points: number;
+    };
 }
+
+type AssessmentData = NonNullable<Slide["assessment_data"]>;
 
 interface SlideEditorProps {
     courseId: string;
@@ -132,6 +142,22 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
 
     const currentSlide = slides[currentSlideIndex];
 
+    const renumberSlides = (inputSlides: Slide[]): Slide[] => {
+        return inputSlides.map((slide, idx) => ({
+            ...slide,
+            slide_number: idx + 1
+        }));
+    };
+
+    const buildAssessmentData = (inputSlides: Slide[]) => {
+        return inputSlides
+            .map((slide, idx) => ({
+                slide_number: idx + 1,
+                assessment_data: slide.assessment_data
+            }))
+            .filter((entry) => entry.assessment_data);
+    };
+
     // Auto-size narration textarea
     useEffect(() => {
         if (narrationRef.current) {
@@ -196,9 +222,13 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         setIsSaving(true);
         try {
             const supabase = createClient();
+            const normalizedSlides = renumberSlides(slides);
             await supabase
                 .from("courses")
-                .update({ slide_data: slides })
+                .update({
+                    slide_data: normalizedSlides,
+                    assessment_data: buildAssessmentData(normalizedSlides)
+                })
                 .eq("id", courseId);
 
             if (!silent) {
@@ -239,13 +269,14 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             const { data: { session } } = await supabase.auth.getSession();
 
             const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const normalizedSlides = renumberSlides(slides);
             const res = await fetch(`${API_BASE_URL}/api/course/finalize-course?course_id=${courseId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${session?.access_token}`
                 },
-                body: JSON.stringify({ slide_data: slides })
+                body: JSON.stringify({ slide_data: normalizedSlides })
             });
 
             if (res.ok) {
@@ -259,6 +290,44 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         } finally {
             setIsFinalizing(false);
         }
+    };
+
+    const handleAddAssessmentStep = () => {
+        const sourceSlide = slides[currentSlideIndex];
+        const newSlide: Slide = {
+            slide_number: currentSlideIndex + 2,
+            text: "Quick check. Review the options and choose the best answer.",
+            visual_text: "<h2>Quick Check</h2><p>Read the question and choose one answer.</p>",
+            layout: "text_only",
+            visual_type: "title_card",
+            prompt: "",
+            duration: 20000,
+            background_color: "#0f766e",
+            text_color: "#ffffff",
+            is_assessment: true,
+            assessment_data: {
+                question: `Which option best applies after "${(sourceSlide.visual_text || sourceSlide.text || "this step").toString().replace(/<[^>]*>/g, "").slice(0, 80)}"?`,
+                options: [
+                    "Option A",
+                    "Option B",
+                    "Option C"
+                ],
+                correct_index: 0,
+                explanation: "Replace this with the rationale for the correct answer.",
+                points: 1
+            }
+        };
+
+        const updatedSlides = renumberSlides([
+            ...slides.slice(0, currentSlideIndex + 1),
+            newSlide,
+            ...slides.slice(currentSlideIndex + 1)
+        ]);
+
+        setSlides(updatedSlides);
+        setCurrentSlideIndex(currentSlideIndex + 1);
+        setIsSidebarOpen(true);
+        setOpenSections((prev) => ({ ...prev, narration: true, assessment: true }));
     };
 
     // Helper to get defaults matching VisualPreview
@@ -289,6 +358,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     // Collapsible Section State
     const [openSections, setOpenSections] = useState({
         narration: true,
+        assessment: true,
         onScreenText: false,
         visualPrompt: false,
         styling: false
@@ -299,6 +369,69 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     const toggleSection = (key: keyof typeof openSections) => {
         setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
     };
+
+    const getAssessmentData = (slide: Slide): AssessmentData => {
+        return slide.assessment_data || {
+            question: "",
+            options: ["Option A", "Option B", "Option C"],
+            correct_index: 0,
+            explanation: "",
+            points: 1
+        };
+    };
+
+    const buildAssessmentVisualText = (assessment: AssessmentData): string => {
+        const optionsHtml = assessment.options
+            .map((option, idx) => `<p>${String.fromCharCode(65 + idx)}. ${option || "Option"}</p>`)
+            .join("");
+
+        return `<h2>${assessment.question || "Quick Check"}</h2>${optionsHtml}`;
+    };
+
+    const updateAssessment = (updates: Partial<AssessmentData>) => {
+        const currentAssessment = getAssessmentData(currentSlide);
+        const nextAssessment = { ...currentAssessment, ...updates };
+
+        // Keep correct answer index valid if options changed
+        if (nextAssessment.correct_index > nextAssessment.options.length - 1) {
+            nextAssessment.correct_index = Math.max(0, nextAssessment.options.length - 1);
+        }
+
+        const newSlides = [...slides];
+        newSlides[currentSlideIndex] = {
+            ...newSlides[currentSlideIndex],
+            is_assessment: true,
+            assessment_data: nextAssessment,
+            visual_text: buildAssessmentVisualText(nextAssessment),
+            text: nextAssessment.explanation || newSlides[currentSlideIndex].text
+        };
+        setSlides(newSlides);
+    };
+
+    const handleAssessmentOptionChange = (index: number, value: string) => {
+        const assessment = getAssessmentData(currentSlide);
+        const nextOptions = [...assessment.options];
+        nextOptions[index] = value;
+        updateAssessment({ options: nextOptions });
+    };
+
+    const handleAddAssessmentOption = () => {
+        const assessment = getAssessmentData(currentSlide);
+        const nextLabel = `Option ${String.fromCharCode(65 + assessment.options.length)}`;
+        updateAssessment({ options: [...assessment.options, nextLabel] });
+    };
+
+    const handleRemoveAssessmentOption = (index: number) => {
+        const assessment = getAssessmentData(currentSlide);
+        if (assessment.options.length <= 2) return;
+        const nextOptions = assessment.options.filter((_, i) => i !== index);
+        let nextCorrect = assessment.correct_index;
+        if (index === assessment.correct_index) nextCorrect = 0;
+        if (index < assessment.correct_index) nextCorrect = assessment.correct_index - 1;
+        updateAssessment({ options: nextOptions, correct_index: nextCorrect });
+    };
+
+    const currentAssessment = currentSlide?.is_assessment ? getAssessmentData(currentSlide) : null;
 
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] max-h-[900px] bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -324,10 +457,20 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                         {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                         <span className="ml-2 hidden sm:inline">{isSidebarOpen ? "Close Narration" : "Open Narration"}</span>
                     </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleAddAssessmentStep}
+                        className="text-slate-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        title="Insert an assessment slide after this step"
+                    >
+                        <ListChecks className="h-4 w-4" />
+                        <span className="ml-2 hidden sm:inline">Add Assessment Step</span>
+                    </Button>
                     <div className="h-6 w-px bg-slate-200 mx-2" />
                     <Button onClick={handleGenerateVideo} disabled={isFinalizing || isRenderQueued} className="bg-teal-600 hover:bg-teal-700">
                         {isFinalizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlayCircle className="mr-2 h-4 w-4" />}
-                        ${isRenderQueued ? (renderStatusLabel || 'Queued') : 'Generate Video'}
+                        {isRenderQueued ? (renderStatusLabel || 'Queued') : 'Generate Video'}
                     </Button>
                 </div>
             </div>
@@ -412,6 +555,107 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                             />
                         </SidebarSection>
 
+                        {currentSlide.is_assessment && currentAssessment && (
+                            <SidebarSection
+                                title="Assessment"
+                                icon={ListChecks}
+                                iconColor="text-emerald-600"
+                                isOpen={openSections.assessment}
+                                onToggle={() => toggleSection('assessment')}
+                                rightElement={
+                                    <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-5">
+                                        {currentAssessment.options.length} options
+                                    </Badge>
+                                }
+                            >
+                                <div className="space-y-3">
+                                    <label className="text-xs font-semibold text-slate-500">Question</label>
+                                    <Textarea
+                                        value={currentAssessment.question}
+                                        onChange={(e) => updateAssessment({ question: e.target.value })}
+                                        className={cn(commonTextAreaClass, "min-h-[84px]")}
+                                        placeholder="Write the assessment question..."
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-semibold text-slate-500">Answer Options</label>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleAddAssessmentOption}
+                                            className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
+                                        >
+                                            <Plus className="h-3 w-3 mr-1" />
+                                            Add Option
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {currentAssessment.options.map((option, index) => (
+                                            <div key={`assessment-option-${index}`} className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => updateAssessment({ correct_index: index })}
+                                                    className={cn(
+                                                        "h-6 w-6 rounded-full border text-[10px] font-bold transition-colors",
+                                                        currentAssessment.correct_index === index
+                                                            ? "bg-emerald-600 text-white border-emerald-600"
+                                                            : "bg-white text-slate-500 border-slate-300 hover:border-emerald-400"
+                                                    )}
+                                                    title="Mark as correct answer"
+                                                >
+                                                    {String.fromCharCode(65 + index)}
+                                                </button>
+                                                <Input
+                                                    value={option}
+                                                    onChange={(e) => handleAssessmentOptionChange(index, e.target.value)}
+                                                    placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                                                    className="h-9"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={currentAssessment.options.length <= 2}
+                                                    onClick={() => handleRemoveAssessmentOption(index)}
+                                                    className="h-8 w-8 p-0 text-slate-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-30"
+                                                    title="Remove option"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-xs font-semibold text-slate-500">Explanation</label>
+                                    <Textarea
+                                        value={currentAssessment.explanation}
+                                        onChange={(e) => updateAssessment({ explanation: e.target.value })}
+                                        className={cn(commonTextAreaClass, "min-h-[96px]")}
+                                        placeholder="Explain why the correct answer is right..."
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-slate-500">Points</label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={100}
+                                        value={currentAssessment.points}
+                                        onChange={(e) => {
+                                            const parsed = Number(e.target.value);
+                                            updateAssessment({ points: Number.isFinite(parsed) && parsed > 0 ? parsed : 1 });
+                                        }}
+                                        className="h-9 w-24"
+                                    />
+                                </div>
+                            </SidebarSection>
+                        )}
 
 
 

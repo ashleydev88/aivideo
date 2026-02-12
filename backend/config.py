@@ -22,6 +22,7 @@ VALIDATION_MODEL = "claude-haiku-4-5-20251001"
 IMAGE_GENERATION_MODEL = "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637"
 VOICE_ID = "aHCytOTnUOgfGPn5n89j" 
 ENABLE_SCRIPT_VALIDATION = True
+ENABLE_LLM_TELEMETRY = os.getenv("ENABLE_LLM_TELEMETRY", "true").lower() in ("1", "true", "yes", "on")
 
 from backend.prompts import (
     STYLE_MAPPING, 
@@ -224,4 +225,3 @@ LOCALE_CONFIG = {
         "spelling_preference": "American English"
     }
 }
-

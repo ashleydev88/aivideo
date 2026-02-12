@@ -54,7 +54,11 @@ def suggest_learning_outcomes(topic: str, audience: str, country: str = "UK") ->
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2000,
             temperature=0.7,
-            model=DISCOVERY_AGENT_MODEL
+            model=DISCOVERY_AGENT_MODEL,
+            telemetry={
+                "stage": "discovery_outcomes",
+                "agent_name": "discovery_agent"
+            }
         )
         
         data = extract_json_from_response(res_text)
