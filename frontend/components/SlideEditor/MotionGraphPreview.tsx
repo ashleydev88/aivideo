@@ -173,6 +173,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                             <PreviewMotionBox
                                 label={node.data.label}
                                 subLabel={node.data.subLabel}
+                                description={node.data.description}
                                 icon={node.data.icon}
                                 variant={node.data.variant}
                                 isEditable={!!onUpdate}
@@ -861,11 +862,11 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     {onUpdate ? (
                         <div className="space-y-4">
                             <div className="flex items-center gap-4">
-                                <Lucide.MapPin size={32} color={accentColor} />
+                                <Lucide.MapPin size={32} className="text-white" />
                                 <input
                                     value={mainNode?.data.subLabel || ''}
                                     onChange={(e) => handleNodeUpdate(mainNode.id, 'subLabel', e.target.value)}
-                                    className="text-teal-400 font-bold tracking-widest uppercase text-xl bg-transparent w-full outline-none focus:ring-1 focus:ring-teal-500 rounded"
+                                    className="text-white font-bold tracking-widest uppercase text-xl bg-transparent w-full outline-none focus:ring-1 focus:ring-teal-500 rounded"
                                     placeholder="LOCATION / CONTEXT"
                                 />
                             </div>
@@ -886,7 +887,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     ) : (
                         <>
                             {mainNode?.data.subLabel && (
-                                <div className="flex items-center gap-4 text-teal-400 font-bold tracking-widest uppercase text-xl animate-fade-in-up">
+                                <div className="flex items-center gap-4 text-white font-bold tracking-widest uppercase text-xl animate-fade-in-up">
                                     <Lucide.MapPin size={32} />
                                     {mainNode.data.subLabel}
                                 </div>

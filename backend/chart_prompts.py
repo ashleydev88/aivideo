@@ -125,10 +125,10 @@ Ensure every node has a clear Label and Description.
 
     # --- SPECIALIZED SLIDE TYPES (Visual Director) ---
     "contextual-overlay": """You are a Contextual Design Expert.
-Extract the core message for a full-screen text overlay.
+Extract the core message and a punchy 'kicker' tag.
 CRITICAL:
-- Node 1: label="Headline" (The main impactful statement)
-- Node 2: label="Subheadline" (Optional supporting context)
+- Node 1: label="Headline" (The main impactful statement or section title)
+- Node 1: subLabel="Kicker" (Short 1-3 word uppercase tag like "KEY INSIGHT", "INTRODUCTION")
 - Ignore extra details. Stick to the mood/theme.
     """,
 

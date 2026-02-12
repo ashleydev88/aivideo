@@ -19,7 +19,7 @@ class ContextualOverlayData(BaseModel):
     """
     background_prompt: str  # AI image generation prompt for background
     headline: str  # Main text overlay (large, prominent)
-    subheadline: Optional[str] = None  # Optional smaller text below
+    kicker: Optional[str] = None  # Small, punchy tag above headline (e.g. "KEY INSIGHT", "INTRODUCTION")
 
 
 class ComparisonSplitData(BaseModel):

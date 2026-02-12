@@ -121,7 +121,7 @@ class PipelineManager:
                         elif vtype == "contextual_overlay" and len(graph.nodes) >= 1:
                             layout_data = {
                                 "headline": graph.nodes[0].data.label,
-                                "subheadline": graph.nodes[1].data.label if len(graph.nodes) > 1 else None,
+                                "kicker": graph.nodes[0].data.subLabel if graph.nodes[0].data.subLabel else None,
                                 "background_prompt": slide.get("slide_title", "Corporate Background") # Default, will be refined by image prompter
                             }
                             
