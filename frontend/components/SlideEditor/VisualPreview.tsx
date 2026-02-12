@@ -238,10 +238,10 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
             <div
                 style={{
                     position: 'absolute',
-                    bottom: '18px',
-                    right: '18px',
-                    maxWidth: `${Math.round(140 * zoomFactor)}px`,
-                    maxHeight: `${Math.round(80 * zoomFactor)}px`,
+                    bottom: '40px',
+                    right: '40px',
+                    maxWidth: `${Math.round(200 * zoomFactor)}px`,
+                    maxHeight: `${Math.round(120 * zoomFactor)}px`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -486,62 +486,64 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         const textContent = slide.visual_text || slide.text || "";
 
         return (
-            <BackgroundEditTrigger className="w-full h-full">
-                <div
-                    className="slide-preview-content w-full h-full p-8 rounded-lg flex items-center justify-center transition-all duration-500"
-                    style={{
-                        background: `linear-gradient(135deg, ${brandColor || slide.background_color || '#0f172a'} 0%, ${isLightColor(brandColor || slide.background_color || '#0f172a') ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.4)'} 100%)`,
-                        backgroundColor: brandColor || slide.background_color || '#0f172a',
-                        color: slide.text_color || '#ffffff'
-                    }}
-                >
-                    <div className="w-full text-center">
-                        <style>{`
-                            .ProseMirror {
-                                --editor-default-size: 32px;
-                            }
-                            .ProseMirror h1, .prose-preview h1 { 
-                                font-weight: 950 !important; 
-                                font-size: 96px !important; 
-                                line-height: 1.05 !important; 
-                                margin-bottom: 0.5rem !important; 
-                                text-shadow: 0 15px 45px rgba(0,0,0,0.5) !important; 
-                            }
-                            .ProseMirror h2, .prose-preview h2 { 
-                                font-weight: 800 !important; 
-                                font-size: 48px !important; 
-                                line-height: 1.25 !important; 
-                                letter-spacing: 0.05em !important; 
-                                margin-bottom: 0.5rem !important; 
-                                text-shadow: 0 5px 20px rgba(0,0,0,0.3) !important;
-                            }
-                            .ProseMirror p, .prose-preview p { 
-                                font-weight: 600 !important; 
-                                font-size: 36px !important; 
-                                line-height: 1.625 !important; 
-                                margin-bottom: 0.75rem !important; 
-                                opacity: 0.95 !important; 
-                                text-shadow: 0 2px 15px rgba(0,0,0,0.2) !important;
-                            }
-                            .ProseMirror ul, .prose-preview ul { list-style-type: disc !important; text-align: left !important; padding-left: 1.5em !important; }
-                            .ProseMirror li, .prose-preview li { margin-bottom: 0.5em !important; font-size: 30px !important; font-weight: 600 !important; }
-                            .ProseMirror strong, .prose-preview strong { color: ${effectiveAccentColor} !important; font-weight: 900 !important; }
-                         `}</style>
-                        {onTextChange ? (
-                            <RichTextEditor
-                                value={textContent}
-                                onChange={onTextChange}
-                                variant="minimal"
-                            />
-                        ) : (
-                            <div className="prose-preview dark:prose-invert max-w-none">
-                                {parse(textContent)}
-                            </div>
-                        )}
+            <ScaleContainer>
+                <BackgroundEditTrigger className="w-full h-full">
+                    <div
+                        className="slide-preview-content w-full h-full p-8 flex items-center justify-center transition-all duration-500"
+                        style={{
+                            background: `linear-gradient(135deg, ${brandColor || slide.background_color || '#0f172a'} 0%, ${isLightColor(brandColor || slide.background_color || '#0f172a') ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.4)'} 100%)`,
+                            backgroundColor: brandColor || slide.background_color || '#0f172a',
+                            color: slide.text_color || '#ffffff'
+                        }}
+                    >
+                        <div className="w-full text-center">
+                            <style>{`
+                                .ProseMirror {
+                                    --editor-default-size: 32px;
+                                }
+                                .ProseMirror h1, .prose-preview h1 { 
+                                    font-weight: 950 !important; 
+                                    font-size: 96px !important; 
+                                    line-height: 1.05 !important; 
+                                    margin-bottom: 0.5rem !important; 
+                                    text-shadow: 0 15px 45px rgba(0,0,0,0.5) !important; 
+                                }
+                                .ProseMirror h2, .prose-preview h2 { 
+                                    font-weight: 800 !important; 
+                                    font-size: 48px !important; 
+                                    line-height: 1.25 !important; 
+                                    letter-spacing: 0.05em !important; 
+                                    margin-bottom: 0.5rem !important; 
+                                    text-shadow: 0 5px 20px rgba(0,0,0,0.3) !important;
+                                }
+                                .ProseMirror p, .prose-preview p { 
+                                    font-weight: 600 !important; 
+                                    font-size: 36px !important; 
+                                    line-height: 1.625 !important; 
+                                    margin-bottom: 0.75rem !important; 
+                                    opacity: 0.95 !important; 
+                                    text-shadow: 0 2px 15px rgba(0,0,0,0.2) !important;
+                                }
+                                .ProseMirror ul, .prose-preview ul { list-style-type: disc !important; text-align: left !important; padding-left: 1.5em !important; }
+                                .ProseMirror li, .prose-preview li { margin-bottom: 0.5em !important; font-size: 30px !important; font-weight: 600 !important; }
+                                .ProseMirror strong, .prose-preview strong { color: ${effectiveAccentColor} !important; font-weight: 900 !important; }
+                             `}</style>
+                            {onTextChange ? (
+                                <RichTextEditor
+                                    value={textContent}
+                                    onChange={onTextChange}
+                                    variant="minimal"
+                                />
+                            ) : (
+                                <div className="prose-preview dark:prose-invert max-w-none">
+                                    {parse(textContent)}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-                <LogoOverlay />
-            </BackgroundEditTrigger>
+                    <LogoOverlay />
+                </BackgroundEditTrigger>
+            </ScaleContainer>
         )
     }
 
@@ -552,40 +554,42 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
         const defaultBg = isThankYou ? '#1e293b' : '#0d9488'; // slate-800 or teal-600
 
         return (
-            <BackgroundEditTrigger className="w-full h-full">
-                <div
-                    className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center rounded-lg"
-                    style={{
-                        backgroundColor: slide.background_color || defaultBg,
-                        color: slide.text_color || '#ffffff'
-                    }}
-                >
-                    <AutoFitText className="items-center justify-center origin-center">
-                        <div className="w-full text-center">
-                            <style>{`
-                                    .ProseMirror h1 { font-weight: 900; font-size: 3.75rem; line-height: 1; margin-bottom: 0.5rem; text-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-                                    .ProseMirror h2 { font-weight: 700; font-size: 1.5rem; line-height: 1.25; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
-                                    .ProseMirror p { font-weight: 500; font-size: 1.5rem; line-height: 1.625; margin-bottom: 0.75rem; opacity: 0.95; }
-                                    .ProseMirror strong { color: rgba(255,255,255,0.9); }
-                                 `}</style>
-                            {onTextChange ? (
-                                <RichTextEditor
-                                    value={textContent}
-                                    onChange={onTextChange}
-                                    variant="minimal"
-                                />
-                            ) : (
-                                // Fallback read-only using same styles roughly
-                                <div className="prose prose-2xl dark:prose-invert max-w-none">
-                                    {parse(textContent)}
-                                </div>
-                            )}
-                        </div>
-                    </AutoFitText>
+            <ScaleContainer>
+                <BackgroundEditTrigger className="w-full h-full">
+                    <div
+                        className="slide-preview-content w-full h-full flex flex-col items-center justify-center p-12 text-center"
+                        style={{
+                            backgroundColor: slide.background_color || defaultBg,
+                            color: slide.text_color || '#ffffff'
+                        }}
+                    >
+                        <AutoFitText className="items-center justify-center origin-center">
+                            <div className="w-full text-center">
+                                <style>{`
+                                        .ProseMirror h1 { font-weight: 900; font-size: 3.75rem; line-height: 1; margin-bottom: 0.5rem; text-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+                                        .ProseMirror h2 { font-weight: 700; font-size: 1.5rem; line-height: 1.25; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+                                        .ProseMirror p { font-weight: 500; font-size: 1.5rem; line-height: 1.625; margin-bottom: 0.75rem; opacity: 0.95; }
+                                        .ProseMirror strong { color: rgba(255,255,255,0.9); }
+                                     `}</style>
+                                {onTextChange ? (
+                                    <RichTextEditor
+                                        value={textContent}
+                                        onChange={onTextChange}
+                                        variant="minimal"
+                                    />
+                                ) : (
+                                    // Fallback read-only using same styles roughly
+                                    <div className="prose prose-2xl dark:prose-invert max-w-none">
+                                        {parse(textContent)}
+                                    </div>
+                                )}
+                            </div>
+                        </AutoFitText>
 
-                </div>
-                <LogoOverlay />
-            </BackgroundEditTrigger>
+                    </div>
+                    <LogoOverlay />
+                </BackgroundEditTrigger>
+            </ScaleContainer>
         )
     }
 
@@ -699,52 +703,54 @@ export default function VisualPreview({ slide, aspectRatio = "video", onChartUpd
 
     // 5. IMAGE RENDERER (Default)
     return (
-        <div className="w-full h-full relative bg-slate-100 rounded-lg overflow-hidden group">
-            {resolvedImage ? (
-                <Image
-                    src={resolvedImage}
-                    alt={slide.prompt || "Slide Visual"}
-                    fill
-                    className="object-cover"
-                />
-            ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-400">
-                    {image ? <div className="flex items-center gap-2"><RefreshCcw className="animate-spin h-4 w-4" /> Loading Visual...</div> : "No Image"}
-                </div>
-            )}
+        <ScaleContainer>
+            <div className="w-full h-full relative bg-slate-100 overflow-hidden group">
+                {resolvedImage ? (
+                    <Image
+                        src={resolvedImage}
+                        alt={slide.prompt || "Slide Visual"}
+                        fill
+                        className="object-cover"
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-400">
+                        {image ? <div className="flex items-center gap-2"><RefreshCcw className="animate-spin h-4 w-4" /> Loading Visual...</div> : "No Image"}
+                    </div>
+                )}
 
-            {/* Overlay Text Preview */}
-            {slide.visual_text && (
-                <div className="absolute inset-0 flex items-center justify-center p-12">
-                    <div className="max-w-4xl w-full text-center">
-                        <style>{`
-                            .overlay-text h1, .overlay-text h2, .overlay-text p { 
-                                font-weight: 800; 
-                                color: white;
-                                text-shadow: 0 4px 12px rgba(0,0,0,0.8);
-                                margin: 0;
-                            }
-                            .overlay-text h1 { font-size: 3.5rem; line-height: 1.1; }
-                            .overlay-text p, .overlay-text h2 { font-size: 2.5rem; line-height: 1.3; }
-                            .overlay-text strong { color: ${brandColor || '#ffffff'}; }
-                        `}</style>
-                        <div className="overlay-text">
-                            {onTextChange ? (
-                                <RichTextEditor
-                                    value={slide.visual_text}
-                                    onChange={onTextChange}
-                                    variant="minimal"
-                                />
-                            ) : (
-                                <h2 className="text-5xl font-extrabold text-white drop-shadow-lg leading-tight">
-                                    {parse(slide.visual_text)}
-                                </h2>
-                            )}
+                {/* Overlay Text Preview */}
+                {slide.visual_text && (
+                    <div className="absolute inset-0 flex items-center justify-center p-12">
+                        <div className="max-w-4xl w-full text-center">
+                            <style>{`
+                                .overlay-text h1, .overlay-text h2, .overlay-text p { 
+                                    font-weight: 800; 
+                                    color: white;
+                                    text-shadow: 0 4px 12px rgba(0,0,0,0.8);
+                                    margin: 0;
+                                }
+                                .overlay-text h1 { font-size: 3.5rem; line-height: 1.1; }
+                                .overlay-text p, .overlay-text h2 { font-size: 2.5rem; line-height: 1.3; }
+                                .overlay-text strong { color: ${brandColor || '#ffffff'}; }
+                            `}</style>
+                            <div className="overlay-text">
+                                {onTextChange ? (
+                                    <RichTextEditor
+                                        value={slide.visual_text}
+                                        onChange={onTextChange}
+                                        variant="minimal"
+                                    />
+                                ) : (
+                                    <h1 className="text-6xl font-black text-white drop-shadow-xl leading-none">
+                                        {parse(slide.visual_text)}
+                                    </h1>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-            <LogoOverlay />
-        </div>
+                )}
+                <LogoOverlay />
+            </div>
+        </ScaleContainer>
     );
 }

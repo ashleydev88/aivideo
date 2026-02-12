@@ -258,7 +258,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                     />
                                 ) : (
                                     <h4
-                                        className="font-black text-slate-800"
+                                        className="font-black text-slate-800 break-words"
                                         style={{ fontSize: `${labelFontSize}px` }}
                                     >
                                         {node.data.label}
@@ -317,7 +317,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         return (
             <div
                 className="grid grid-cols-2 w-full max-w-7xl px-6"
-                style={{ gap: `${gap}px`, minHeight: '600px' }}
+                style={{ gap: `${gap}px`, gridAutoRows: '1fr' }}
             >
                 {nodes.map((node) => {
                     // Strict color coding for comparisons
@@ -328,16 +328,15 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     return (
                         <div
                             key={node.id}
-                            className="bg-white shadow-lg flex flex-col border-t-8 overflow-hidden"
+                            className="bg-white shadow-lg flex flex-col border-t-8"
                             style={{
                                 borderTopColor: color,
                                 borderRadius: `${borderRadius}px`,
-                                height: '100%'
                             }}
                         >
                             {/* Image Section (if available) - Flexible height */}
                             {node.data.image && (
-                                <div className="w-full relative h-[45%] bg-slate-100 border-b" style={{ borderColor: color + '20' }}>
+                                <div className="w-full relative bg-slate-100 border-b overflow-hidden" style={{ borderColor: color + '20', height: '45%' }}>
                                     <img
                                         src={node.data.image}
                                         alt={node.data.label}
@@ -349,7 +348,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                             )}
 
                             <div className="flex flex-col flex-1" style={{ padding: `${padding}px`, gap: `${padding / 2}px` }}>
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-start gap-4">
                                     <div
                                         className="rounded-full flex-shrink-0 flex items-center justify-center shadow-sm"
                                         style={{
@@ -361,16 +360,17 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                         {React.createElement(getIcon(node.data.icon), { size: iconSize, color: '#ffffff' })}
                                     </div>
                                     {onUpdate ? (
-                                        <input
+                                        <textarea
                                             value={node.data.label}
                                             onChange={(e) => handleNodeUpdate(node.id, 'label', e.target.value)}
-                                            className="font-black text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded"
-                                            style={{ fontSize: `${labelFontSize}px` }}
+                                            className="font-black text-slate-800 bg-transparent w-full outline-none focus:bg-slate-50 rounded min-w-0 flex-1 resize-none"
+                                            style={{ fontSize: `${labelFontSize}px`, fieldSizing: 'content' } as any}
+                                            rows={1}
                                         />
                                     ) : (
                                         <h4
-                                            className="font-black text-slate-800 leading-tight"
-                                            style={{ fontSize: `${labelFontSize}px` }}
+                                            className="font-black text-slate-800 leading-tight min-w-0 flex-1 pb-1"
+                                            style={{ fontSize: `${labelFontSize}px`, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                                         >
                                             {node.data.label}
                                         </h4>
