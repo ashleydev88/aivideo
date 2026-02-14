@@ -101,7 +101,6 @@ export default function StructurePage() {
             <SlideEditor
                 courseId={courseId}
                 initialSlides={course.slide_data || []}
-                brandColor={typeof course.brand_colour === "string" ? course.brand_colour : null}
                 onFinalize={() => router.push('/dashboard')}
             />
         </div>

@@ -56,7 +56,6 @@ type AssessmentData = NonNullable<Slide["assessment_data"]>;
 interface SlideEditorProps {
     courseId: string;
     initialSlides: Slide[];
-    brandColor?: string | null;
     onFinalize: () => void;
 }
 
@@ -107,13 +106,14 @@ const SidebarSection = ({
     </div>
 );
 
-export default function SlideEditor({ courseId, initialSlides, brandColor, onFinalize }: SlideEditorProps) {
+export default function SlideEditor({ courseId, initialSlides, onFinalize }: SlideEditorProps) {
 
     const [slides, setSlides] = useState<Slide[]>(initialSlides);
     const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [regeneratingSlideIndex, setRegeneratingSlideIndex] = useState<number | null>(null);
+    const [userBrandColor, setUserBrandColor] = useState<string | null>(null);
     const narrationRef = useRef<HTMLTextAreaElement>(null);
 
     const [isRenderQueued, setIsRenderQueued] = useState(false);
@@ -141,6 +141,30 @@ export default function SlideEditor({ courseId, initialSlides, brandColor, onFin
         const t = setInterval(checkStatus, 15000);
         return () => { mounted = false; clearInterval(t); };
     }, [courseId]);
+
+    useEffect(() => {
+        let mounted = true;
+        const loadUserBrandColor = async () => {
+            try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!mounted || !user) return;
+                const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("brand_colour")
+                    .eq("id", user.id)
+                    .single();
+                if (mounted) {
+                    setUserBrandColor(profile?.brand_colour || null);
+                }
+            } catch {
+                if (mounted) setUserBrandColor(null);
+            }
+        };
+
+        loadUserBrandColor();
+        return () => { mounted = false; };
+    }, []);
 
 
     const currentSlide = slides[currentSlideIndex];
@@ -297,7 +321,8 @@ export default function SlideEditor({ courseId, initialSlides, brandColor, onFin
 
     const handleAddAssessmentStep = () => {
         const sourceSlide = slides[currentSlideIndex];
-        const assessmentBackgroundColor = brandColor || "#0f766e";
+        const assessmentBackgroundColor = userBrandColor || "#ffffff";
+        const assessmentTextColor = userBrandColor ? "#ffffff" : "#0f172a";
         const newSlide: Slide = {
             slide_number: currentSlideIndex + 2,
             text: "Quick check. Review the options and choose the best answer.",
@@ -307,7 +332,7 @@ export default function SlideEditor({ courseId, initialSlides, brandColor, onFin
             prompt: "",
             duration: 20000,
             background_color: assessmentBackgroundColor,
-            text_color: "#ffffff",
+            text_color: assessmentTextColor,
             is_assessment: true,
             assessment_data: {
                 question: `Which option best applies after "${(sourceSlide.visual_text || sourceSlide.text || "this step").toString().replace(/<[^>]*>/g, "").slice(0, 80)}"?`,
