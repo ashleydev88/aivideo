@@ -85,7 +85,7 @@ interface RichTextEditorProps {
     variant?: 'default' | 'minimal';
     narrationTokens?: Array<{ index: number; word: string }>;
     timingLinks?: Array<{ sourceId: string; tokenIndex: number }>;
-    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: 'word' | 'paragraph' | 'heading'; sourceText: string; tokenIndex: number }) => void;
+    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: 'word' | 'paragraph' | 'heading' | 'node' | 'edge'; sourceText: string; tokenIndex: number }) => void;
     onTimingLinkRemove?: (sourceId: string) => void;
 }
 

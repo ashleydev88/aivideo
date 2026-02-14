@@ -22,8 +22,9 @@ interface MotionGraphPreviewProps {
     onUpdate?: (newData: MotionGraph) => void;
     narrationTokens?: Array<{ index: number; word: string }>;
     timingLinks?: Array<{ sourceId: string; tokenIndex: number }>;
-    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading"; sourceText: string; tokenIndex: number }) => void;
+    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading" | "node" | "edge"; sourceText: string; tokenIndex: number }) => void;
     onTimingLinkRemove?: (sourceId: string) => void;
+    enableNodeTiming?: boolean;
 }
 
 // Get icon component from kebab-case name
@@ -48,6 +49,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     timingLinks = [],
     onTimingLinkAdd,
     onTimingLinkRemove,
+    enableNodeTiming = false,
 }) => {
     const flowViewportRef = React.useRef<HTMLDivElement | null>(null);
     const [flowViewport, setFlowViewport] = React.useState({ width: 1600, height: 700 });
@@ -69,16 +71,150 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         return () => observer.disconnect();
     }, []);
 
-    if (!data || !data.nodes || data.nodes.length === 0) {
+    const archetype = data?.archetype || 'grid';
+    const nodes = data?.nodes || [];
+    const metadata = data?.metadata;
+    const title = metadata?.title || '';
+    const [activeNodeTimingId, setActiveNodeTimingId] = React.useState<string | null>(null);
+    const nodeTimingEnabled = enableNodeTiming && !!onTimingLinkAdd;
+    const nodeTimingUsable = nodeTimingEnabled && narrationTokens.length > 0;
+    const nodeTimingMap = React.useMemo(() => {
+        const map = new Map<string, number>();
+        timingLinks.forEach((link) => {
+            map.set(link.sourceId, link.tokenIndex);
+        });
+        return map;
+    }, [timingLinks]);
+
+    React.useEffect(() => {
+        if (!activeNodeTimingId) return;
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (target?.closest('[data-node-timing-root="true"]')) return;
+            setActiveNodeTimingId(null);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setActiveNodeTimingId(null);
+            }
+        };
+        document.addEventListener('pointerdown', handlePointerDown);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [activeNodeTimingId]);
+
+    const cleanNodeText = (value: string | undefined) =>
+        String(value || '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+    const renderNodeTimingShell = (
+        node: (typeof nodes)[number],
+        children: React.ReactNode,
+        className = '',
+    ) => {
+        const activeTokenIndex = nodeTimingMap.get(node.id);
+        const nodeLabel = cleanNodeText(node.data?.label);
+        const isOpen = activeNodeTimingId === node.id;
+        return (
+            <div
+                key={node.id}
+                data-node-timing-root="true"
+                className={`relative ${className} ${nodeTimingEnabled ? 'cursor-pointer' : ''} ${isOpen ? 'ring-2 ring-violet-300 rounded-xl' : ''}`}
+                onClick={(event) => {
+                    if (!nodeTimingEnabled) return;
+                    const target = event.target as HTMLElement | null;
+                    if (!target) return;
+                    if (target.closest('.ProseMirror, [contenteditable="true"], input, textarea, select, button')) return;
+                    setActiveNodeTimingId((prev) => (prev === node.id ? null : node.id));
+                }}
+            >
+                {children}
+                {isOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-72 rounded-md border bg-white shadow-lg p-3 z-[100000]">
+                        <p className="text-xs font-semibold text-slate-700 mb-1">Link node timing</p>
+                        <p className="text-[11px] text-slate-500 mb-2 line-clamp-2">{nodeLabel || node.id}</p>
+                        {typeof activeTokenIndex === 'number' && narrationTokens[activeTokenIndex] && (
+                            <p className="text-[11px] text-violet-700 mb-2">
+                                Linked: #{activeTokenIndex} {narrationTokens[activeTokenIndex].word}
+                            </p>
+                        )}
+                        {narrationTokens.length > 0 ? (
+                            <div className="max-h-36 overflow-y-auto border rounded p-2 mb-2">
+                                <div className="flex flex-wrap gap-1">
+                                    {narrationTokens.map((token) => (
+                                        <button
+                                            key={`node-timing-token-${node.id}-${token.index}`}
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.preventDefault();
+                                                if (!nodeTimingUsable) return;
+                                                onTimingLinkAdd?.({
+                                                    sourceId: node.id,
+                                                    sourceType: 'node',
+                                                    sourceText: nodeLabel || node.id,
+                                                    tokenIndex: token.index,
+                                                });
+                                                setActiveNodeTimingId(null);
+                                            }}
+                                            className={`text-[11px] px-1.5 py-0.5 rounded border ${activeTokenIndex === token.index
+                                                ? 'border-violet-600 bg-violet-600 text-white'
+                                                : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                                                } ${!nodeTimingUsable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={!nodeTimingUsable}
+                                        >
+                                            {token.word}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="border rounded p-2 mb-2 text-[11px] text-slate-600 bg-slate-50">
+                                Add narration text first, then link a token.
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    setActiveNodeTimingId(null);
+                                }}
+                                className="text-xs text-slate-500 hover:text-slate-700"
+                            >
+                                Close
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    onTimingLinkRemove?.(node.id);
+                                    setActiveNodeTimingId(null);
+                                }}
+                                className="text-xs text-red-600 hover:text-red-700 inline-flex items-center gap-1"
+                                disabled={typeof activeTokenIndex !== 'number'}
+                            >
+                                <Lucide.Unlink2 className="w-3 h-3" />
+                                Remove timing
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    if (!data || nodes.length === 0) {
         return (
             <div className="w-full h-full flex items-center justify-center text-slate-400">
                 No chart data available
             </div>
         );
     }
-
-    const { archetype, nodes, metadata } = data;
-    const title = metadata?.title || '';
 
     // Render title
     const renderTitle = (floating = false) => {
@@ -225,17 +361,20 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     >
                         {nodes.map((node, i) => (
                             <React.Fragment key={node.id}>
-                                <PreviewMotionBox
-                                    label={node.data.label}
-                                    subLabel={node.data.subLabel}
-                                    description={node.data.description}
-                                    icon={node.data.icon}
-                                    variant={node.data.variant}
-                                    isEditable={!!onUpdate}
-                                    onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
-                                    width={normalizedProcessSize.width}
-                                    height={normalizedProcessSize.height}
-                                />
+                                {renderNodeTimingShell(
+                                    node,
+                                    <PreviewMotionBox
+                                        label={node.data.label}
+                                        subLabel={node.data.subLabel}
+                                        description={node.data.description}
+                                        icon={node.data.icon}
+                                        variant={node.data.variant}
+                                        isEditable={!!onUpdate}
+                                        onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
+                                        width={normalizedProcessSize.width}
+                                        height={normalizedProcessSize.height}
+                                    />
+                                )}
                                 {i < nodeCount - 1 && (
                                     <div
                                         className="flex items-center justify-center"
@@ -294,9 +433,9 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         : 100;
                     const color = getVariantColor(node.data.variant, accentColor);
 
-                    return (
+                    return renderNodeTimingShell(
+                        node,
                         <div
-                            key={node.id}
                             className="bg-white shadow-md flex items-center border-l-8 flex-shrink-0"
                             style={{
                                 width: `${widthPercent}%`,
@@ -352,7 +491,8 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                     )
                                 )}
                             </div>
-                        </div>
+                        </div>,
+                        'w-full'
                     );
                 })}
             </div>
@@ -392,9 +532,9 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     if (node.data.variant === 'negative') color = '#ef4444'; // Red-500
                     if (node.data.variant === 'positive') color = '#22c55e'; // Green-500
 
-                    return (
+                    return renderNodeTimingShell(
+                        node,
                         <div
-                            key={node.id}
                             className="bg-white shadow-lg flex flex-col border-t-8"
                             style={{
                                 borderTopColor: color,
@@ -474,20 +614,24 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     const renderStats = () => (
         <div className="flex flex-row gap-16 justify-center w-full flex-wrap">
             {nodes.map((node) => (
-                <PreviewStatBox
-                    key={node.id}
-                    label={node.data.label}
-                    description={node.data.description}
-                    value={node.data.value}
-                    variant={node.data.variant}
-                    isEditable={!!onUpdate}
-                    onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
-                    narrationTokens={narrationTokens}
-                    timingLinks={timingLinks}
-                    onTimingLinkAdd={onTimingLinkAdd}
-                    onTimingLinkRemove={onTimingLinkRemove}
-                    enableDescriptionTiming
-                />
+                <React.Fragment key={node.id}>
+                    {renderNodeTimingShell(
+                        node,
+                        <PreviewStatBox
+                            label={node.data.label}
+                            description={node.data.description}
+                            value={node.data.value}
+                            variant={node.data.variant}
+                            isEditable={!!onUpdate}
+                            onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
+                            narrationTokens={narrationTokens}
+                            timingLinks={timingLinks}
+                            onTimingLinkAdd={onTimingLinkAdd}
+                            onTimingLinkRemove={onTimingLinkRemove}
+                            enableDescriptionTiming
+                        />
+                    )}
+                </React.Fragment>
             ))}
         </div>
     );
@@ -527,23 +671,26 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                 }}
             >
                 {/* Center node */}
-                <div
-                    className="absolute z-10 transition-all duration-500"
-                    style={{
-                        left: '50%',
-                        top: '50%',
-                        transform: `translate(-50%, calc(-50% + ${yOffset}px))`
-                    }}
-                >
-                    <PreviewMotionBox
-                        label={centerNode.data.label}
-                        icon={centerNode.data.icon}
-                        variant={centerNode.data.variant || 'primary'}
-                        isEditable={!!onUpdate}
-                        onUpdate={(field, val) => handleNodeUpdate(centerNode.id, field, val)}
-                        className="scale-110 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)]" // More dramatic shadow for center
-                    />
-                </div>
+                {renderNodeTimingShell(
+                    centerNode,
+                    <div
+                        className="absolute z-10 transition-all duration-500"
+                        style={{
+                            left: '50%',
+                            top: '50%',
+                            transform: `translate(-50%, calc(-50% + ${yOffset}px))`
+                        }}
+                    >
+                        <PreviewMotionBox
+                            label={centerNode.data.label}
+                            icon={centerNode.data.icon}
+                            variant={centerNode.data.variant || 'primary'}
+                            isEditable={!!onUpdate}
+                            onUpdate={(field, val) => handleNodeUpdate(centerNode.id, field, val)}
+                            className="scale-110 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)]" // More dramatic shadow for center
+                        />
+                    </div>
+                )}
 
                 {/* Orbit nodes */}
                 {orbitNodes.map((node, i) => {
@@ -551,9 +698,9 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     const x = Math.cos(angle) * radius;
                     const y = Math.sin(angle) * radius;
 
-                    return (
+                    return renderNodeTimingShell(
+                        node,
                         <div
-                            key={node.id}
                             className="absolute transition-all duration-500"
                             style={{
                                 left: '50%',
@@ -581,7 +728,8 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     const renderCodeMath = () => (
         <div className="w-full max-w-6xl space-y-8">
             {nodes.map((node) => (
-                <div key={node.id} className="bg-slate-800 rounded-3xl p-8 shadow-lg">
+                <React.Fragment key={node.id}>
+                    {renderNodeTimingShell(node, <div className="bg-slate-800 rounded-3xl p-8 shadow-lg">
                     <div className="flex items-center gap-4 mb-4">
                         <Lucide.Code size={32} className="text-teal-400" />
                         {onUpdate ? (
@@ -609,7 +757,8 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                             {node.data.description || '// code here'}
                         </pre>
                     )}
-                </div>
+                    </div>)}
+                </React.Fragment>
             ))}
         </div>
     );
@@ -620,9 +769,9 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
             <div className="flex flex-row gap-8 flex-wrap justify-center">
                 {nodes.map((node) => {
                     const color = getVariantColor(node.data.variant, accentColor);
-                    return (
+                    return renderNodeTimingShell(
+                        node,
                         <div
-                            key={node.id}
                             className="bg-white rounded-3xl shadow-lg p-6 border-4 min-w-[280px] text-center"
                             style={{ borderColor: color }}
                         >
@@ -666,9 +815,9 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         <div className="grid grid-cols-2 gap-8 w-full max-w-6xl">
             {nodes.slice(0, 4).map((node) => {
                 const color = getVariantColor(node.data.variant, accentColor);
-                return (
+                return renderNodeTimingShell(
+                    node,
                     <div
-                        key={node.id}
                         className="bg-white rounded-3xl shadow-lg p-10 text-center border-t-8"
                         style={{ borderTopColor: color }}
                     >
@@ -720,7 +869,8 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     </h4>
                     <div className="space-y-4">
                         {surfaceNodes.map(node => (
-                            <div key={node.id} className="bg-white rounded-2xl p-6 shadow-sm">
+                            <React.Fragment key={node.id}>
+                                {renderNodeTimingShell(node, <div className="bg-white rounded-2xl p-6 shadow-sm">
                                 {onUpdate ? (
                                     <div className="font-bold text-slate-700 text-2xl bg-transparent w-full">
                                         <RichTextEditor
@@ -732,7 +882,8 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                 ) : (
                                     <span className="font-bold text-slate-700 text-2xl">{node.data.label}</span>
                                 )}
-                            </div>
+                                </div>)}
+                            </React.Fragment>
                         ))}
                     </div>
                 </div>
@@ -744,7 +895,8 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     </h4>
                     <div className="space-y-4">
                         {deepNodes.map(node => (
-                            <div key={node.id} className="bg-white rounded-2xl p-6 shadow-sm">
+                            <React.Fragment key={node.id}>
+                                {renderNodeTimingShell(node, <div className="bg-white rounded-2xl p-6 shadow-sm">
                                 {onUpdate ? (
                                     <div className="font-bold text-slate-700 text-2xl bg-transparent w-full">
                                         <RichTextEditor
@@ -756,7 +908,8 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                 ) : (
                                     <span className="font-bold text-slate-700 text-2xl">{node.data.label}</span>
                                 )}
-                            </div>
+                                </div>)}
+                            </React.Fragment>
                         ))}
                     </div>
                 </div>
@@ -772,7 +925,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         return (
             <div className="relative w-[1200px] h-[800px] flex items-center justify-center">
                 {/* Center subject */}
-                <div className="bg-white rounded-3xl shadow-xl p-12 z-10 text-center">
+                {renderNodeTimingShell(centerNode, <div className="bg-white rounded-3xl shadow-xl p-12 z-10 text-center">
                     {React.createElement(getIcon(centerNode?.data.icon), {
                         size: 80,
                         color: accentColor,
@@ -789,7 +942,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     ) : (
                         <h3 className="font-black text-slate-800 text-4xl">{centerNode?.data.label}</h3>
                     )}
-                </div>
+                </div>)}
 
                 {/* Label callouts */}
                 {labelNodes.map((node, i) => {
@@ -801,11 +954,9 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     ];
                     const pos = positions[i % positions.length];
 
-                    return (
-                        <div
-                            key={node.id}
-                            style={pos}
-                        >
+                    return renderNodeTimingShell(
+                        node,
+                        <div style={pos}>
                             {onUpdate ? (
                                 <div className="font-bold text-slate-700 bg-transparent w-full text-center">
                                     <RichTextEditor

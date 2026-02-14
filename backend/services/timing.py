@@ -13,6 +13,7 @@ from backend.utils.helpers import extract_json_from_response, parse_alignment_to
 
 NON_CHART_SOURCE_TYPES = {"word", "paragraph", "heading"}
 CHART_SOURCE_TYPES = {"node", "edge"}
+NODE_TIMING_VISUAL_TYPES = {"chart", "comparison_split"}
 
 
 @dataclass
@@ -103,6 +104,16 @@ def _extract_non_chart_targets(slide: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _extract_chart_targets(slide: dict[str, Any]) -> list[dict[str, str]]:
+    visual_type = str(slide.get("visual_type") or "")
+    if visual_type == "comparison_split":
+        layout_data = slide.get("layout_data") if isinstance(slide.get("layout_data"), dict) else {}
+        left_label = str(layout_data.get("left_label") or "Option A")
+        right_label = str(layout_data.get("right_label") or "Option B")
+        return [
+            {"type": "node", "id": "node-left", "text": left_label},
+            {"type": "node", "id": "node-right", "text": right_label},
+        ]
+
     chart = slide.get("chart_data")
     if not isinstance(chart, dict):
         return []
@@ -133,14 +144,14 @@ def _extract_chart_targets(slide: dict[str, Any]) -> list[dict[str, str]]:
 
 def extract_slide_targets(slide: dict[str, Any]) -> list[dict[str, str]]:
     visual_type = str(slide.get("visual_type") or "")
-    if visual_type == "chart":
+    if visual_type in NODE_TIMING_VISUAL_TYPES:
         return _extract_chart_targets(slide)
     return _extract_non_chart_targets(slide)
 
 
 def _allowed_source_types(slide: dict[str, Any]) -> set[str]:
     visual_type = str(slide.get("visual_type") or "")
-    if visual_type == "chart":
+    if visual_type in NODE_TIMING_VISUAL_TYPES:
         return CHART_SOURCE_TYPES
     return NON_CHART_SOURCE_TYPES
 
@@ -290,7 +301,7 @@ def _heuristic_auto_links(
         return []
 
     visual_type = str(slide.get("visual_type") or "")
-    if visual_type == "chart":
+    if visual_type in NODE_TIMING_VISUAL_TYPES:
         eligible = [t for t in targets if t["type"] in CHART_SOURCE_TYPES]
     else:
         eligible = [t for t in targets if t["type"] in {"paragraph", "word"}]
@@ -340,8 +351,8 @@ You are an animation timing planner.
 Return strict JSON only.
 
 Rules:
-- For visual_type=chart, only source_type node or edge.
-- For non-chart, only source_type paragraph or word.
+- For visual_type in [chart, comparison_split], only source_type node or edge.
+- For other visual types, only source_type paragraph or word.
 - Never return heading links.
 - Choose token_index from provided narration tokens.
 - Keep links concise and meaningful.
@@ -470,10 +481,10 @@ def build_slide_timing_plan(
 
     visual_type = str(slide.get("visual_type") or "")
     policy_errors: list[str] = []
-    if visual_type == "chart":
+    if visual_type in NODE_TIMING_VISUAL_TYPES:
         has_required_link = any(item.get("source_type") in {"node", "edge"} for item in resolved)
         if not has_required_link:
-            policy_errors.append("Chart slide requires at least one node/edge timing link.")
+            policy_errors.append("Node-timing slide requires at least one node/edge timing link.")
     else:
         has_required_link = any(item.get("source_type") in {"word", "paragraph"} for item in resolved)
         if not has_required_link:

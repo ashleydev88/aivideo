@@ -632,7 +632,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         .filter((entry): entry is { sourceId: string; tokenIndex: number } => !!entry);
     const sidebarPanelLabel = "Menu";
 
-    const upsertManualTimingLink = (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading"; sourceText: string; tokenIndex: number }) => {
+    const upsertManualTimingLink = (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading" | "node" | "edge"; sourceText: string; tokenIndex: number }) => {
         const nextSlides = [...slides];
         const existing = Array.isArray(nextSlides[currentSlideIndex].timing_links_manual)
             ? [...(nextSlides[currentSlideIndex].timing_links_manual as TimingLink[])]

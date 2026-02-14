@@ -23,7 +23,7 @@ interface VisualPreviewProps {
     onSlideFieldChange?: (field: keyof SlidePreviewData, value: unknown) => void;
     narrationTokens?: Array<{ index: number; word: string }>;
     timingLinks?: Array<{ sourceId: string; tokenIndex: number }>;
-    onTextTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading"; sourceText: string; tokenIndex: number }) => void;
+    onTextTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading" | "node" | "edge"; sourceText: string; tokenIndex: number }) => void;
     onTextTimingLinkRemove?: (sourceId: string) => void;
 }
 
@@ -630,6 +630,8 @@ export default function VisualPreview({
             visual_type === 'contextual_overlay' ||
             visual_type === 'contextual-overlay' ||
             visual_type === 'key_stat_breakout';
+        const allowsNodeTimingInGraph = visual_type === 'chart' || visual_type === 'comparison_split';
+        const allowTimingInGraph = allowsNodeTimingInGraph || allowsTextTimingInGraph;
 
         return (
             <ScaleContainer>
@@ -648,8 +650,9 @@ export default function VisualPreview({
                         backgroundImage={resolvedImage}
                         narrationTokens={narrationTokens}
                         timingLinks={timingLinks}
-                        onTimingLinkAdd={allowsTextTimingInGraph ? onTextTimingLinkAdd : undefined}
-                        onTimingLinkRemove={allowsTextTimingInGraph ? onTextTimingLinkRemove : undefined}
+                        onTimingLinkAdd={allowTimingInGraph ? onTextTimingLinkAdd : undefined}
+                        onTimingLinkRemove={allowTimingInGraph ? onTextTimingLinkRemove : undefined}
+                        enableNodeTiming={allowsNodeTimingInGraph}
                         onUpdate={
                             visual_type === 'chart'
                                 ? onChartUpdate

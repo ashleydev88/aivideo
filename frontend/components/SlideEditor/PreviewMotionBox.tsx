@@ -23,7 +23,7 @@ interface PreviewMotionBoxProps {
     onUpdate?: (field: string, value: string) => void;
     narrationTokens?: Array<{ index: number; word: string }>;
     timingLinks?: Array<{ sourceId: string; tokenIndex: number }>;
-    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading"; sourceText: string; tokenIndex: number }) => void;
+    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading" | "node" | "edge"; sourceText: string; tokenIndex: number }) => void;
     onTimingLinkRemove?: (sourceId: string) => void;
     enableDescriptionTiming?: boolean;
 }
