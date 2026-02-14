@@ -8,6 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import {
     ChevronLeft,
     ChevronRight,
     Save,
@@ -445,7 +451,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             return;
         }
 
-        const shouldDelete = window.confirm(`Delete slide ${currentSlideIndex + 1}? This action cannot be undone.`);
+        const shouldDelete = window.confirm(`Delete slide warning: Delete slide ${currentSlideIndex + 1}? This action cannot be undone.`);
         if (!shouldDelete) return;
 
         const currentSlideNumber = slides[currentSlideIndex]?.slide_number;
@@ -572,11 +578,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
 
                 {/* ... (Tool buttons remain same) ... */}
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => handleSave(false)} disabled={isSaving}>
-                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : <Save className="h-4 w-4 text-slate-500" />}
-                        <span className="ml-2 hidden sm:inline text-slate-600">Save Draft</span>
-                    </Button>
-                    <div className="h-6 w-px bg-slate-200 mx-2" />
                     <Button
                         variant="ghost"
                         size="sm"
@@ -586,36 +587,47 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                         {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                         <span className="ml-2 hidden sm:inline">{isSidebarOpen ? `Close ${sidebarPanelLabel}` : `Open ${sidebarPanelLabel}`}</span>
                     </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-slate-600 hover:text-blue-700 hover:bg-blue-50"
+                                title="Create menu"
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onClick={handleInsertSlide} className="cursor-pointer">
+                                <Plus className="h-4 w-4 text-blue-700" />
+                                <span>Add Slide</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleAddAssessmentStep} className="cursor-pointer">
+                                <ListChecks className="h-4 w-4 text-emerald-700" />
+                                <span>Add Assessment</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={handleInsertSlide}
-                        className="text-slate-600 hover:text-blue-700 hover:bg-blue-50"
-                        title="Insert a new slide after this one"
+                        onClick={() => handleSave(false)}
+                        disabled={isSaving}
+                        className="text-slate-600 hover:text-slate-800"
+                        title="Save Draft"
                     >
-                        <Plus className="h-4 w-4" />
-                        <span className="ml-2 hidden sm:inline">Add Slide</span>
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleAddAssessmentStep}
-                        className="text-slate-600 hover:text-emerald-700 hover:bg-emerald-50"
-                        title="Insert an assessment slide after this step"
-                    >
-                        <ListChecks className="h-4 w-4" />
-                        <span className="ml-2 hidden sm:inline">Add Assessment Step</span>
+                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : <Save className="h-4 w-4" />}
                     </Button>
                     <Button
                         variant="ghost"
                         size="sm"
                         onClick={handleDeleteCurrentSlide}
                         disabled={slides.length <= 1}
-                        className="text-slate-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-40"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-40"
                         title="Delete this slide"
                     >
                         <Trash2 className="h-4 w-4" />
-                        <span className="ml-2 hidden sm:inline">Delete Slide</span>
                     </Button>
                     <div className="h-6 w-px bg-slate-200 mx-2" />
                     <Button onClick={handleGenerateVideo} disabled={isFinalizing || isRenderQueued} className="bg-teal-600 hover:bg-teal-700">
