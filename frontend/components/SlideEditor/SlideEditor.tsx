@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,14 @@ import {
     PanelRightClose,
     ListChecks,
     Plus,
-    Trash2
+    Trash2,
+    LayoutGrid,
+    PencilLine,
+    ArrowUp,
+    ArrowDown,
+    GripVertical,
+    ZoomIn,
+    ZoomOut
 } from "lucide-react";
 import VisualPreview from "./VisualPreview";
 import { createClient } from "@/lib/supabase/client";
@@ -337,7 +344,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         setSlides(newSlides);
     };
 
-    const handleSave = async (silent = false, slidesToSave?: Slide[]) => {
+    const handleSave = useCallback(async (silent = false, slidesToSave?: Slide[]) => {
         setIsSaving(true);
         try {
             const supabase = createClient();
@@ -359,7 +366,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         } finally {
             setIsSaving(false);
         }
-    };
+    }, [courseId, slides]);
 
     const handleNext = () => {
         if (currentSlideIndex < slides.length - 1) {
@@ -562,6 +569,9 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     });
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<"edit" | "overview">("edit");
+    const [dragSlideIndex, setDragSlideIndex] = useState<number | null>(null);
+    const [overviewDensity, setOverviewDensity] = useState<"default" | "compact">("default");
 
     const toggleSection = (key: keyof typeof openSections) => {
         setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -658,6 +668,54 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         setSlides(nextSlides);
     };
 
+    const moveSlide = useCallback((fromIndex: number, toIndex: number) => {
+        if (fromIndex === toIndex) return;
+        if (fromIndex < 0 || toIndex < 0 || fromIndex >= slides.length || toIndex >= slides.length) return;
+
+        const reorderedSlides = [...slides];
+        const [movedSlide] = reorderedSlides.splice(fromIndex, 1);
+        reorderedSlides.splice(toIndex, 0, movedSlide);
+        const normalizedSlides = renumberSlides(reorderedSlides);
+
+        setSlides(normalizedSlides);
+        setCurrentSlideIndex((prev) => {
+            if (prev === fromIndex) return toIndex;
+            if (fromIndex < prev && prev <= toIndex) return prev - 1;
+            if (toIndex <= prev && prev < fromIndex) return prev + 1;
+            return prev;
+        });
+        void handleSave(true, normalizedSlides);
+    }, [slides, handleSave]);
+
+    const handleDropReorder = (targetIndex: number, e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        const fromData = Number.parseInt(e.dataTransfer.getData("text/plain"), 10);
+        const sourceIndex = dragSlideIndex ?? fromData;
+        setDragSlideIndex(null);
+        if (!Number.isInteger(sourceIndex)) return;
+        moveSlide(sourceIndex, targetIndex);
+    };
+
+    useEffect(() => {
+        if (viewMode !== "overview") return;
+
+        const onOverviewKeyDown = (event: KeyboardEvent) => {
+            const isMod = event.metaKey || event.ctrlKey;
+            if (!isMod || !event.shiftKey) return;
+
+            if (event.key === "ArrowUp") {
+                event.preventDefault();
+                moveSlide(currentSlideIndex, currentSlideIndex - 1);
+            } else if (event.key === "ArrowDown") {
+                event.preventDefault();
+                moveSlide(currentSlideIndex, currentSlideIndex + 1);
+            }
+        };
+
+        window.addEventListener("keydown", onOverviewKeyDown);
+        return () => window.removeEventListener("keydown", onOverviewKeyDown);
+    }, [viewMode, currentSlideIndex, moveSlide]);
+
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] max-h-[900px] bg-white rounded-xl shadow-sm border overflow-hidden">
             {/* Toolbar */}
@@ -671,9 +729,19 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                     <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => setViewMode((prev) => (prev === "edit" ? "overview" : "edit"))}
+                        className="text-slate-600 hover:text-teal-600 hover:bg-teal-50"
+                        title={viewMode === "edit" ? "Open slide overview" : "Return to editor"}
+                    >
+                        {viewMode === "edit" ? <LayoutGrid className="h-4 w-4" /> : <PencilLine className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                         className="text-slate-600 hover:text-teal-600 hover:bg-teal-50"
                         aria-label="Toggle menu"
+                        disabled={viewMode === "overview"}
                     >
                         {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                     </Button>
@@ -728,67 +796,176 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+            {viewMode === "overview" ? (
+                <div className="flex-1 min-h-0 overflow-y-auto bg-slate-100 p-5 md:p-6">
+                    <div className="mx-auto w-full max-w-7xl space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-semibold text-slate-800">Slides Overview</h3>
+                                <p className="text-xs text-slate-500">Drag cards to reorder, use arrow buttons, or press Cmd/Ctrl + Shift + Up/Down.</p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setOverviewDensity((prev) => (prev === "default" ? "compact" : "default"))}
+                                className="h-8 w-8 p-0 text-slate-600"
+                                title={overviewDensity === "default" ? "Zoom out overview" : "Zoom in overview"}
+                                aria-label={overviewDensity === "default" ? "Zoom out overview" : "Zoom in overview"}
+                            >
+                                {overviewDensity === "default" ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
+                            </Button>
+                        </div>
 
-                {/* LEFT: VISUAL PREVIEW */}
-                <div className={cn(
-                    "bg-slate-100 p-8 flex flex-col items-center justify-center relative border-r border-slate-200/50 transition-all duration-300 ease-in-out overflow-hidden",
-                    isSidebarOpen ? "md:w-3/5" : "md:w-full"
-                )}>
-                    <div className={cn(
-                        "w-full aspect-video bg-white shadow-xl rounded-lg overflow-hidden border-4 border-white ring-1 ring-black/5 relative transition-all duration-300",
-                        isSidebarOpen ? "max-w-[800px]" : "max-w-[1000px]"
-                    )}>
-                        <VisualPreview
-                            slide={currentSlide}
-                            onChartUpdate={(newData) => handleUpdateSlide("chart_data", newData)}
-                            onTextChange={(val: string) => handleUpdateSlide("visual_text", val)}
-                            onBackgroundChange={(val: string) => handleUpdateSlide("background_color", val)}
-                            onSlideFieldChange={(field, value) => handleUpdateSlide(field as keyof Slide, value)}
-                            narrationTokens={narrationTokens}
-                            timingLinks={editorTimingLinks}
-                            onTextTimingLinkAdd={upsertManualTimingLink}
-                            onTextTimingLinkRemove={removeManualTimingLinkBySource}
-                        />
-                    </div>
+                        <div className={cn(
+                            "grid gap-4",
+                            overviewDensity === "default"
+                                ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3"
+                                : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
+                        )}>
+                            {slides.map((slide, index) => {
+                                const narrationPreview = (slide.text || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
-                    {/* Navigation Arrows Floating */}
-                    <button
-                        onClick={handlePrev}
-                        disabled={currentSlideIndex === 0}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 hover:bg-white shadow-md disabled:opacity-30 transition-all hover:scale-110"
-                    >
-                        <ChevronLeft className="h-6 w-6 text-slate-700" />
-                    </button>
+                                return (
+                                    <div
+                                        key={`${slide.id ?? "slide"}-${index}`}
+                                        draggable
+                                        onDragStart={(e) => {
+                                            setDragSlideIndex(index);
+                                            e.dataTransfer.effectAllowed = "move";
+                                            e.dataTransfer.setData("text/plain", String(index));
+                                        }}
+                                        onDragEnd={() => setDragSlideIndex(null)}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDrop={(e) => handleDropReorder(index, e)}
+                                        onClick={() => setCurrentSlideIndex(index)}
+                                        className={cn(
+                                            "rounded-xl border bg-white shadow-sm transition-all",
+                                            index === currentSlideIndex
+                                                ? "border-teal-300 ring-2 ring-teal-500/30"
+                                                : "border-slate-200 hover:border-slate-300",
+                                            dragSlideIndex === index ? "opacity-60" : "opacity-100",
+                                            "cursor-pointer"
+                                        )}
+                                    >
+                                        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCurrentSlideIndex(index);
+                                                    setViewMode("edit");
+                                                }}
+                                                className="text-sm font-semibold text-slate-700 hover:text-teal-700"
+                                            >
+                                                Slide {index + 1}
+                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => moveSlide(index, index - 1)}
+                                                    disabled={index === 0}
+                                                    className="h-7 w-7 p-0"
+                                                    title="Move slide up"
+                                                >
+                                                    <ArrowUp className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => moveSlide(index, index + 1)}
+                                                    disabled={index === slides.length - 1}
+                                                    className="h-7 w-7 p-0"
+                                                    title="Move slide down"
+                                                >
+                                                    <ArrowDown className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <div className="ml-1 cursor-grab rounded p-1 text-slate-400">
+                                                    <GripVertical className="h-4 w-4" />
+                                                </div>
+                                            </div>
+                                        </div>
 
-                    <button
-                        onClick={handleNext}
-                        disabled={currentSlideIndex === slides.length - 1}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 hover:bg-white shadow-md disabled:opacity-30 transition-all hover:scale-110"
-                    >
-                        <ChevronRight className="h-6 w-6 text-slate-700" />
-                    </button>
-
-                    {/* Scrub Bar */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-3/4 max-w-lg flex items-center gap-2 bg-white/50 backdrop-blur px-4 py-2 rounded-full">
-                        <span className="text-xs font-medium text-slate-600 w-8 text-right">{currentSlideIndex + 1}</span>
-                        <Slider
-                            value={[currentSlideIndex]}
-                            max={slides.length - 1}
-                            step={1}
-                            onValueChange={(val: number[]) => setCurrentSlideIndex(val[0])}
-                            className="flex-1"
-                        />
-                        <span className="text-xs font-medium text-slate-400 w-8 text-left">{slides.length}</span>
+                                        <div className="space-y-3 p-3">
+                                            <div className={cn(
+                                                "overflow-hidden rounded-md border border-slate-200 bg-white",
+                                                overviewDensity === "default" ? "aspect-video" : "aspect-[16/10]"
+                                            )}>
+                                                <VisualPreview slide={slide} />
+                                            </div>
+                                            {overviewDensity === "default" && (
+                                                <p className="line-clamp-2 text-xs text-slate-600">
+                                                    {narrationPreview || "No narration script yet."}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
+            ) : (
+                <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
 
-                {/* RIGHT: EDITOR PANEL */}
-                <div className={cn(
-                    "min-h-0 transition-all duration-300 ease-in-out bg-white/50 scrollbar-thin scrollbar-thumb-slate-200",
-                    isSidebarOpen ? "md:w-2/5 p-6 opacity-100 border-l overflow-y-auto overflow-x-hidden" : "w-0 p-0 opacity-0 border-none overflow-hidden"
-                )}>
-                    <div className="space-y-4 max-w-lg mx-auto min-w-[300px]">
+                    {/* LEFT: VISUAL PREVIEW */}
+                    <div className={cn(
+                        "bg-slate-100 p-8 flex flex-col items-center justify-center relative border-r border-slate-200/50 transition-all duration-300 ease-in-out overflow-hidden",
+                        isSidebarOpen ? "md:w-3/5" : "md:w-full"
+                    )}>
+                        <div className={cn(
+                            "w-full aspect-video bg-white shadow-xl rounded-lg overflow-hidden border-4 border-white ring-1 ring-black/5 relative transition-all duration-300",
+                            isSidebarOpen ? "max-w-[800px]" : "max-w-[1000px]"
+                        )}>
+                            <VisualPreview
+                                slide={currentSlide}
+                                onChartUpdate={(newData) => handleUpdateSlide("chart_data", newData)}
+                                onTextChange={(val: string) => handleUpdateSlide("visual_text", val)}
+                                onBackgroundChange={(val: string) => handleUpdateSlide("background_color", val)}
+                                onSlideFieldChange={(field, value) => handleUpdateSlide(field as keyof Slide, value)}
+                                narrationTokens={narrationTokens}
+                                timingLinks={editorTimingLinks}
+                                onTextTimingLinkAdd={upsertManualTimingLink}
+                                onTextTimingLinkRemove={removeManualTimingLinkBySource}
+                            />
+                        </div>
+
+                        {/* Navigation Arrows Floating */}
+                        <button
+                            onClick={handlePrev}
+                            disabled={currentSlideIndex === 0}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 hover:bg-white shadow-md disabled:opacity-30 transition-all hover:scale-110"
+                        >
+                            <ChevronLeft className="h-6 w-6 text-slate-700" />
+                        </button>
+
+                        <button
+                            onClick={handleNext}
+                            disabled={currentSlideIndex === slides.length - 1}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 hover:bg-white shadow-md disabled:opacity-30 transition-all hover:scale-110"
+                        >
+                            <ChevronRight className="h-6 w-6 text-slate-700" />
+                        </button>
+
+                        {/* Scrub Bar */}
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-3/4 max-w-lg flex items-center gap-2 bg-white/50 backdrop-blur px-4 py-2 rounded-full">
+                            <span className="text-xs font-medium text-slate-600 w-8 text-right">{currentSlideIndex + 1}</span>
+                            <Slider
+                                value={[currentSlideIndex]}
+                                max={slides.length - 1}
+                                step={1}
+                                onValueChange={(val: number[]) => setCurrentSlideIndex(val[0])}
+                                className="flex-1"
+                            />
+                            <span className="text-xs font-medium text-slate-400 w-8 text-left">{slides.length}</span>
+                        </div>
+                    </div>
+
+                    {/* RIGHT: EDITOR PANEL */}
+                    <div className={cn(
+                        "min-h-0 transition-all duration-300 ease-in-out bg-white/50 scrollbar-thin scrollbar-thumb-slate-200",
+                        isSidebarOpen ? "md:w-2/5 p-6 opacity-100 border-l overflow-y-auto overflow-x-hidden" : "w-0 p-0 opacity-0 border-none overflow-hidden"
+                    )}>
+                        <div className="space-y-4 max-w-lg mx-auto min-w-[300px]">
 
                         {/* 1. NARRATION SCRIPT */}
                         {!currentSlide.is_assessment && (
@@ -982,9 +1159,10 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
 
                         {/* Slide Styling Section Removed: Now handled inline */}
 
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
