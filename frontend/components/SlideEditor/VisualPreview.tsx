@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import parse from 'html-react-parser';
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
+import { ChromePicker } from 'react-color';
 import { createClient } from "@/lib/supabase/client";
 import {
     RefreshCcw,
     Palette
 } from "lucide-react";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
 import { cn, isLightColor } from "@/lib/utils";
 import { MotionGraphPreview } from './MotionGraphPreview';
 import { AutoFitText } from './AutoFitText';
@@ -78,51 +75,158 @@ const BackgroundEditWrapper: React.FC<BackgroundEditWrapperProps> = ({
     controlPositionClassName
 }) => {
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-    if (!onBackgroundChange) return <>{children}</>;
+    const [hexInput, setHexInput] = useState(backgroundColor || (isContextualOverlayType ? '#0f172a' : '#000000'));
+    const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
+    const triggerButtonRef = useRef<HTMLButtonElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
+    const defaultColor = isContextualOverlayType ? '#0f172a' : '#000000';
+
     const isLightBg = isLightColor(backgroundColor);
+
+    const normalizeHexColor = (value: string): string | null => {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+        const hex = withHash.slice(1);
+
+        if (/^[0-9a-fA-F]{3}$/.test(hex) || /^[0-9a-fA-F]{6}$/.test(hex)) {
+            return withHash.toUpperCase();
+        }
+        return null;
+    };
+
+    const applyHexInput = () => {
+        if (!onBackgroundChange) return;
+        const normalized = normalizeHexColor(hexInput);
+        if (normalized) {
+            onBackgroundChange(normalized);
+            setHexInput(normalized);
+            return;
+        }
+        setHexInput(backgroundColor || defaultColor);
+    };
+
+    const updatePanelPosition = () => {
+        const triggerEl = triggerButtonRef.current;
+        if (!triggerEl) return;
+
+        const rect = triggerEl.getBoundingClientRect();
+        const panelWidth = 256;
+        const margin = 12;
+        const nextLeft = Math.min(
+            Math.max(margin, rect.left),
+            Math.max(margin, window.innerWidth - panelWidth - margin)
+        );
+        const nextTop = rect.bottom + 8;
+        setPanelPosition({ top: nextTop, left: nextLeft });
+    };
+
+    const setPopoverOpen = (nextOpen: boolean) => {
+        setIsPopoverOpen(nextOpen);
+        if (nextOpen) {
+            setHexInput((backgroundColor || defaultColor).toUpperCase());
+            updatePanelPosition();
+        }
+    };
+
+    useEffect(() => {
+        if (!isPopoverOpen) return;
+        const handleReposition = () => updatePanelPosition();
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as Node;
+            if (panelRef.current?.contains(target) || triggerButtonRef.current?.contains(target)) {
+                return;
+            }
+            setIsPopoverOpen(false);
+        };
+
+        window.addEventListener('resize', handleReposition);
+        window.addEventListener('scroll', handleReposition, true);
+        document.addEventListener('mousedown', handlePointerDown);
+
+        return () => {
+            window.removeEventListener('resize', handleReposition);
+            window.removeEventListener('scroll', handleReposition, true);
+            document.removeEventListener('mousedown', handlePointerDown);
+        };
+    }, [isPopoverOpen]);
+
+    if (!onBackgroundChange) return <>{children}</>;
 
     return (
         <div className={`relative group/bg ${className}`}>
             {children}
             <div className={cn(
-                "absolute top-4 left-4 z-50 pointer-events-auto transition-opacity",
+                "absolute top-8 left-8 z-[60] pointer-events-auto transition-opacity",
                 isPopoverOpen ? "opacity-100" : "opacity-0 group-hover/bg:opacity-100",
                 controlPositionClassName
             )}>
-                <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-                    <PopoverTrigger asChild>
-                        <button
-                            className={cn(
-                                "backdrop-blur-md border p-4 rounded-full shadow-sm transition-colors cursor-pointer",
-                                isLightBg
-                                    ? "bg-black/5 border-black/10 hover:bg-black/10"
-                                    : "bg-white/10 border-white/20 hover:bg-white/20"
-                            )}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <Palette className="w-8 h-8 drop-shadow-md text-slate-900" />
-                        </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-3 z-[70]" align="end" side="bottom" sideOffset={8} portalled={false}>
-                        <div className="space-y-2">
-                            <label className="text-xs font-semibold text-slate-500">
-                                {isContextualOverlayType ? 'Overlay Color' : 'Background Color'}
-                            </label>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="color"
-                                    value={backgroundColor || (isContextualOverlayType ? '#0f172a' : '#000000')}
-                                    onChange={(e) => onBackgroundChange(e.target.value)}
-                                    className="w-8 h-8 rounded cursor-pointer border-0 p-0"
-                                />
-                                <span className="text-xs font-mono text-slate-600 uppercase bg-slate-100 px-2 py-1 rounded">
-                                    {backgroundColor || 'Default'}
-                                </span>
-                            </div>
-                        </div>
-                    </PopoverContent>
-                </Popover>
+                <button
+                    ref={triggerButtonRef}
+                    className={cn(
+                        "backdrop-blur-md border p-4 rounded-full shadow-sm transition-colors cursor-pointer",
+                        isLightBg
+                            ? "bg-black/5 border-black/10 hover:bg-black/10"
+                            : "bg-white/10 border-white/20 hover:bg-white/20"
+                    )}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setPopoverOpen(!isPopoverOpen);
+                    }}
+                >
+                    <Palette className="w-8 h-8 drop-shadow-md text-slate-900" />
+                </button>
             </div>
+            {typeof document !== 'undefined' && isPopoverOpen && panelPosition && createPortal(
+                <div
+                    ref={panelRef}
+                    className="w-80 p-3 z-[80] rounded-md border bg-popover text-popover-foreground shadow-md"
+                    style={{ position: 'fixed', top: panelPosition.top, left: panelPosition.left }}
+                >
+                    <div className="space-y-3">
+                        <label className="text-xs font-semibold text-slate-500">
+                            {isContextualOverlayType ? 'Overlay Color' : 'Background Color'}
+                        </label>
+                        <div className="rounded-md border border-slate-200 overflow-hidden bg-white">
+                            <ChromePicker
+                                disableAlpha
+                                color={backgroundColor || defaultColor}
+                                onChange={(color) => {
+                                    onBackgroundChange(color.hex.toUpperCase());
+                                    setHexInput(color.hex.toUpperCase());
+                                }}
+                                styles={{
+                                    default: {
+                                        picker: {
+                                            width: '100%',
+                                            boxShadow: 'none',
+                                            background: 'transparent',
+                                            borderRadius: '0',
+                                        }
+                                    }
+                                }}
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={hexInput}
+                                onChange={(e) => setHexInput(e.target.value)}
+                                onBlur={applyHexInput}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        applyHexInput();
+                                    }
+                                }}
+                                placeholder={defaultColor}
+                                className="h-8 w-28 rounded border border-slate-200 bg-slate-100 px-2 text-xs font-mono text-slate-700 uppercase"
+                            />
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };
