@@ -572,6 +572,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     const [viewMode, setViewMode] = useState<"edit" | "overview">("edit");
     const [dragSlideIndex, setDragSlideIndex] = useState<number | null>(null);
     const [overviewDensity, setOverviewDensity] = useState<"default" | "compact">("default");
+    const slidesLengthRef = useRef(slides.length);
 
     const toggleSection = (key: keyof typeof openSections) => {
         setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -697,18 +698,33 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     };
 
     useEffect(() => {
+        slidesLengthRef.current = slides.length;
+    }, [slides.length]);
+
+    useEffect(() => {
         if (viewMode !== "overview") return;
 
         const onOverviewKeyDown = (event: KeyboardEvent) => {
             const isMod = event.metaKey || event.ctrlKey;
-            if (!isMod || !event.shiftKey) return;
+            if (isMod && event.shiftKey) {
+                if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    moveSlide(currentSlideIndex, currentSlideIndex - 1);
+                } else if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    moveSlide(currentSlideIndex, currentSlideIndex + 1);
+                }
+                return;
+            }
 
-            if (event.key === "ArrowUp") {
+            if (event.altKey || isMod || event.shiftKey) return;
+
+            if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
                 event.preventDefault();
-                moveSlide(currentSlideIndex, currentSlideIndex - 1);
-            } else if (event.key === "ArrowDown") {
+                setCurrentSlideIndex((prev) => Math.max(0, prev - 1));
+            } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
                 event.preventDefault();
-                moveSlide(currentSlideIndex, currentSlideIndex + 1);
+                setCurrentSlideIndex((prev) => Math.min(slidesLengthRef.current - 1, prev + 1));
             }
         };
 
