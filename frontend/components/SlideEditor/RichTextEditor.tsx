@@ -100,6 +100,7 @@ export default function RichTextEditor({
 }: RichTextEditorProps) {
     const editorWrapperRef = React.useRef<HTMLDivElement | null>(null);
     const timingPopoverRef = React.useRef<HTMLDivElement | null>(null);
+    const [bubbleBoundaryEl, setBubbleBoundaryEl] = React.useState<HTMLElement | null>(null);
 
     // Basic Markdown-to-HTML converter for legacy slides
     const processInitialValue = (val: string) => {
@@ -218,6 +219,42 @@ export default function RichTextEditor({
             document.removeEventListener('keydown', handleEscape);
         };
     }, [timingMenuOpen]);
+
+    React.useEffect(() => {
+        const wrapper = editorWrapperRef.current;
+        if (!wrapper) return;
+
+        // Constrain bubble menu to the visible slide frame in preview.
+        const boundary =
+            (wrapper.closest('.aspect-video') as HTMLElement | null) ||
+            (wrapper.closest('.slide-preview-content') as HTMLElement | null) ||
+            wrapper.parentElement;
+
+        setBubbleBoundaryEl(boundary);
+    }, [variant]);
+
+    React.useEffect(() => {
+        if (!editor) return;
+        const handleClickAway = (event: PointerEvent) => {
+            const target = event.target as Node | null;
+            if (!target) return;
+            if (editorWrapperRef.current?.contains(target)) return;
+
+            // BubbleMenu is appended to body, so treat it as in-bounds for editor interactions.
+            const element = target instanceof Element ? target : target.parentElement;
+            if (element?.closest('[data-tippy-root]')) return;
+
+            if (editor.isFocused) {
+                editor.commands.blur();
+            }
+            setTimingMenuOpen(false);
+        };
+
+        document.addEventListener('pointerdown', handleClickAway, true);
+        return () => {
+            document.removeEventListener('pointerdown', handleClickAway, true);
+        };
+    }, [editor]);
 
     // Sync logic removed: We now rely on the parent to unmount/remount this component (via key prop)
     // when switching slides. This prevents focus loss/cursor jumping during typing.
@@ -527,7 +564,21 @@ export default function RichTextEditor({
                 {editor && (
                     <BubbleMenu
                         editor={editor}
-                        appendTo={() => document.body}
+                        appendTo={() => bubbleBoundaryEl ?? document.body}
+                        options={{
+                            placement: 'top-start',
+                            offset: 8,
+                            inline: true,
+                            flip: {
+                                padding: 8,
+                                boundary: bubbleBoundaryEl ?? undefined,
+                            },
+                            shift: {
+                                padding: 8,
+                                crossAxis: true,
+                                boundary: bubbleBoundaryEl ?? undefined,
+                            },
+                        }}
                         className="z-[99999]"
                         shouldShow={({ editor: activeEditor, state }) => activeEditor.isFocused && !state.selection.empty}
                     >
