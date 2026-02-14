@@ -74,11 +74,29 @@ interface Profile {
     subscription_level: string;
 }
 
+interface PlannerModuleSummary {
+    id: string;
+    title: string;
+    status: string;
+    source_course_id?: string | null;
+}
+
+interface CoursePlanSummary {
+    id: string;
+    created_at: string;
+    name: string;
+    status: string;
+    recommended_format: "single_video" | "multi_video_course";
+    progress_percent: number;
+    modules: PlannerModuleSummary[];
+}
+
 export default function DashboardPage() {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [coursePlans, setCoursePlans] = useState<CoursePlanSummary[]>([]);
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [showGenerationModal, setShowGenerationModal] = useState(false);
@@ -106,21 +124,72 @@ export default function DashboardPage() {
                 return;
             }
 
-            // Fetch profile and projects
-            const [coursesRes, profileRes] = await Promise.all([
+            // Fetch profile, videos, and planner data
+            const [coursesRes, plansRes, modulesRes, profileRes] = await Promise.all([
                 supabase
                     .from("courses")
                     .select("*")
                     .eq("user_id", session.user.id)
                     .order("created_at", { ascending: false }),
+                supabase
+                    .from("course_plans")
+                    .select("id, created_at, name, status, recommended_format, progress_percent")
+                    .eq("user_id", session.user.id)
+                    .order("created_at", { ascending: false }),
+                supabase
+                    .from("course_modules")
+                    .select("id, title, status, source_course_id, course_plan_id, order_index")
+                    .order("order_index", { ascending: true }),
                 supabase.from("profiles").select("*").eq("id", session.user.id).single(),
             ]);
 
             if (coursesRes.error) {
                 console.error("Error fetching courses:", coursesRes.error);
             } else {
-                setProjects(coursesRes.data || []);
+                const courseRows = coursesRes.data || [];
+                setProjects(courseRows);
                 setAccessToken(session.access_token);
+
+                const courseStatusMap = new Map<string, string>();
+                courseRows.forEach((c: Project) => {
+                    courseStatusMap.set(c.id, c.status);
+                });
+
+                if (plansRes.error) {
+                    console.error("Error fetching course plans:", plansRes.error);
+                    setCoursePlans([]);
+                } else {
+                    const allModules = (modulesRes.data || []) as Array<{
+                        id: string;
+                        title: string;
+                        status: string;
+                        source_course_id?: string | null;
+                        course_plan_id: string;
+                    }>;
+
+                    const plans = (plansRes.data || []).map((plan) => {
+                        const planModules = allModules.filter((m) => m.course_plan_id === plan.id);
+                        const publishedCount = planModules.filter((m) => {
+                            const linkedStatus = m.source_course_id ? courseStatusMap.get(m.source_course_id) : undefined;
+                            return m.status === "published" || linkedStatus === "completed";
+                        }).length;
+                        const computedProgress = planModules.length
+                            ? Math.round((publishedCount / planModules.length) * 100)
+                            : (plan.progress_percent || 0);
+
+                        return {
+                            ...plan,
+                            progress_percent: computedProgress,
+                            modules: planModules.map((m) => ({
+                                id: m.id,
+                                title: m.title,
+                                status: m.status,
+                                source_course_id: m.source_course_id || null,
+                            })),
+                        } as CoursePlanSummary;
+                    });
+                    setCoursePlans(plans);
+                }
             }
 
             if (profileRes.data) {
@@ -439,7 +508,55 @@ export default function DashboardPage() {
                     </Card>
                 ) : (
                     // Projects Table
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="space-y-4">
+                        {coursePlans.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {coursePlans.slice(0, 6).map((plan) => (
+                                    <Card key={plan.id} className="border-slate-200">
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-base">{plan.name || "Untitled Course Plan"}</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-3">
+                                            <div className="text-xs text-slate-500">
+                                                {formatDate(plan.created_at)} • {plan.recommended_format === "multi_video_course" ? "Multi-video" : "Single video"}
+                                            </div>
+                                            <div className="text-sm text-slate-700">Progress: {plan.progress_percent}%</div>
+                                            <div className="space-y-1">
+                                                {plan.modules.slice(0, 3).map((m, idx) => (
+                                                    <div key={m.id} className="text-xs text-slate-600">
+                                                        {idx + 1}. {m.title} ({m.status})
+                                                    </div>
+                                                ))}
+                                                {plan.modules.length > 3 && (
+                                                    <div className="text-xs text-slate-500">+{plan.modules.length - 3} more modules</div>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button size="sm" variant="outline" onClick={() => router.push(`/dashboard/planner/${plan.id}`)}>
+                                                    Open Plan
+                                                </Button>
+                                                {plan.modules.find((m) => m.source_course_id) && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => {
+                                                            const firstGenerated = plan.modules.find((m) => m.source_course_id);
+                                                            if (firstGenerated?.source_course_id) {
+                                                                router.push(`/dashboard/player?id=${firstGenerated.source_course_id}`);
+                                                            }
+                                                        }}
+                                                    >
+                                                        Open Latest Video
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
@@ -574,6 +691,7 @@ export default function DashboardPage() {
                                 ))}
                             </TableBody>
                         </Table>
+                        </div>
                     </div>
                 )}
             </div>

@@ -44,6 +44,18 @@ interface WizardState {
     accentColor: string;
     colorName: string;
     title: string;
+    forcedFormat?: "single_video" | "multi_video_course";
+    plannerRecommendation?: {
+        format: "single_video" | "multi_video_course";
+        rationale?: string;
+        estimated_total_minutes?: number;
+        modules?: Array<{
+            order: number;
+            title: string;
+            estimated_minutes: number;
+        }>;
+    } | null;
+    durationMode?: "fit_requested" | "fit_recommended";
 }
 
 interface Message {
@@ -68,7 +80,6 @@ const STEPS = [
     "DOCUMENTS_CHECK",
     "DOCUMENTS_UPLOAD",
     "ADDITIONAL",
-    "DURATION",
     "STYLE",
     "TITLE",
     "REVIEW"
@@ -84,6 +95,7 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
 
     // Data Loading States
     const [isLoadingOutcomes, setIsLoadingOutcomes] = useState(false);
+    const [isLoadingRecommendation, setIsLoadingRecommendation] = useState(false);
     const [suggestedOutcomes, setSuggestedOutcomes] = useState<string[]>([]);
     const [customOutcome, setCustomOutcome] = useState("");
 
@@ -100,10 +112,22 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
         accentColor: brandColor || "#14b8a6", // Init with brandColor
         colorName: "teal",
         title: "",
+        forcedFormat: undefined,
+        plannerRecommendation: null,
+        durationMode: "fit_requested",
     });
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const hasInitialized = useRef(false);
+
+    const autoResizeTextarea = (el: HTMLTextAreaElement) => {
+        el.style.height = "auto";
+        const minHeight = 96; // 4 lines
+        const maxHeight = 176; // 8 lines
+        const nextHeight = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight);
+        el.style.height = `${nextHeight}px`;
+        el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+    };
 
     // --- Effects ---
 
@@ -259,15 +283,8 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
         const msg = text.trim() ? text : "None";
         addUserMessage(msg);
         setState(prev => ({ ...prev, additionalContext: text }));
-        setCurrentStep("DURATION");
-        addBotMessage("Thanks. Now, how long should this video course be?", "DURATION");
-    };
-
-    const handleDurationSelect = (minutes: number) => {
-        addUserMessage(`${minutes} minutes`);
-        setState(prev => ({ ...prev, duration: minutes }));
         setCurrentStep("STYLE");
-        addBotMessage("Perfect. Choose a visual style for the video.", "STYLE");
+        addBotMessage("Thanks. Choose a visual style for the video.", "STYLE");
     };
 
     const handleStyleSelect = (style: string, defaultColor: string, colorName: string) => {
@@ -294,7 +311,50 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
         const finalState = { ...state, title: courseTitle };
         setState(finalState);
         setCurrentStep("REVIEW");
+        fetchPlannerRecommendation(finalState);
         addBotMessage("Here's the plan. Ready to generate the course?", "REVIEW");
+    };
+
+    const fetchPlannerRecommendation = async (wizardState: WizardState) => {
+        if (!wizardState.topic || !wizardState.audience) return;
+        setIsLoadingRecommendation(true);
+        try {
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/course/planner/recommend`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    topic: wizardState.topic,
+                    target_audience: wizardState.audience,
+                    learning_objectives: wizardState.outcomes,
+                    additional_context: wizardState.additionalContext,
+                    source_document_text: wizardState.documentText,
+                    duration_preference_minutes: wizardState.duration,
+                    country
+                })
+            });
+            if (!res.ok) throw new Error("Failed to get planner recommendation");
+            const data = await res.json();
+            const recommendation = data?.recommendation || null;
+            const recommendedMins = recommendation?.estimated_total_minutes ?? null;
+            const durationDefault = wizardState.duration ?? (typeof recommendedMins === "number" ? recommendedMins : 5);
+            setState(prev => ({
+                ...prev,
+                plannerRecommendation: recommendation,
+                forcedFormat: undefined,
+                duration: durationDefault,
+                durationMode: "fit_requested"
+            }));
+        } catch (e) {
+            console.error("Planner recommendation error", e);
+        } finally {
+            setIsLoadingRecommendation(false);
+        }
     };
 
     // --- Renderers ---
@@ -306,17 +366,28 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
             case "TOPIC":
                 return (
                     <div className="flex gap-2 animate-in fade-in slide-in-from-bottom-4">
-                        <input
-                            type="text"
-                            className="flex-1 border rounded-lg px-4 py-2 focus:ring-2 focus:ring-teal-500 outline-none"
+                        <div className="flex-1 relative">
+                        <textarea
+                            rows={4}
+                            className="w-full border rounded-lg px-4 py-2 text-sm font-normal leading-5 text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500 outline-none resize-none min-h-[96px] max-h-[176px] overflow-y-hidden"
                             placeholder="e.g., Cyber Security Awareness"
+                            onInput={(e) => autoResizeTextarea(e.currentTarget)}
+                            onFocus={(e) => autoResizeTextarea(e.currentTarget)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter") handleTopicSubmit(e.currentTarget.value);
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleTopicSubmit(e.currentTarget.value);
+                                }
                             }}
                             autoFocus
                         />
+                        <div className="absolute bottom-2 right-2 text-[10px] text-slate-400">
+                            Enter to submit, Shift+Enter for newline
+                        </div>
+                        </div>
                         <Button onClick={(e) => {
-                            const input = e.currentTarget.previousSibling as HTMLInputElement;
+                            const input = (e.currentTarget.previousSibling as HTMLDivElement)?.querySelector("textarea");
+                            if (!input) return;
                             handleTopicSubmit(input.value);
                         }}>
                             <Send className="w-4 h-4" />
@@ -460,25 +531,6 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
                     </div>
                 );
 
-            case "DURATION":
-                return (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 animate-in fade-in slide-in-from-bottom-4">
-                        {[3, 5, 10, 15, 20].map(min => (
-                            <div
-                                key={min}
-                                onClick={() => handleDurationSelect(min)}
-                                className="cursor-pointer border rounded-xl p-4 hover:border-teal-500 hover:bg-teal-50 transition-all text-center"
-                            >
-                                <Clock className="w-6 h-6 mx-auto mb-2 text-slate-400" />
-                                <div className="font-semibold">{min} Mins</div>
-                                <div className="text-xs text-slate-500">
-                                    {min <= 5 ? "~5-15 slides" : min <= 10 ? "~25-35 slides" : "~40+ slides"}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                );
-
             case "STYLE":
                 return (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
@@ -510,16 +562,27 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
             case "TITLE":
                 return (
                     <div className="flex gap-2 animate-in fade-in slide-in-from-bottom-4">
-                        <input
-                            type="text"
-                            className="flex-1 border rounded-lg px-4 py-2 focus:ring-2 focus:ring-teal-500 outline-none"
+                        <div className="flex-1 relative">
+                        <textarea
+                            rows={4}
+                            className="w-full border rounded-lg px-4 py-2 text-sm font-normal leading-5 text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500 outline-none resize-none min-h-[96px] max-h-[176px] overflow-y-hidden"
                             placeholder="e.g., Q3 Safety Compliance"
+                            onInput={(e) => autoResizeTextarea(e.currentTarget)}
+                            onFocus={(e) => autoResizeTextarea(e.currentTarget)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter") handleTitleSubmit(e.currentTarget.value);
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleTitleSubmit(e.currentTarget.value);
+                                }
                             }}
                         />
+                        <div className="absolute bottom-2 right-2 text-[10px] text-slate-400">
+                            Enter to submit, Shift+Enter for newline
+                        </div>
+                        </div>
                         <Button onClick={(e) => {
-                            const input = e.currentTarget.previousSibling as HTMLInputElement;
+                            const input = (e.currentTarget.previousSibling as HTMLDivElement)?.querySelector("textarea");
+                            if (!input) return;
                             handleTitleSubmit(input.value);
                         }}>
                             <Send className="w-4 h-4" />
@@ -528,6 +591,14 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
                 );
 
             case "REVIEW":
+                const recommendedFormat = state.plannerRecommendation?.format;
+                const selectedFormat = state.forcedFormat || recommendedFormat;
+                const recommendedMinutes = state.plannerRecommendation?.estimated_total_minutes || 0;
+                const selectedDuration = state.duration || 5;
+                const durationTooShort = recommendedMinutes > 0 && selectedDuration < recommendedMinutes;
+                const finalDuration = durationTooShort && state.durationMode === "fit_recommended"
+                    ? recommendedMinutes
+                    : selectedDuration;
                 return (
                     <div className="animate-in fade-in slide-in-from-bottom-4">
                         <div className="bg-slate-50 p-4 rounded-lg mb-4 text-sm space-y-2 border">
@@ -541,7 +612,7 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-500">Duration:</span>
-                                <span className="font-medium">{state.duration} mins</span>
+                                <span className="font-medium">{finalDuration} mins</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-500">Outcomes:</span>
@@ -558,10 +629,122 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
                                 </div>
                             )}
                         </div>
+                        <div className="bg-white border rounded-lg p-4 mb-4 space-y-3">
+                            <div className="text-xs uppercase tracking-wide text-slate-500">Planner Recommendation</div>
+                            {isLoadingRecommendation ? (
+                                <div className="text-sm text-slate-500">Analyzing best structure...</div>
+                            ) : (
+                                <>
+                                    <div className="text-sm">
+                                        Recommended:{" "}
+                                        <span className="font-semibold text-slate-900">
+                                            {recommendedFormat === "multi_video_course" ? "Multi-video course" : "Single video"}
+                                        </span>
+                                    </div>
+                                    {state.plannerRecommendation?.rationale && (
+                                        <div className="text-xs text-slate-600">{state.plannerRecommendation.rationale}</div>
+                                    )}
+                                    <div className="pt-1">
+                                        <div className="text-xs text-slate-500 mb-2">How much learner time is available?</div>
+                                        <div className="grid grid-cols-5 gap-2">
+                                            {[3, 5, 10, 15, 20].map((min) => (
+                                                <button
+                                                    key={min}
+                                                    type="button"
+                                                    onClick={() => setState(prev => ({ ...prev, duration: min }))}
+                                                    className={cn(
+                                                        "border rounded-md px-2 py-1 text-xs transition",
+                                                        selectedDuration === min
+                                                            ? "border-teal-500 bg-teal-50 text-teal-700"
+                                                            : "border-slate-200 hover:border-slate-300"
+                                                    )}
+                                                >
+                                                    {min}m
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {durationTooShort && (
+                                        <div className="border border-amber-200 bg-amber-50 rounded-md p-2 text-xs space-y-2">
+                                            <div className="text-amber-800">
+                                                {selectedDuration} minutes is below recommended coverage ({recommendedMinutes} minutes).
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setState(prev => ({ ...prev, durationMode: "fit_recommended" }))}
+                                                    className={cn(
+                                                        "border rounded-md px-3 py-2 text-left",
+                                                        state.durationMode === "fit_recommended"
+                                                            ? "border-amber-500 bg-white text-amber-900"
+                                                            : "border-amber-200"
+                                                    )}
+                                                >
+                                                    Keep full coverage (use ~{recommendedMinutes} minutes)
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setState(prev => ({ ...prev, durationMode: "fit_requested" }))}
+                                                    className={cn(
+                                                        "border rounded-md px-3 py-2 text-left",
+                                                        state.durationMode === "fit_requested"
+                                                            ? "border-amber-500 bg-white text-amber-900"
+                                                            : "border-amber-200"
+                                                    )}
+                                                >
+                                                    Fit to {selectedDuration} minutes (reduced depth)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setState(prev => ({ ...prev, forcedFormat: "single_video" }))}
+                                            className={cn(
+                                                "border rounded-md px-3 py-2 text-sm text-left transition",
+                                                selectedFormat === "single_video"
+                                                    ? "border-teal-500 bg-teal-50 text-teal-700"
+                                                    : "border-slate-200 hover:border-slate-300"
+                                            )}
+                                        >
+                                            Single video
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setState(prev => ({ ...prev, forcedFormat: "multi_video_course" }))}
+                                            className={cn(
+                                                "border rounded-md px-3 py-2 text-sm text-left transition",
+                                                selectedFormat === "multi_video_course"
+                                                    ? "border-teal-500 bg-teal-50 text-teal-700"
+                                                    : "border-slate-200 hover:border-slate-300"
+                                            )}
+                                        >
+                                            Multi-video course
+                                        </button>
+                                    </div>
+                                    {state.plannerRecommendation?.modules?.length ? (
+                                        <div className="pt-1">
+                                            <div className="text-xs text-slate-500 mb-1">Suggested modules</div>
+                                            <div className="space-y-1">
+                                                {state.plannerRecommendation.modules.slice(0, 5).map((m, idx) => (
+                                                    <div key={`${m.title}-${idx}`} className="text-xs text-slate-700">
+                                                        {idx + 1}. {m.title} ({m.estimated_minutes} min)
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </>
+                            )}
+                        </div>
                         <Button
                             className="w-full bg-teal-600 hover:bg-teal-700 text-lg py-6"
-                            onClick={() => onComplete(state)}
-                            disabled={isLoading}
+                            onClick={() => onComplete({
+                                ...state,
+                                duration: finalDuration
+                            })}
+                            disabled={isLoading || isLoadingRecommendation}
                         >
                             {isLoading ? (
                                 <>

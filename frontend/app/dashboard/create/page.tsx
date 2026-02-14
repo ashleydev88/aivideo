@@ -25,16 +25,25 @@ interface Slide {
 
 interface WizardState {
     topic: string;
+    audience: "new_hires" | "all_employees" | "leadership" | null;
+    outcomes: string[];
+    additionalContext: string;
+    hasDocuments: boolean | null;
+    documents: File[];
+    documentText: string;
     title: string;
     style: string;
-    duration: number;
-    policyText: string;
-    learningObjective?: string;
+    duration: number | null;
     logoUrl?: string;
     logoCrop?: Record<string, unknown> | null;
     accentColor?: string;
     colorName?: string;
     validationEnabled?: boolean;
+    forcedFormat?: "single_video" | "multi_video_course";
+    plannerRecommendation?: {
+        format: "single_video" | "multi_video_course";
+        rationale?: string;
+    } | null;
 }
 
 export interface Topic {
@@ -443,41 +452,79 @@ function DashboardCreatePageContent() {
         }
 
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/course/start-intake`, {
+            const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const createPlanRes = await fetch(`${apiBase}/api/course/planner/create`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify({
-                    target_audience: wizardState.audience,
-                    has_source_documents: wizardState.hasDocuments,
-                    duration: wizardState.duration,
-                    title: wizardState.title,
+                    name: wizardState.title,
+                    topic: wizardState.topic,
+                    target_audience: wizardState.audience || "all_employees",
+                    learning_objectives: wizardState.outcomes,
+                    additional_context: wizardState.additionalContext,
+                    source_document_text: wizardState.documentText,
+                    duration_preference_minutes: wizardState.duration || 5,
+                    country: country,
                     style: wizardState.style,
                     accent_color: wizardState.accentColor,
                     color_name: wizardState.colorName,
-                    country: country,
                     logo_url: user?.user_metadata?.logo_url,
                     logo_crop: user?.user_metadata?.logo_crop,
-                    // Discovery Context (NEW)
-                    topic: wizardState.topic,
-                    learning_outcomes: wizardState.outcomes,
-                    additional_context: wizardState.additionalContext,
-                    source_document_text: wizardState.documentText // Send text immediately
+                    forced_format: wizardState.forcedFormat
                 })
             });
 
-            const data = await res.json();
+            const data = await createPlanRes.json();
 
-            if (data.status === "started") {
-                router.push('/dashboard');
-            } else {
-                console.error("Failed to start intake");
-                alert("Failed to start generation");
+            if (!createPlanRes.ok || !data?.plan_id) {
+                console.error("Failed to create plan", data);
+                alert(data?.detail || "Failed to create plan");
                 setIsLoading(false);
                 setIsProcessing(false);
+                return;
             }
+
+            const planId = data.plan_id as string;
+            const modules = Array.isArray(data.modules) ? data.modules : [];
+            const firstModule = modules[0];
+
+            if (data.recommended_format === "multi_video_course") {
+                router.push(`/dashboard/planner/${planId}`);
+                return;
+            }
+
+            if (!firstModule?.id) {
+                console.error("No module found for single-video plan", data);
+                alert("Plan created but no module is available to generate.");
+                setIsLoading(false);
+                setIsProcessing(false);
+                return;
+            }
+
+            const startModuleRes = await fetch(
+                `${apiBase}/api/course/planner/${planId}/modules/${firstModule.id}/generate`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${session?.access_token}`
+                    }
+                }
+            );
+
+            const startData = await startModuleRes.json();
+            if (!startModuleRes.ok || startData.status !== "started") {
+                console.error("Failed to start module generation", startData);
+                alert(startData?.detail || "Failed to start generation");
+                setIsLoading(false);
+                setIsProcessing(false);
+                return;
+            }
+
+            router.push('/dashboard');
         } catch (e) {
             console.error("Intake error", e);
             setIsLoading(false);

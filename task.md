@@ -1,89 +1,145 @@
-# Animation Timing Links Tracker
+# Adaptive Course Planner Refactor - Task Tracker
 
 ## Goal
-Deliver a production-ready timing-link system where users can link visual elements to narration words, with deterministic resolution to render-ready timing and LLM fallback only when a slide has no manual links.
+Refactor creation from a chat-like deterministic wizard into an adaptive course planner that recommends either:
+- a single video, or
+- a multi-video course (module series),
+based on audience, learning objectives, topic, and source documents.
 
-## Locked Rules
-- Manual links always override auto links.
-- Auto links are generated only if a slide has zero manual links.
-- Non-chart slides support only `word` and `paragraph` timing targets.
-- Chart slides support only `node` and `edge` timing targets.
-- Headings default to slide start (`0ms`) and never receive auto timings.
-- Heading timings can only be user-authored manual links.
+## Why
+Current flow is duration-first and implies open-ended chat, while behavior is mostly fixed. We need an intuitive planning UX and data model that supports course-level orchestration and per-video execution/progress.
 
-## Architecture Decisions
-- Store all timing state in `slide_data` (no new DB columns required in v1).
-- Use a single backend timing resolver to produce final `timing_resolved` plans.
-- Keep renderer consumption simple: Remotion reads only resolved timing plans.
-- Enforce policy and validation in backend, not just UI.
+## Current Baseline (confirmed in code)
+- Frontend wizard is chat-styled and asks duration before plan recommendation:
+  - `frontend/components/CourseWizard.tsx`
+- Create page uses wizard output to start a single course generation flow:
+  - `frontend/app/dashboard/create/page.tsx`
+- Backend intake accepts one `duration` and creates one `courses` record:
+  - `backend/schemas.py` (`IntakeRequest`)
+  - `backend/routers/course.py` (`POST /api/course/start-intake`)
+- Dashboard/recent projects lists single `courses` rows:
+  - `frontend/app/dashboard/page.tsx`
+- Active generation context tracks one course id:
+  - `frontend/lib/CourseGenerationContext.tsx`
 
-## Phases
-- [x] 1) Define canonical timing schema in `slide_data` (`manual`, `auto`, `resolved`, `meta`).
-- [x] 2) Build backend resolver service for token-index-to-ms resolution.
-- [x] 3) Add policy validator (target type checks, heading auto-timing ban, stale link detection).
-- [x] 4) Integrate resolver into finalize flow after alignment is generated.
-- [x] 5) Add auto-timing planner (LLM + deterministic guardrails) for eligible slides only.
-- [x] 6) Add Timing Studio UI in slide editor:
-- [x] 7) Add non-chart selection UX (`word`, `paragraph`) and transcript word linking.
-- [x] 8) Add chart selection UX (`node`, `edge`) and transcript linking.
-- [ ] 9) Add heading timing UX: default-at-start indicator + manual timing override.
-- [ ] 10) Add per-slide status badges (`manual`, `auto`, `missing`, `stale`).
-- [x] 11) Update Remotion components to consume `timing_resolved` for text, nodes, and edges.
-- [ ] 12) Add telemetry, QA matrix, and rollout gating.
+## Scope
+1. New planning model: course-level plan with module/video children.
+2. Wizard redesign: goal/audience/objectives/docs first, then recommendation.
+3. Recommendation engine: deterministic rules + rationale.
+4. New multi-video overview screen (course blueprint).
+5. Creation pipeline for module-by-module generation.
+6. Recent projects progress at course + module level.
+7. Backward compatibility for existing single-video courses.
 
-## Deliverables
-- [x] Backend timing schema + resolver + validator.
-- [x] Finalize pipeline updates with manual-first precedence and auto fallback.
-- [x] Editor Timing Studio end-to-end linking experience.
-- [x] Remotion timing playback parity with editor intent.
-- [ ] Test coverage for precedence rules and heading policy.
+## Non-Goals (for this refactor)
+- Rebuilding rendering engine internals.
+- Rewriting all legacy endpoints in one pass.
+- Visual redesign of unrelated dashboard areas.
 
-## Acceptance Criteria
-- [ ] Manual links are always used when present on a slide.
-- [ ] No auto links are generated for slides with any manual links.
-- [ ] Headings render at `0ms` by default when no manual heading timing exists.
-- [ ] Auto planner never emits heading timings.
-- [ ] Non-chart and chart target types are strictly enforced.
-- [ ] Render output follows `timing_resolved` without divergence from saved plan.
+## Workstreams
+
+### WS0 - Product + Rules Spec
+- [x] Define planner inputs (audience, objectives, topic, docs, constraints).
+- [x] Define recommendation outputs (`single_video` vs `multi_video`) and rationale schema.
+- [x] Create initial decision table for deterministic recommendation logic.
+- [ ] Define user override behavior and warnings.
+
+### WS1 - Data Model + API Contract
+- [x] Add `course_plans` (parent) model/table contract.
+- [x] Add `course_modules` (child videos) model/table contract.
+- [ ] Define status model:
+  - [ ] Course: `planning`, `ready`, `in_progress`, `completed`, `failed`
+  - [ ] Module: `not_started`, `in_progress`, `review`, `published`, `failed`
+- [ ] Define migration/backfill approach from existing `courses`.
+- [ ] Add API contracts for:
+  - [x] `POST /planner/create`
+  - [x] `PATCH /planner/{id}`
+  - [x] `POST /planner/{id}/modules/{moduleId}/generate`
+  - [x] `GET /planner/{id}/status`
+
+### WS2 - Planner Engine
+- [x] Implement rules-first recommendation service.
+- [x] Add rationale payload (human-readable explanation).
+- [x] Add trace/debug fields for support (which rule matched).
+- [x] Add backend recommendation endpoint (`POST /api/course/planner/recommend`) for early integration.
+- [ ] Add unit tests for recommendation scenarios:
+  - [x] Leadership disciplinary training -> multi-video recommendation
+  - [x] Onboarding disciplinary training -> single short video recommendation
+  - [x] Document-heavy policy training -> split modules
+  - [x] Narrow objective + short constraint -> single concise video
+
+### WS3 - Wizard UX Refactor
+- [ ] Replace chat framing with staged planner UI.
+- [ ] Re-order steps:
+  - [ ] Goal/topic
+  - [ ] Audience
+  - [ ] Learning outcomes
+  - [ ] Documents/context
+  - [x] Constraints (including duration preference)
+  - [ ] Plan recommendation + rationale
+- [x] Add explicit "single vs multi" recommendation card.
+- [x] Add user override controls.
+- [ ] Keep existing flow behind feature flag during rollout.
+
+### WS4 - Multi-Video Blueprint + Creation Flow
+- [x] Build course blueprint page with module list/timeline.
+- [x] Allow module operations: reorder, split, merge, rename.
+- [ ] Enable "generate next module" workflow.
+- [ ] Persist shared course context across module generation.
+- [ ] Ensure module output links back to parent course plan.
+
+### WS5 - Recent Projects + Progress
+- [x] Update dashboard data fetch to support parent/child projects.
+- [x] Show course-level progress aggregate.
+- [x] Show module-level statuses and next action.
+- [ ] Update `CourseGenerationContext` to support course+module tracking.
+- [ ] Keep legacy single-course items readable and actionable.
+
+### WS6 - Migration + Rollout
+- [ ] Add feature flag for adaptive planner.
+- [ ] Internal rollout and dual-run comparison.
+- [ ] Capture key analytics:
+  - [ ] wizard completion rate
+  - [ ] recommendation acceptance rate
+  - [ ] time to first publish
+  - [ ] restart/edit frequency after plan creation
+- [ ] Gradual rollout + fallback path.
+
+## Execution Order
+1. WS0 Product + rules spec
+2. WS1 Data model + API contract
+3. WS2 Planner engine
+4. WS3 Wizard UX refactor
+5. WS4 Multi-video blueprint + generation flow
+6. WS5 Recent projects + progress model
+7. WS6 Migration + rollout
+
+## Risks / Open Questions
+- [ ] Should multi-video modules each create a `courses` row, or should a new table own module outputs?
+- [ ] Which existing statuses can be reused vs replaced?
+- [ ] How should pricing/usage count for multi-video generation?
+- [ ] What is the MVP rule threshold for auto-recommending multi-video?
+- [ ] Do we need hard caps (e.g., max modules) for first release?
+
+## Definition of Done (MVP)
+- [ ] Wizard no longer implies chatbot behavior.
+- [ ] Planner recommends and explains single vs multi structure.
+- [ ] User can review/edit full multi-video blueprint before generation.
+- [ ] User can generate modules one at a time under one course umbrella.
+- [ ] Dashboard shows resume/progress across entire course and modules.
+- [ ] Existing single-video projects still function.
 
 ## Progress Log
-- [x] Captured product rules and architecture constraints from stakeholder decisions.
-- [x] Created execution tracker for timing-link initiative.
-- [x] Added backend timing engine at `backend/services/timing.py` with:
-  - source target extraction (`word` / `paragraph` / `heading` / `node` / `edge`)
-  - manual-vs-auto precedence
-  - heading auto-timing prohibition
-  - LLM auto generation with deterministic fallback
-  - token-index to ms resolution
-  - default heading-at-0ms behavior
-- [x] Integrated timing plan generation into finalize pipeline (`backend/services/course_generator.py`) so each non-assessment slide persists `timing_links_manual`, `timing_links_auto`, `timing_resolved`, and `timing_meta`.
-- [x] Added timing field normalization guards in `backend/services/slide_data.py`.
-- [x] Added Remotion chart/edge timing support:
-  - `timing_resolved` types in `remotion-renderer/src/types/MotionGraph.ts`
-  - node delay mapping in `remotion-renderer/src/components/MotionChart.tsx`
-  - edge delay mapping in `remotion-renderer/src/components/MotionBoxes/EdgeRenderer.tsx`
-  - prop wiring from `remotion-renderer/src/Composition.tsx`
-- [x] Validation pass:
-  - `python3 -m compileall backend/services/timing.py backend/services/course_generator.py backend/services/slide_data.py` (success)
-  - `cd remotion-renderer && npx tsc --noEmit` (success)
-- [x] Added Timing Studio MVP controls in `frontend/components/SlideEditor/SlideEditor.tsx`:
-  - timing section in sidebar with status and counts
-  - visual target selection (word/paragraph/heading for non-chart, node/edge for chart)
-  - narration token selection from script text
-  - manual link add/remove/clear actions
-  - persisted `timing_links_manual` in slide state/save flow
-- [x] Added non-chart text timing playback hook in `remotion-renderer/src/components/KineticText.tsx` using `timing_resolved` entries (`word`/`paragraph`/`heading`) with start_ms-triggered animation.
-- [x] Wired `timing_resolved` into KineticText calls in `remotion-renderer/src/Composition.tsx`.
-- [x] Added strict timing policy enforcement during finalize:
-  - non-chart slides must resolve at least one `word`/`paragraph` timing link
-  - chart slides must resolve at least one `node`/`edge` timing link
-  - violations fail finalize with explicit slide-level error
-- [x] Upgraded Timing Studio interactions:
-  - inline BubbleMenu timing icon on text selection
-  - timing popover with narration token chips for link/relink
-  - remove timing action from same popover
-  - timing-marked text highlighting in editor via `data-timing-id`
-  - sidebar timing section simplified to status + guidance + manual link audit list
-- [x] Validation pass:
-  - `cd frontend && npm run lint` (success with existing warnings only)
-  - `cd remotion-renderer && npx tsc --noEmit` (success)
+- 2026-02-14: Created task tracker and aligned scope with current codebase.
+- 2026-02-14: Added WS0/WS1 spec with decision rules, output schema, table/API proposals in `docs/adaptive-planner-spec.md`.
+- 2026-02-14: Implemented deterministic planner engine in `backend/services/planner.py`.
+- 2026-02-14: Added planner request schema + recommendation endpoint in `backend/schemas.py` and `backend/routers/course.py`.
+- 2026-02-14: Added planner rule tests in `backend/tests/test_planner_rules.py` (4/4 passing).
+- 2026-02-14: Added Supabase SQL migration with RLS for `course_plans` and `course_modules` in `docs/sql/adaptive_planner.sql`.
+- 2026-02-14: Added planner persistence endpoints in `backend/routers/course.py` (`create`, `update`, `status`, `module generate`).
+- 2026-02-14: Updated create flow to use planner APIs and auto-route multi-video plans to `frontend/app/dashboard/planner/[planId]/page.tsx`.
+- 2026-02-14: Added planner recommendation UI + format override controls in `frontend/components/CourseWizard.tsx`.
+- 2026-02-14: Added module rename/reorder + save flow in `frontend/app/dashboard/planner/[planId]/page.tsx` (split/merge still pending).
+- 2026-02-14: Added module split/merge in planner UI and surfaced plan/module progress in dashboard recent projects.
+- 2026-02-14: Moved duration to post-recommendation constraint fit-check in wizard review, with shortfall handling options.
+- 2026-02-14: Next immediate step -> tighten course/module status syncing and update generation context to track active plan + active module.

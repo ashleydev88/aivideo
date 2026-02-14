@@ -2,7 +2,17 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Header, Request, 
 from fastapi.responses import JSONResponse
 from backend.db import supabase, supabase_admin
 from backend.dependencies import get_user_id_from_token
-from backend.schemas import CourseRequest, PlanRequest, ScriptRequest, RenameCourseRequest, IntakeRequest, OutcomeSuggestionRequest
+from backend.schemas import (
+    CourseRequest,
+    PlanRequest,
+    ScriptRequest,
+    RenameCourseRequest,
+    IntakeRequest,
+    OutcomeSuggestionRequest,
+    PlannerRecommendationRequest,
+    PlannerCreateRequest,
+    PlannerUpdateRequest,
+)
 from backend.services.course_generator import (
     generate_topics_task, 
     generate_structure_task, 
@@ -14,6 +24,7 @@ from backend.services.storage import handle_failure, get_asset_url
 from backend.services.ai import anthropic_chat_completion, generate_image_replicate
 from backend.services.pipeline import PipelineManager
 from backend.services.discovery_agent import suggest_learning_outcomes
+from backend.services.planner import recommend_course_plan
 from backend.services.slide_data import normalize_slides
 from backend.utils import parser, helpers
 from backend.config import (
@@ -31,6 +42,34 @@ import json
 from typing import List
 
 router = APIRouter()
+
+
+def _normalize_planner_modules(modules: list | None) -> list[dict]:
+    normalized = []
+    for idx, mod in enumerate(modules or []):
+        if not isinstance(mod, dict):
+            continue
+        title = str(mod.get("title") or "").strip()
+        if not title:
+            title = f"Module {idx + 1}"
+        focus = mod.get("objective_focus") or []
+        if not isinstance(focus, list):
+            focus = []
+        est = mod.get("estimated_minutes") or 5
+        try:
+            est = int(est)
+        except Exception:
+            est = 5
+        est = max(1, min(240, est))
+        normalized.append(
+            {
+                "order": idx + 1,
+                "title": title,
+                "objective_focus": [str(x) for x in focus if str(x).strip()],
+                "estimated_minutes": est,
+            }
+        )
+    return normalized
 
 def build_assessment_entries(slides):
     entries = []
@@ -151,6 +190,349 @@ async def suggest_outcomes(
                 f"Know when and how to escalate issues"
             ]
         }
+
+
+@router.post("/planner/recommend")
+async def recommend_plan(
+    request: PlannerRecommendationRequest,
+    authorization: str = Header(None),
+):
+    """
+    Deterministic plan recommendation endpoint.
+    Returns single-video vs multi-video recommendation with rationale and decision trace.
+    """
+    _ = get_user_id_from_token(authorization)
+    payload = request.model_dump() if hasattr(request, "model_dump") else request.dict()
+    recommendation = recommend_course_plan(payload)
+    return {"recommendation": recommendation}
+
+
+@router.post("/planner/create")
+async def create_planner(
+    request: PlannerCreateRequest,
+    authorization: str = Header(None),
+):
+    user_id = get_user_id_from_token(authorization)
+
+    planner_input = {
+        "topic": request.topic,
+        "target_audience": request.target_audience,
+        "learning_objectives": request.learning_objectives or [],
+        "additional_context": request.additional_context,
+        "source_document_text": request.source_document_text,
+        "duration_preference_minutes": request.duration_preference_minutes,
+        "country": request.country,
+    }
+
+    recommendation = recommend_course_plan(planner_input)
+    final_format = recommendation.get("format")
+    if request.forced_format in ("single_video", "multi_video_course"):
+        final_format = request.forced_format
+
+    modules = recommendation.get("modules") or []
+    if request.modules_override:
+        modules = [
+            {
+                "order": i + 1,
+                "title": m.title,
+                "objective_focus": m.objective_focus or [],
+                "estimated_minutes": m.estimated_minutes,
+            }
+            for i, m in enumerate(request.modules_override)
+        ]
+    modules = _normalize_planner_modules(modules)
+
+    if final_format == "single_video" and len(modules) > 1:
+        modules = [modules[0]]
+    if final_format == "multi_video_course" and len(modules) < 2:
+        base_title = request.topic or "Course Module"
+        modules = [
+            {
+                "order": 1,
+                "title": f"{base_title}: Foundations",
+                "objective_focus": request.learning_objectives[:2],
+                "estimated_minutes": 6,
+            },
+            {
+                "order": 2,
+                "title": f"{base_title}: Application",
+                "objective_focus": request.learning_objectives[2:] if len(request.learning_objectives) > 2 else request.learning_objectives[:2],
+                "estimated_minutes": 6,
+            },
+        ]
+
+    plan_name = request.name or request.topic or "New Course Plan"
+    shared_context = {
+        "style": request.style,
+        "accent_color": request.accent_color,
+        "color_name": request.color_name,
+        "logo_url": request.logo_url,
+        "logo_crop": request.logo_crop,
+        "country": request.country,
+        "target_audience": request.target_audience,
+    }
+
+    planner_output = {
+        "recommended": recommendation,
+        "final_format": final_format,
+    }
+
+    plan_res = supabase_admin.table("course_plans").insert(
+        {
+            "user_id": user_id,
+            "name": plan_name,
+            "status": "ready",
+            "recommended_format": final_format,
+            "planner_input": planner_input,
+            "planner_output": planner_output,
+            "shared_context": shared_context,
+            "progress_percent": 0,
+        }
+    ).execute()
+    if not plan_res.data:
+        raise HTTPException(status_code=500, detail="Failed to create planner")
+
+    plan_id = plan_res.data[0]["id"]
+
+    module_rows = [
+        {
+            "course_plan_id": plan_id,
+            "order_index": idx + 1,
+            "title": mod["title"],
+            "objective_focus": mod.get("objective_focus") or [],
+            "estimated_minutes": mod.get("estimated_minutes") or 5,
+            "status": "not_started",
+        }
+        for idx, mod in enumerate(modules)
+    ]
+    module_res = []
+    if module_rows:
+        insert_res = supabase_admin.table("course_modules").insert(module_rows).execute()
+        module_res = insert_res.data or []
+
+    return {
+        "plan_id": plan_id,
+        "status": "ready",
+        "recommended_format": final_format,
+        "recommendation": recommendation,
+        "modules": module_res,
+    }
+
+
+@router.patch("/planner/{plan_id}")
+async def update_planner(
+    plan_id: str,
+    request: PlannerUpdateRequest,
+    authorization: str = Header(None),
+):
+    user_id = get_user_id_from_token(authorization)
+
+    existing = supabase_admin.table("course_plans").select("*").eq("id", plan_id).eq("user_id", user_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Planner not found")
+
+    updates = {}
+    if request.name:
+        updates["name"] = request.name
+    if request.status in ("planning", "ready", "in_progress", "completed", "failed"):
+        updates["status"] = request.status
+    if request.forced_format in ("single_video", "multi_video_course"):
+        updates["recommended_format"] = request.forced_format
+
+    if updates:
+        supabase_admin.table("course_plans").update(updates).eq("id", plan_id).execute()
+
+    if request.modules is not None:
+        supabase_admin.table("course_modules").delete().eq("course_plan_id", plan_id).execute()
+        module_rows = [
+            {
+                "course_plan_id": plan_id,
+                "order_index": idx + 1,
+                "title": m.title,
+                "objective_focus": m.objective_focus or [],
+                "estimated_minutes": max(1, min(240, int(m.estimated_minutes))),
+                "status": "not_started",
+            }
+            for idx, m in enumerate(request.modules)
+        ]
+        if module_rows:
+            supabase_admin.table("course_modules").insert(module_rows).execute()
+
+    return {"status": "updated", "plan_id": plan_id}
+
+
+@router.get("/planner/{plan_id}/status")
+async def get_planner_status(plan_id: str, authorization: str = Header(None)):
+    user_id = get_user_id_from_token(authorization)
+
+    plan_res = supabase_admin.table("course_plans").select("*").eq("id", plan_id).eq("user_id", user_id).execute()
+    if not plan_res.data:
+        raise HTTPException(status_code=404, detail="Planner not found")
+
+    modules_res = supabase_admin.table("course_modules").select("*").eq("course_plan_id", plan_id).order("order_index").execute()
+    modules = modules_res.data or []
+
+    source_ids = [m.get("source_course_id") for m in modules if m.get("source_course_id")]
+    course_map = {}
+    if source_ids:
+        courses_res = supabase_admin.table("courses").select("id, status, video_url, progress, progress_phase").in_("id", source_ids).execute()
+        for c in courses_res.data or []:
+            course_map[c["id"]] = c
+
+    done = 0
+    for mod in modules:
+        source_id = mod.get("source_course_id")
+        linked_course = course_map.get(source_id) if source_id else None
+        mod["linked_course"] = linked_course
+        effective_status = mod.get("status")
+        if linked_course:
+            if linked_course.get("status") == "completed":
+                effective_status = "published"
+            elif linked_course.get("status") in ("failed", "error"):
+                effective_status = "failed"
+            elif linked_course.get("status"):
+                effective_status = "in_progress"
+        mod["effective_status"] = effective_status
+        if effective_status == "published":
+            done += 1
+
+    total = len(modules)
+    progress = int((done / total) * 100) if total else 0
+    plan_status = plan_res.data[0].get("status")
+    if total > 0 and done == total:
+        plan_status = "completed"
+    elif done > 0:
+        plan_status = "in_progress"
+
+    return {
+        "plan": {
+            **plan_res.data[0],
+            "status": plan_status,
+            "progress_percent": progress,
+        },
+        "modules": modules,
+    }
+
+
+@router.post("/planner/{plan_id}/modules/{module_id}/generate")
+async def generate_planner_module(
+    plan_id: str,
+    module_id: str,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+):
+    user_id = get_user_id_from_token(authorization)
+
+    plan_res = supabase_admin.table("course_plans").select("*").eq("id", plan_id).eq("user_id", user_id).execute()
+    if not plan_res.data:
+        raise HTTPException(status_code=404, detail="Planner not found")
+    plan = plan_res.data[0]
+
+    mod_res = supabase_admin.table("course_modules").select("*").eq("id", module_id).eq("course_plan_id", plan_id).execute()
+    if not mod_res.data:
+        raise HTTPException(status_code=404, detail="Module not found")
+    module = mod_res.data[0]
+
+    if module.get("status") == "published":
+        raise HTTPException(status_code=400, detail="Module already published")
+    if module.get("status") == "in_progress":
+        raise HTTPException(status_code=400, detail="Module is already in progress")
+
+    planner_input = plan.get("planner_input") or {}
+    shared = plan.get("shared_context") or {}
+    target_audience = planner_input.get("target_audience", "all_employees")
+    if target_audience in AUDIENCE_LEGACY_MAP:
+        target_audience = AUDIENCE_LEGACY_MAP[target_audience]
+
+    duration = int(module.get("estimated_minutes") or planner_input.get("duration_preference_minutes") or 5)
+    duration = max(1, min(20, duration))
+
+    country = shared.get("country") or planner_input.get("country") or "UK"
+    source_document_text = planner_input.get("source_document_text")
+    module_title = module.get("title") or "Course Module"
+    module_outcomes = module.get("objective_focus") or planner_input.get("learning_objectives") or []
+    additional_context = planner_input.get("additional_context") or ""
+    if module_outcomes:
+        additional_context = f"{additional_context}\n\nModule focus:\n" + "\n".join([f"- {x}" for x in module_outcomes])
+
+    audience_strategy = AUDIENCE_STRATEGIES.get(target_audience, AUDIENCE_STRATEGIES["all_employees"])
+    duration_config = DURATION_STRATEGIES.get(duration, DURATION_STRATEGIES[5])
+
+    course_metadata = {
+        "duration": duration,
+        "country": country,
+        "style": shared.get("style", "Minimalist Vector"),
+        "accent_color": shared.get("accent_color", "#14b8a6"),
+        "color_name": shared.get("color_name", "teal"),
+        "logo_url": shared.get("logo_url"),
+        "logo_crop": shared.get("logo_crop"),
+        "custom_title": module_title,
+        "audience_strategy": audience_strategy,
+        "duration_strategy": duration_config,
+        "discovery_topic": module_title,
+        "discovery_outcomes": module_outcomes,
+        "discovery_additional_context": additional_context,
+        "planner_plan_id": plan_id,
+        "planner_module_id": module_id,
+    }
+
+    course_res = supabase_admin.table("courses").insert(
+        {
+            "status": "generating_topics",
+            "name": module_title,
+            "user_id": user_id,
+            "metadata": course_metadata,
+            "target_audience": target_audience,
+            "has_source_documents": bool(source_document_text),
+            "topic": module_title,
+            "learning_outcomes": module_outcomes,
+            "additional_context": additional_context,
+            "source_document_text": source_document_text,
+            "intake_complete": True,
+            "progress_phase": "topics",
+            "progress": 0,
+        }
+    ).execute()
+    if not course_res.data:
+        raise HTTPException(status_code=500, detail="Failed to create module course record")
+    course_id = course_res.data[0]["id"]
+
+    supabase_admin.table("course_modules").update(
+        {
+            "status": "in_progress",
+            "source_course_id": course_id,
+            "metadata": {
+                **(module.get("metadata") or {}),
+                "generation_started": True,
+            },
+        }
+    ).eq("id", module_id).execute()
+
+    supabase_admin.table("course_plans").update({"status": "in_progress"}).eq("id", plan_id).execute()
+
+    discovery_context = {
+        "topic": module_title,
+        "learning_outcomes": module_outcomes,
+        "additional_context": additional_context,
+    }
+
+    background_tasks.add_task(
+        generate_topics_task,
+        course_id,
+        source_document_text,
+        duration,
+        country,
+        module_title,
+        target_audience,
+        discovery_context,
+    )
+
+    return {
+        "status": "started",
+        "plan_id": plan_id,
+        "module_id": module_id,
+        "course_id": course_id,
+    }
 
 @router.post("/upload-documents")
 

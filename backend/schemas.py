@@ -94,3 +94,51 @@ class OutcomeSuggestionResponse(BaseModel):
     """Response with suggested learning outcomes"""
     suggestions: List[str]
 
+
+class PlannerRecommendationRequest(BaseModel):
+    """Request for deterministic plan recommendation (single vs multi-video)."""
+    topic: str
+    target_audience: str  # new_hires, all_employees, leadership
+    learning_objectives: List[str]
+    additional_context: Optional[str] = None
+    source_document_text: Optional[str] = None
+    duration_preference_minutes: Optional[int] = None
+    country: str = "UK"
+
+
+class PlannerModuleInput(BaseModel):
+    """Module input used for create/override operations."""
+    title: str
+    objective_focus: List[str] = []
+    estimated_minutes: int = 5
+
+
+class PlannerCreateRequest(BaseModel):
+    """Create a persisted course plan plus planned modules."""
+    name: Optional[str] = None
+    topic: str
+    target_audience: str  # new_hires, all_employees, leadership
+    learning_objectives: List[str]
+    additional_context: Optional[str] = None
+    source_document_text: Optional[str] = None
+    duration_preference_minutes: Optional[int] = None
+    country: str = "UK"
+
+    # Existing generation settings carried forward as shared context
+    style: str = "Minimalist Vector"
+    accent_color: str = "#14b8a6"
+    color_name: str = "teal"
+    logo_url: Optional[str] = None
+    logo_crop: Optional[dict] = None
+
+    # Optional user override
+    forced_format: Optional[str] = None  # single_video | multi_video_course
+    modules_override: Optional[List[PlannerModuleInput]] = None
+
+
+class PlannerUpdateRequest(BaseModel):
+    """Update plan-level fields and/or module blueprint."""
+    name: Optional[str] = None
+    status: Optional[str] = None
+    forced_format: Optional[str] = None
+    modules: Optional[List[PlannerModuleInput]] = None
