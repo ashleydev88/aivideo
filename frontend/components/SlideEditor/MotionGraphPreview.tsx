@@ -214,6 +214,7 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const gap = Math.round(24 * clampedScale);
         const padding = Math.round(32 * clampedScale);
         const iconSize = Math.round(40 * clampedScale);
+        const iconContainerPadding = Math.round(16 * clampedScale);
         const labelFontSize = Math.round(30 * clampedScale);
         const descFontSize = Math.round(20 * clampedScale);
         const borderRadius = Math.round(16 * clampedScale);

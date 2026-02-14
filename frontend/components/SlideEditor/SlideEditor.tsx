@@ -56,6 +56,7 @@ type AssessmentData = NonNullable<Slide["assessment_data"]>;
 interface SlideEditorProps {
     courseId: string;
     initialSlides: Slide[];
+    brandColor?: string | null;
     onFinalize: () => void;
 }
 
@@ -106,7 +107,7 @@ const SidebarSection = ({
     </div>
 );
 
-export default function SlideEditor({ courseId, initialSlides, onFinalize }: SlideEditorProps) {
+export default function SlideEditor({ courseId, initialSlides, brandColor, onFinalize }: SlideEditorProps) {
 
     const [slides, setSlides] = useState<Slide[]>(initialSlides);
     const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
@@ -220,11 +221,11 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         }
     };
 
-    const handleSave = async (silent = false) => {
+    const handleSave = async (silent = false, slidesToSave?: Slide[]) => {
         setIsSaving(true);
         try {
             const supabase = createClient();
-            const normalizedSlides = renumberSlides(slides);
+            const normalizedSlides = renumberSlides(slidesToSave ?? slides);
             await supabase
                 .from("courses")
                 .update({
@@ -296,6 +297,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
 
     const handleAddAssessmentStep = () => {
         const sourceSlide = slides[currentSlideIndex];
+        const assessmentBackgroundColor = brandColor || "#0f766e";
         const newSlide: Slide = {
             slide_number: currentSlideIndex + 2,
             text: "Quick check. Review the options and choose the best answer.",
@@ -304,7 +306,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             visual_type: "title_card",
             prompt: "",
             duration: 20000,
-            background_color: "#0f766e",
+            background_color: assessmentBackgroundColor,
             text_color: "#ffffff",
             is_assessment: true,
             assessment_data: {
@@ -330,6 +332,27 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         setCurrentSlideIndex(currentSlideIndex + 1);
         setIsSidebarOpen(true);
         setOpenSections((prev) => ({ ...prev, narration: true, assessment: true }));
+    };
+
+    const handleDeleteCurrentSlide = () => {
+        if (slides.length <= 1) {
+            alert("You need at least one slide in the course.");
+            return;
+        }
+
+        const shouldDelete = window.confirm(`Delete slide ${currentSlideIndex + 1}? This action cannot be undone.`);
+        if (!shouldDelete) return;
+
+        const currentSlideNumber = slides[currentSlideIndex]?.slide_number;
+        const updatedSlides = renumberSlides(
+            typeof currentSlideNumber === "number"
+                ? slides.filter((slide) => slide.slide_number !== currentSlideNumber)
+                : slides.filter((_, idx) => idx !== currentSlideIndex)
+        );
+        const nextIndex = Math.min(currentSlideIndex, updatedSlides.length - 1);
+        setSlides(updatedSlides);
+        setCurrentSlideIndex(nextIndex);
+        void handleSave(true, updatedSlides);
     };
 
     // Helper to get defaults matching VisualPreview
@@ -466,6 +489,17 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                     >
                         <ListChecks className="h-4 w-4" />
                         <span className="ml-2 hidden sm:inline">Add Assessment Step</span>
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDeleteCurrentSlide}
+                        disabled={slides.length <= 1}
+                        className="text-slate-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-40"
+                        title="Delete this slide"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="ml-2 hidden sm:inline">Delete Slide</span>
                     </Button>
                     <div className="h-6 w-px bg-slate-200 mx-2" />
                     <Button onClick={handleGenerateVideo} disabled={isFinalizing || isRenderQueued} className="bg-teal-600 hover:bg-teal-700">
