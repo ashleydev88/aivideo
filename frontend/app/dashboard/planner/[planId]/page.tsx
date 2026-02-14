@@ -264,14 +264,14 @@ export default function PlannerOverviewPage() {
                         const canStart = nextStartableModule?.id === m.id && status === "not_started";
                         return (
                             <div key={m.id} className="border rounded-lg p-4 flex items-center justify-between gap-4">
-                                <div className="space-y-1">
+                                <div className="space-y-1 flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium text-slate-900">{m.order_index}.</span>
                                         <input
                                             value={m.title}
                                             onChange={(e) => updateDraftTitle(m.id, e.target.value)}
                                             disabled={status === "in_progress" || status === "published"}
-                                            className="border rounded px-2 py-1 text-sm w-[320px] max-w-full disabled:bg-slate-100 disabled:text-slate-500"
+                                            className="border rounded px-2 py-1 text-sm flex-1 min-w-[420px] disabled:bg-slate-100 disabled:text-slate-500"
                                         />
                                         <Button
                                             variant="ghost"
@@ -314,7 +314,7 @@ export default function PlannerOverviewPage() {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-[220px] shrink-0 justify-end">
                                     {status === "published" && (
                                         <Button
                                             variant="outline"

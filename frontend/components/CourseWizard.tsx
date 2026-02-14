@@ -129,6 +129,70 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
         el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
     };
 
+    const audienceLabel = (audience: TargetAudience) => {
+        if (audience === "new_hires") return "New Hires";
+        if (audience === "all_employees") return "All Employees";
+        return "Leadership";
+    };
+
+    const splitOutcomes = (text: string): string[] => {
+        return text
+            .split(/,|;|\band\b/gi)
+            .map((s) => s.trim().replace(/^[-•]\s*/, "").replace(/\.$/, ""))
+            .filter((s) => s.length >= 3)
+            .slice(0, 8);
+    };
+
+    const extractIntentFromTopicInput = (rawInput: string): {
+        topic: string;
+        audience: TargetAudience | null;
+        outcomes: string[];
+    } => {
+        const input = rawInput.trim();
+        const lower = input.toLowerCase();
+
+        let audience: TargetAudience | null = null;
+        if (/\b(leadership|leaders?|managers?|people managers?)\b/.test(lower)) {
+            audience = "leadership";
+        } else if (/\b(new hires?|onboarding|starters?)\b/.test(lower)) {
+            audience = "new_hires";
+        } else if (/\b(all employees|everyone|entire company|all staff)\b/.test(lower)) {
+            audience = "all_employees";
+        }
+
+        let outcomes: string[] = [];
+        const outcomesPatterns = [
+            /learning outcomes?\s*(?:are|:)?\s*(.+)$/i,
+            /outcomes?\s*(?:include|:)\s*(.+)$/i,
+            /\bfor\s+(.+?)\s+learning outcomes?\b/i,
+        ];
+        for (const pattern of outcomesPatterns) {
+            const m = input.match(pattern);
+            if (m?.[1]) {
+                outcomes = splitOutcomes(m[1]);
+                if (outcomes.length > 0) break;
+            }
+        }
+
+        let topic = input;
+        const topicPatterns = [
+            /\bon\s+(.+?)(?:,\s*for\s+.+learning outcomes?.*|$)/i,
+            /\babout\s+(.+?)(?:,\s*for\s+.+learning outcomes?.*|$)/i,
+        ];
+        for (const pattern of topicPatterns) {
+            const m = input.match(pattern);
+            if (m?.[1]) {
+                const candidate = m[1].trim().replace(/[.?!]+$/, "");
+                if (candidate.length >= 3) {
+                    topic = candidate;
+                    break;
+                }
+            }
+        }
+
+        return { topic, audience, outcomes };
+    };
+
     // --- Effects ---
 
     // Scroll to bottom on new message
@@ -179,7 +243,38 @@ export default function CourseWizard({ onComplete, isLoading = false, country = 
     const handleTopicSubmit = (topic: string) => {
         if (!topic.trim()) return;
         addUserMessage(topic);
-        setState(prev => ({ ...prev, topic }));
+
+        const extracted = extractIntentFromTopicInput(topic);
+        const nextTopic = extracted.topic || topic;
+        const nextAudience = extracted.audience;
+        const nextOutcomes = extracted.outcomes;
+
+        setState(prev => ({
+            ...prev,
+            topic: nextTopic,
+            audience: nextAudience ?? prev.audience,
+            outcomes: nextOutcomes.length ? nextOutcomes : prev.outcomes,
+        }));
+
+        // If both audience and outcomes are captured in free text, skip redundant questions.
+        if (nextAudience && nextOutcomes.length > 0) {
+            setSuggestedOutcomes(nextOutcomes);
+            setCurrentStep("DOCUMENTS_CHECK");
+            addBotMessage(
+                `I captured audience as ${audienceLabel(nextAudience)} and ${nextOutcomes.length} learning outcomes. Do you have any documents to include?`,
+                "DOCUMENTS_CHECK"
+            );
+            return;
+        }
+
+        // If audience is captured, skip audience question and go straight to outcomes.
+        if (nextAudience) {
+            setCurrentStep("OUTCOMES");
+            addBotMessage(`Got it, audience looks like ${audienceLabel(nextAudience)}. I'll suggest learning outcomes next.`, "OUTCOMES");
+            fetchOutcomeSuggestions(nextTopic, nextAudience);
+            return;
+        }
+
         setCurrentStep("AUDIENCE");
         addBotMessage("Got it. Who is the primary audience for this training?", "AUDIENCE");
     };
