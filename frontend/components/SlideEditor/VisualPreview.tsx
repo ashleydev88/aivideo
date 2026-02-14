@@ -956,7 +956,7 @@ export default function VisualPreview({
                                 }
                                 .hybrid-text ul, .hybrid-text .ProseMirror ul { list-style-type: disc !important; padding-left: 1.5em !important; }
                                 .hybrid-text li, .hybrid-text .ProseMirror li { margin-bottom: 16px !important; font-size: 30px !important; font-weight: 600 !important; }
-                                .hybrid-text strong, .hybrid-text .ProseMirror strong { color: ${effectiveAccentColor} !important; font-weight: 900 !important; }
+                                .hybrid-text strong, .hybrid-text .ProseMirror strong { font-weight: 900 !important; }
                             `}</style>
                                 <div className="hybrid-text">
                                     {onTextChange ? (
