@@ -56,6 +56,13 @@ interface SlidePreviewData {
     accent_color?: string;
     layout_data?: SlideLayoutData;
     is_assessment?: boolean;
+    assessment_data?: {
+        question?: string;
+        options?: string[];
+        correct_index?: number;
+        explanation?: string;
+        points?: number;
+    };
 }
 
 interface LogoCrop {
@@ -750,6 +757,68 @@ export default function VisualPreview({
 
     // 3. TITLE CARD RENDERER
     if (visual_type === 'title_card') {
+        if (slide.is_assessment) {
+            const assessment = slide.assessment_data || {};
+            const question = assessment.question?.trim() || "Knowledge Check: insert your question here";
+            const options = assessment.options && assessment.options.length > 0
+                ? assessment.options
+                : ["Option A", "Option B", "Option C"];
+            const baseColor = slide.background_color || '#0f172a';
+            const assessmentBrand = brandColor || baseColor;
+            const textColor = slide.text_color || '#ffffff';
+
+            return (
+                <ScaleContainer>
+                    <BackgroundEditWrapper
+                        className="w-full h-full"
+                        onBackgroundChange={onBackgroundChange}
+                        backgroundColor={slide.background_color}
+                        isContextualOverlayType={isContextualOverlayType}
+                    >
+                        <div
+                            className="slide-preview-content w-full h-full relative overflow-hidden p-24"
+                            style={{
+                                background: `radial-gradient(1200px 700px at 18% 22%, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0) 56%), radial-gradient(900px 500px at 82% 78%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 65%), radial-gradient(760px 280px at 49% 40%, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0) 72%), linear-gradient(135deg, color-mix(in srgb, ${assessmentBrand} 88%, black) 0%, ${assessmentBrand} 52%, color-mix(in srgb, ${assessmentBrand} 62%, white) 100%)`,
+                                backgroundColor: assessmentBrand,
+                                color: textColor
+                            }}
+                        >
+                            <div className="absolute inset-0 z-0 bg-gradient-to-b from-white/5 via-transparent to-black/10 pointer-events-none" />
+
+                            <div className="relative z-20 w-full h-full flex flex-col justify-center">
+                                <div className="max-w-5xl mx-auto w-full">
+                                    <h2
+                                        className="text-left font-black text-[68px] leading-[1.08] tracking-tight mb-16"
+                                        style={{
+                                            textShadow: "0 10px 36px rgba(0,0,0,0.45), 0 2px 10px rgba(0,0,0,0.35)"
+                                        }}
+                                    >
+                                        {question}
+                                    </h2>
+
+                                    <div className="max-w-3xl mx-auto space-y-5">
+                                        {options.map((option, index) => (
+                                            <div key={`assessment-preview-option-${index}`} className="flex items-center gap-5">
+                                                <div className="w-12 h-12 rounded-md border-4 border-white/85 bg-white/10 shadow-[0_4px_18px_rgba(0,0,0,0.25)] shrink-0" />
+                                                <p
+                                                    className="text-[42px] leading-[1.3] font-semibold tracking-[-0.01em] text-left"
+                                                    style={{ textShadow: "0 3px 12px rgba(0,0,0,0.28)" }}
+                                                >
+                                                    <span className="font-extrabold mr-2">{String.fromCharCode(65 + index)}.</span>
+                                                    {option}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <LogoOverlay logoUrl={logoUrl} logoCrop={logoCrop} />
+                    </BackgroundEditWrapper>
+                </ScaleContainer>
+            )
+        }
+
         const textContent = slide.visual_text || slide.text || "";
         const isThankYou = slide.text?.toLowerCase().includes("thank you");
         const defaultBg = isThankYou ? '#1e293b' : '#0d9488'; // slate-800 or teal-600
@@ -847,13 +916,13 @@ export default function VisualPreview({
                         <div
                             className="h-full w-[55%] relative z-10 pointer-events-auto flex flex-col justify-center p-24 shadow-2xl transition-all duration-500"
                             style={{
-                                background: `linear-gradient(135deg, ${brandColor || baseColor} 0%, ${isLightColor(brandColor || baseColor) ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.4)'} 100%)`,
+                                background: `radial-gradient(1200px 700px at 18% 22%, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0) 56%), radial-gradient(900px 500px at 82% 78%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 65%), radial-gradient(760px 280px at 49% 40%, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0) 72%), linear-gradient(135deg, color-mix(in srgb, ${brandColor || baseColor} 88%, black) 0%, ${brandColor || baseColor} 52%, color-mix(in srgb, ${brandColor || baseColor} 62%, white) 100%)`,
                                 backgroundColor: brandColor || baseColor,
                                 clipPath: 'url(#hybrid-curve-clip)'
                             }}
                         >
                             {/* Gradient reinforcement to ensure legibility over the curve */}
-                            <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none mix-blend-multiply" />
+                            <div className="absolute inset-0 z-0 bg-gradient-to-b from-white/5 via-transparent to-black/10 pointer-events-none" />
 
                             <div className="relative z-20 max-w-2xl space-y-6" style={{ color: slide.text_color || '#ffffff' }}>
                                 {/* Typography matching contextual_overlay at 1920px base */}
