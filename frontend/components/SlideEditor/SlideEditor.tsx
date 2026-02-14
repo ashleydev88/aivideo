@@ -52,6 +52,25 @@ interface Slide {
 }
 
 type AssessmentData = NonNullable<Slide["assessment_data"]>;
+type ChartArchetype =
+    | "process"
+    | "cycle"
+    | "hierarchy"
+    | "comparison"
+    | "statistic"
+    | "grid"
+    | "timeline"
+    | "funnel"
+    | "pyramid"
+    | "mindmap"
+    | "code"
+    | "math"
+    | "architecture"
+    | "matrix"
+    | "metaphor"
+    | "anatomy"
+    | "document-anchor"
+    | "contextual-overlay";
 
 interface SlideEditorProps {
     courseId: string;
@@ -168,6 +187,38 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
 
 
     const currentSlide = slides[currentSlideIndex];
+
+    const buildDefaultChartData = (archetype: ChartArchetype = "process") => ({
+        id: `chart-${Date.now()}`,
+        archetype,
+        nodes: [
+            {
+                id: "node-1",
+                type: "motion-card",
+                data: {
+                    label: "Point 1",
+                    description: "Edit this chart node",
+                    variant: "primary"
+                }
+            },
+            {
+                id: "node-2",
+                type: "motion-card",
+                data: {
+                    label: "Point 2",
+                    description: "Edit this chart node",
+                    variant: "neutral"
+                }
+            }
+        ],
+        edges: [
+            {
+                id: "edge-1",
+                source: "node-1",
+                target: "node-2"
+            }
+        ]
+    });
 
     const renumberSlides = (inputSlides: Slide[]): Slide[] => {
         return inputSlides.map((slide, idx) => ({
@@ -359,6 +410,68 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         setOpenSections((prev) => ({ ...prev, narration: false, assessment: true }));
     };
 
+    const handleInsertSlide = () => {
+        const seedText = (currentSlide?.text || currentSlide?.visual_text || "").toString().replace(/<[^>]*>/g, "").trim();
+        const newSlide: Slide = {
+            slide_number: currentSlideIndex + 2,
+            text: seedText ? `Build on this point: ${seedText.slice(0, 80)}.` : "Add narration for this slide.",
+            visual_text: "<h2>New Slide</h2><p>Edit this content.</p>",
+            layout: "split",
+            visual_type: "image",
+            prompt: "A clean, professional business scene that supports the narration.",
+            duration: 7000,
+            background_color: "#000000",
+            text_color: "#ffffff",
+            is_assessment: false
+        };
+
+        const updatedSlides = renumberSlides([
+            ...slides.slice(0, currentSlideIndex + 1),
+            newSlide,
+            ...slides.slice(currentSlideIndex + 1)
+        ]);
+
+        setSlides(updatedSlides);
+        setCurrentSlideIndex(currentSlideIndex + 1);
+        setIsSidebarOpen(true);
+    };
+
+    const handleVisualTypeChange = (value: string) => {
+        const nextType = value as Slide["visual_type"];
+        const nextSlides = [...slides];
+        const target = { ...nextSlides[currentSlideIndex], visual_type: nextType, is_assessment: false };
+
+        if (nextType === "chart" && !target.chart_data) {
+            target.chart_data = buildDefaultChartData("process");
+            if (!target.visual_text) target.visual_text = "<h2>Chart Slide</h2>";
+        }
+
+        if (["comparison_split", "key_stat_breakout", "document_anchor", "contextual_overlay", "contextual-overlay"].includes(nextType)) {
+            target.layout_data = target.layout_data || {};
+            target.chart_data = undefined;
+        }
+
+        nextSlides[currentSlideIndex] = target;
+        setSlides(nextSlides);
+    };
+
+    const handleChartArchetypeChange = (archetype: ChartArchetype) => {
+        const nextSlides = [...slides];
+        const target = { ...nextSlides[currentSlideIndex] };
+        const base = target.chart_data && typeof target.chart_data === "object"
+            ? { ...(target.chart_data as Record<string, unknown>) }
+            : buildDefaultChartData(archetype);
+
+        target.chart_data = {
+            ...base,
+            archetype
+        };
+        target.visual_type = "chart";
+        target.is_assessment = false;
+        nextSlides[currentSlideIndex] = target;
+        setSlides(nextSlides);
+    };
+
     const handleDeleteCurrentSlide = () => {
         if (slides.length <= 1) {
             alert("You need at least one slide in the course.");
@@ -405,6 +518,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
 
     // Collapsible Section State
     const [openSections, setOpenSections] = useState({
+        slideType: true,
         narration: true,
         assessment: true,
         onScreenText: false,
@@ -480,7 +594,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     };
 
     const currentAssessment = currentSlide?.is_assessment ? getAssessmentData(currentSlide) : null;
-    const sidebarPanelLabel = currentSlide?.is_assessment ? "Assessment" : "Narration";
+    const sidebarPanelLabel = "Menu";
 
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] max-h-[900px] bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -505,6 +619,16 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                     >
                         {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                         <span className="ml-2 hidden sm:inline">{isSidebarOpen ? `Close ${sidebarPanelLabel}` : `Open ${sidebarPanelLabel}`}</span>
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleInsertSlide}
+                        className="text-slate-600 hover:text-blue-700 hover:bg-blue-50"
+                        title="Insert a new slide after this one"
+                    >
+                        <Plus className="h-4 w-4" />
+                        <span className="ml-2 hidden sm:inline">Add Slide</span>
                     </Button>
                     <Button
                         variant="ghost"
@@ -721,6 +845,68 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                         )}
 
 
+
+                        {!currentSlide.is_assessment && (
+                            <SidebarSection
+                                title="Slide Type"
+                                icon={PanelRightOpen}
+                                iconColor="text-blue-500"
+                                isOpen={openSections.slideType}
+                                onToggle={() => toggleSection('slideType')}
+                                rightElement={
+                                    <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-5">
+                                        {currentSlide.visual_type}
+                                    </Badge>
+                                }
+                            >
+                                <label className="text-xs font-semibold text-slate-500">Visual Type</label>
+                                <select
+                                    value={currentSlide.visual_type}
+                                    onChange={(e) => handleVisualTypeChange(e.target.value)}
+                                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm"
+                                >
+                                    <option value="image">Image</option>
+                                    <option value="hybrid">Hybrid</option>
+                                    <option value="chart">Chart</option>
+                                    <option value="kinetic_text">Kinetic Text</option>
+                                    <option value="title_card">Title Card</option>
+                                    <option value="comparison_split">Comparison Split</option>
+                                    <option value="key_stat_breakout">Key Stat Breakout</option>
+                                    <option value="document_anchor">Document Anchor</option>
+                                    <option value="contextual_overlay">Contextual Overlay</option>
+                                </select>
+
+                                {currentSlide.visual_type === "chart" && (
+                                    <>
+                                        <label className="text-xs font-semibold text-slate-500">Chart Type</label>
+                                        <select
+                                            value={String((currentSlide.chart_data as Record<string, unknown> | undefined)?.archetype || "process")}
+                                            onChange={(e) => handleChartArchetypeChange(e.target.value as ChartArchetype)}
+                                            className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm"
+                                        >
+                                            <option value="process">Process</option>
+                                            <option value="cycle">Cycle</option>
+                                            <option value="hierarchy">Hierarchy</option>
+                                            <option value="comparison">Comparison</option>
+                                            <option value="statistic">Statistic</option>
+                                            <option value="grid">Grid</option>
+                                            <option value="timeline">Timeline</option>
+                                            <option value="funnel">Funnel</option>
+                                            <option value="pyramid">Pyramid</option>
+                                            <option value="mindmap">Mindmap</option>
+                                            <option value="code">Code</option>
+                                            <option value="math">Math</option>
+                                            <option value="architecture">Architecture</option>
+                                            <option value="matrix">Matrix</option>
+                                            <option value="metaphor">Metaphor</option>
+                                            <option value="anatomy">Anatomy</option>
+                                            <option value="document-anchor">Document Anchor</option>
+                                            <option value="contextual-overlay">Contextual Overlay</option>
+                                        </select>
+                                    </>
+                                )}
+                            </SidebarSection>
+                        )}
 
                         {/* 3. VISUAL PROMPT / CHART CONFIG */}
                         {['image', 'hybrid'].includes(currentSlide.visual_type) && (

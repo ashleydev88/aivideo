@@ -14,6 +14,7 @@ from backend.services.storage import handle_failure, get_asset_url
 from backend.services.ai import anthropic_chat_completion, generate_image_replicate
 from backend.services.pipeline import PipelineManager
 from backend.services.discovery_agent import suggest_learning_outcomes
+from backend.services.slide_data import normalize_slides
 from backend.utils import parser, helpers
 from backend.config import (
     STYLE_MAPPING, 
@@ -500,9 +501,10 @@ async def finalize_course(course_id: str, request: Request, background_tasks: Ba
     user_id = get_user_id_from_token(authorization)
     
     body = await request.json()
-    slide_data = body.get("slide_data") 
-    
+    slide_data = body.get("slide_data")
+
     if slide_data:
+         slide_data = normalize_slides(slide_data)
          supabase_admin.table("courses").update({
             "slide_data": slide_data,
             "assessment_data": build_assessment_entries(slide_data),
@@ -510,9 +512,10 @@ async def finalize_course(course_id: str, request: Request, background_tasks: Ba
         }).eq("id", course_id).execute()
     else:
         res = supabase_admin.table("courses").select("slide_data, metadata").eq("id", course_id).execute()
-        slide_data = res.data[0].get("slide_data", [])
+        slide_data = normalize_slides(res.data[0].get("slide_data", []))
         # Normalize assessment_data in DB even when reusing existing slide_data
         supabase_admin.table("courses").update({
+            "slide_data": slide_data,
             "assessment_data": build_assessment_entries(slide_data)
         }).eq("id", course_id).execute()
 

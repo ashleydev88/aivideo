@@ -148,7 +148,7 @@ export const MainComposition: React.FC<{
                 const isKineticOnly = slide.visual_type === 'kinetic_text';
                 const isChart = slide.visual_type === 'chart';
                 const isTitleCard = slide.visual_type === 'title_card';
-                const isContextualOverlay = slide.visual_type === 'contextual_overlay';
+                const isContextualOverlay = slide.visual_type === 'contextual_overlay' || slide.visual_type === 'contextual-overlay';
                 const isComparisonSplit = slide.visual_type === 'comparison_split';
                 const hasText = slide.text || slide.visual_text;
 
@@ -160,7 +160,7 @@ export const MainComposition: React.FC<{
                 console.log(`[Slide ${i}] Layout flags: hybrid=${isHybrid}, imageOnly=${isImageOnly}, kineticOnly=${isKineticOnly}, chart=${isChart}, titleCard=${isTitleCard}, contextualOverlay=${isContextualOverlay}`);
 
                 // Detect special types that need conversion to MotionGraph
-                const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay'];
+                const specialTypes = ['comparison_split', 'key_stat_breakout', 'document_anchor', 'contextual_overlay', 'contextual-overlay'];
                 const isSpecialType = specialTypes.includes(slide.visual_type);
 
                 // Convert to MotionGraph if applicable

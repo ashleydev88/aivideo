@@ -32,6 +32,7 @@ from backend.services.pipeline import PipelineManager, validate_script
 from backend.services.audio import generate_audio
 from backend.services.storage import upload_asset_throttled, handle_failure, get_asset_url
 from backend.services.sqs_producer import send_render_job_async
+from backend.services.slide_data import normalize_slides, sign_slide_assets_inplace
 from backend.utils.helpers import extract_json_from_response, parse_alignment_to_words
 from backend.schemas import ScriptRequest
 from backend.services.logic_extraction import logic_extractor
@@ -862,7 +863,7 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         res = supabase_admin.table("courses").select("slide_data, metadata").eq("id", course_id).execute()
         if not res.data: return
         course_data = res.data[0]
-        slides = course_data.get('slide_data', []) or []
+        slides = normalize_slides(course_data.get('slide_data', []) or [])
         metadata = course_data.get('metadata', {})
         render_slides, assessment_cues = build_render_slides_and_assessment_cues(slides)
         if not render_slides:
@@ -921,11 +922,10 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         print("   🔑 Signing assets for Lambda...")
         # Use 5 hours (18000s) to ensure URLs remain valid during render
         SIGN_VALIDITY = 18000
-        for slide in render_slides:
-            if slide.get("audio") and not slide["audio"].startswith("http"):
-                 slide["audio"] = get_asset_url(slide["audio"], SIGN_VALIDITY)
-            if slide.get("image") and not slide["image"].startswith("http"):
-                 slide["image"] = get_asset_url(slide["image"], SIGN_VALIDITY)
+        def _sign(path: str) -> str:
+            return get_asset_url(path, SIGN_VALIDITY)
+
+        sign_slide_assets_inplace(render_slides, _sign)
 
         if logo_url and not logo_url.startswith("http"):
              logo_url = get_asset_url(logo_url, SIGN_VALIDITY)
@@ -982,6 +982,7 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
         "progress": 0
     }).eq("id", course_id).execute()
     
+    script_plan = normalize_slides(script_plan)
     api_semaphore = asyncio.Semaphore(4)
 
     async def process_audio_parallel(i, slide, temp_dir):
