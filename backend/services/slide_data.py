@@ -110,6 +110,15 @@ def normalize_slide(slide: dict[str, Any], index: int) -> dict[str, Any]:
     if normalized["visual_type"] == "chart":
         normalized["chart_data"] = normalize_chart_data(normalized.get("chart_data"))
 
+    if not isinstance(normalized.get("timing_links_manual"), list):
+        normalized["timing_links_manual"] = []
+    if not isinstance(normalized.get("timing_links_auto"), list):
+        normalized["timing_links_auto"] = []
+    if not isinstance(normalized.get("timing_resolved"), list):
+        normalized["timing_resolved"] = []
+    if not isinstance(normalized.get("timing_meta"), dict):
+        normalized["timing_meta"] = {}
+
     return normalized
 
 

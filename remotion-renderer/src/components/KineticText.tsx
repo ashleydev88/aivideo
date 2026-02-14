@@ -22,6 +22,18 @@ interface KineticEvent {
     style: 'header' | 'bullet' | 'emphasis' | 'stat';
 }
 
+interface TimingResolvedEntry {
+    id: string;
+    source_type: 'word' | 'paragraph' | 'heading' | 'node' | 'edge';
+    source_id: string;
+    source_text?: string;
+    start_ms: number;
+    animation?: {
+        preset?: string;
+        duration_ms?: number;
+    };
+}
+
 const processAlignment = (alignment: Alignment): Word[] => {
     if (!alignment || !alignment.characters) return [];
 
@@ -76,15 +88,72 @@ export const KineticText: React.FC<{
     accent_color?: string;
     fullScreen?: boolean;
     kinetic_events?: KineticEvent[];
+    timing_resolved?: TimingResolvedEntry[];
     custom_bg_color?: string;
     custom_text_color?: string;
-}> = ({ text, timestamps, accent_color = '#14b8a6', fullScreen = true, kinetic_events, custom_bg_color, custom_text_color }) => {
+}> = ({ text, timestamps, accent_color = '#14b8a6', fullScreen = true, kinetic_events, timing_resolved, custom_bg_color, custom_text_color }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
     const currentTime = frame / fps;
 
     // Detect HTML Content
     const isHtml = /<[a-z][\s\S]*>/i.test(text);
+    const timingTextEvents = (timing_resolved || [])
+        .filter((entry) => ['word', 'paragraph', 'heading'].includes(entry.source_type) && (entry.source_text || '').trim().length > 0)
+        .sort((a, b) => (a.start_ms || 0) - (b.start_ms || 0));
+
+    // TIMING-RESOLVED MODE (Manual/Auto Link Output)
+    if (timingTextEvents.length > 0) {
+        const containerClass = fullScreen
+            ? "absolute inset-0 flex flex-col items-center justify-center p-16 gap-5"
+            : "w-full h-full flex flex-col items-center justify-center p-8 gap-3";
+
+        return (
+            <div
+                className={containerClass}
+                style={{ backgroundColor: fullScreen && custom_bg_color ? custom_bg_color : undefined }}
+            >
+                {timingTextEvents.map((event, i) => {
+                    const eventStartFrame = (event.start_ms / 1000) * fps;
+                    const isVisible = frame >= eventStartFrame;
+                    const popProgress = spring({
+                        frame: frame - eventStartFrame,
+                        fps,
+                        config: {
+                            damping: 12,
+                            stiffness: 180,
+                            mass: 0.6,
+                        },
+                    });
+
+                    const scale = isVisible ? interpolate(popProgress, [0, 1], [0.7, 1]) : 0;
+                    const opacity = isVisible ? interpolate(popProgress, [0, 1], [0, 1]) : 0;
+                    const style = event.source_type === 'heading'
+                        ? 'header'
+                        : event.source_type === 'paragraph'
+                            ? 'bullet'
+                            : 'emphasis';
+                    const styleConfig = getEventStyle(style, accent_color, custom_text_color);
+
+                    return (
+                        <div
+                            key={`${event.id}-${i}`}
+                            style={{
+                                ...styleConfig,
+                                transform: `scale(${scale})`,
+                                opacity,
+                                textAlign: 'center',
+                                maxWidth: '88%',
+                                lineHeight: 1.25,
+                            }}
+                        >
+                            {event.source_text}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    }
 
     // HTML RENDERER (Rich Text)
     if (isHtml) {
@@ -222,5 +291,4 @@ export const KineticText: React.FC<{
         </div>
     );
 };
-
 

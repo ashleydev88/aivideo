@@ -45,6 +45,20 @@ interface Slide {
     text_color?: string;
     accent_color?: string;
     layout_data?: Record<string, unknown>;
+    timing_links_manual?: TimingLink[];
+    timing_links_auto?: TimingLink[];
+    timing_resolved?: TimingResolvedEntry[];
+    timing_meta?: {
+        version?: number;
+        status?: string;
+        stale?: boolean;
+        errors?: string[];
+        narration_token_count?: number;
+        target_count?: number;
+        manual_link_count?: number;
+        auto_link_count?: number;
+        active_link_count?: number;
+    };
     is_assessment?: boolean;
     assessment_data?: {
         question: string;
@@ -52,6 +66,38 @@ interface Slide {
         correct_index: number;
         explanation: string;
         points: number;
+    };
+}
+
+interface TimingLink {
+    id?: string;
+    source?: {
+        type?: "word" | "paragraph" | "heading" | "node" | "edge";
+        id?: string;
+    };
+    target?: {
+        token_index?: number;
+    };
+    animation?: {
+        preset?: string;
+        duration_ms?: number;
+    };
+    origin?: string;
+}
+
+interface TimingResolvedEntry {
+    id: string;
+    origin?: string;
+    source_type: "word" | "paragraph" | "heading" | "node" | "edge";
+    source_id: string;
+    source_text?: string;
+    token_index?: number | null;
+    token_word?: string;
+    start_ms: number;
+    end_ms?: number;
+    animation?: {
+        preset?: string;
+        duration_ms?: number;
     };
 }
 
@@ -238,6 +284,73 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                 assessment_data: slide.assessment_data
             }))
             .filter((entry) => entry.assessment_data);
+    };
+
+    const extractVisualTargets = (slide: Slide): Array<{ type: "word" | "paragraph" | "heading" | "node" | "edge"; id: string; text: string }> => {
+        if (slide.visual_type === "chart") {
+            const chartData = slide.chart_data as {
+                nodes?: Array<{ id?: string; data?: { label?: string } }>;
+                edges?: Array<{ id?: string; source?: string; target?: string; label?: string }>;
+            } | undefined;
+            const nodes = (chartData?.nodes || []).map((node, idx) => ({
+                type: "node" as const,
+                id: node.id || `node-${idx}`,
+                text: node.data?.label || node.id || `Node ${idx + 1}`
+            }));
+            const edges = (chartData?.edges || []).map((edge, idx) => ({
+                type: "edge" as const,
+                id: edge.id || `edge-${idx}`,
+                text: edge.label || `${edge.source || "source"} -> ${edge.target || "target"}`
+            }));
+            return [...nodes, ...edges];
+        }
+
+        const raw = (slide.visual_text || slide.text || "").toString();
+        const hasHtml = /<[a-z][\s\S]*>/i.test(raw);
+        const targets: Array<{ type: "word" | "paragraph" | "heading" | "node" | "edge"; id: string; text: string }> = [];
+
+        const cleanText = (value: string) => value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+        if (hasHtml) {
+            const headingMatches = raw.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi) || [];
+            headingMatches.forEach((match, idx) => {
+                const text = cleanText(match);
+                if (text) targets.push({ type: "heading", id: `heading-${idx}`, text });
+            });
+
+            const paragraphMatches = raw.match(/<(p|li)[^>]*>([\s\S]*?)<\/(p|li)>/gi) || [];
+            paragraphMatches.forEach((match, idx) => {
+                const text = cleanText(match);
+                if (!text) return;
+                const paragraphId = `paragraph-${idx}`;
+                targets.push({ type: "paragraph", id: paragraphId, text });
+                text.split(/\s+/).filter(Boolean).forEach((word, wordIdx) => {
+                    targets.push({ type: "word", id: `word-${paragraphId}-${wordIdx}`, text: word });
+                });
+            });
+        } else {
+            const text = cleanText(raw);
+            if (text) {
+                targets.push({ type: "paragraph", id: "paragraph-0", text });
+                text.split(/\s+/).filter(Boolean).forEach((word, wordIdx) => {
+                    targets.push({ type: "word", id: `word-paragraph-0-${wordIdx}`, text: word });
+                });
+            }
+        }
+
+        if (!targets.some((t) => t.type === "paragraph")) {
+            const fallback = cleanText(raw);
+            if (fallback) targets.push({ type: "paragraph", id: "paragraph-0", text: fallback });
+        }
+        return targets;
+    };
+
+    const buildNarrationTokens = (text: string): Array<{ index: number; word: string }> => {
+        return text
+            .split(/\s+/)
+            .map((word) => word.trim())
+            .filter(Boolean)
+            .map((word, index) => ({ index, word }));
     };
 
     // Auto-size narration textarea
@@ -493,6 +606,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     const [openSections, setOpenSections] = useState({
         slideType: true,
         narration: true,
+        timing: true,
         assessment: true,
         onScreenText: false,
         styling: false
@@ -566,7 +680,94 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     };
 
     const currentAssessment = currentSlide?.is_assessment ? getAssessmentData(currentSlide) : null;
+    const narrationTokens = buildNarrationTokens(currentSlide?.text || "");
+    const visualTargets = extractVisualTargets(currentSlide);
+    const manualTimingLinks = Array.isArray(currentSlide?.timing_links_manual) ? currentSlide.timing_links_manual : [];
+    const autoTimingLinks = Array.isArray(currentSlide?.timing_links_auto) ? currentSlide.timing_links_auto : [];
+    const headingTargets = visualTargets.filter((target) => target.type === "heading");
+    const [timingSourceId, setTimingSourceId] = useState("");
+    const [timingTokenIndex, setTimingTokenIndex] = useState<number>(0);
+    const [timingPreset, setTimingPreset] = useState("appear");
+    const linkedSourceIds = new Set(
+        manualTimingLinks
+            .map((link) => link.source?.id)
+            .filter((id): id is string => typeof id === "string" && id.length > 0)
+    );
+    const linkedTokenIndices = new Set(
+        manualTimingLinks
+            .map((link) => link.target?.token_index)
+            .filter((idx): idx is number => typeof idx === "number")
+    );
     const sidebarPanelLabel = "Menu";
+
+    useEffect(() => {
+        if (visualTargets.length === 0) {
+            setTimingSourceId("");
+        } else if (!timingSourceId || !visualTargets.some((target) => target.id === timingSourceId)) {
+            setTimingSourceId(visualTargets[0].id);
+        }
+        if (narrationTokens.length === 0) {
+            setTimingTokenIndex(0);
+        } else if (timingTokenIndex < 0 || timingTokenIndex >= narrationTokens.length) {
+            setTimingTokenIndex(0);
+        }
+    }, [currentSlideIndex, visualTargets, narrationTokens, timingSourceId, timingTokenIndex]);
+
+    const addManualTimingLink = () => {
+        const selectedSource = visualTargets.find((target) => target.id === timingSourceId);
+        if (!selectedSource) {
+            alert("Select a visual target first.");
+            return;
+        }
+        if (narrationTokens.length === 0) {
+            alert("Add narration text first so timing can be linked to words.");
+            return;
+        }
+        if (timingTokenIndex < 0 || timingTokenIndex >= narrationTokens.length) {
+            alert("Select a valid narration word.");
+            return;
+        }
+
+        const nextLink: TimingLink = {
+            id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            source: { type: selectedSource.type, id: selectedSource.id },
+            target: { token_index: timingTokenIndex },
+            animation: { preset: timingPreset, duration_ms: 450 },
+            origin: "manual"
+        };
+
+        const nextSlides = [...slides];
+        const existing = Array.isArray(nextSlides[currentSlideIndex].timing_links_manual)
+            ? [...(nextSlides[currentSlideIndex].timing_links_manual as TimingLink[])]
+            : [];
+        existing.push(nextLink);
+        nextSlides[currentSlideIndex] = {
+            ...nextSlides[currentSlideIndex],
+            timing_links_manual: existing
+        };
+        setSlides(nextSlides);
+    };
+
+    const removeManualTimingLink = (linkId: string) => {
+        const nextSlides = [...slides];
+        const existing = Array.isArray(nextSlides[currentSlideIndex].timing_links_manual)
+            ? [...(nextSlides[currentSlideIndex].timing_links_manual as TimingLink[])]
+            : [];
+        nextSlides[currentSlideIndex] = {
+            ...nextSlides[currentSlideIndex],
+            timing_links_manual: existing.filter((link) => link.id !== linkId)
+        };
+        setSlides(nextSlides);
+    };
+
+    const clearManualTimingLinks = () => {
+        const nextSlides = [...slides];
+        nextSlides[currentSlideIndex] = {
+            ...nextSlides[currentSlideIndex],
+            timing_links_manual: []
+        };
+        setSlides(nextSlides);
+    };
 
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] max-h-[900px] bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -717,6 +918,203 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                                     className={cn(commonTextAreaClass, "max-h-[40vh] overflow-y-auto")}
                                     placeholder="Enter the narration script for this slide..."
                                 />
+                            </SidebarSection>
+                        )}
+
+                        {!currentSlide.is_assessment && (
+                            <SidebarSection
+                                title="Timing Links"
+                                icon={PlayCircle}
+                                iconColor="text-violet-600"
+                                isOpen={openSections.timing}
+                                onToggle={() => toggleSection('timing')}
+                                rightElement={
+                                    <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-5">
+                                        {currentSlide.timing_meta?.status || (manualTimingLinks.length > 0 ? "manual" : "missing")}
+                                    </Badge>
+                                }
+                            >
+                                <div className="space-y-2 rounded-md border border-violet-100 bg-violet-50/60 p-3">
+                                    <p className="text-xs font-semibold text-violet-900">
+                                        Manual links override auto links.
+                                    </p>
+                                    <p className="text-xs text-violet-800">
+                                        Auto links are only generated if this slide has no manual links.
+                                    </p>
+                                    {headingTargets.length > 0 && (
+                                        <p className="text-xs text-violet-800">
+                                            Headings default to 0ms unless manually linked.
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                    <div className="rounded-md border bg-white p-2">
+                                        <p className="text-slate-500">Manual</p>
+                                        <p className="font-semibold text-slate-800">{manualTimingLinks.length}</p>
+                                    </div>
+                                    <div className="rounded-md border bg-white p-2">
+                                        <p className="text-slate-500">Auto</p>
+                                        <p className="font-semibold text-slate-800">{autoTimingLinks.length}</p>
+                                    </div>
+                                    <div className="rounded-md border bg-white p-2">
+                                        <p className="text-slate-500">Targets</p>
+                                        <p className="font-semibold text-slate-800">{visualTargets.length}</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-slate-500">Visual Target</label>
+                                    <div className="max-h-36 overflow-y-auto rounded-md border border-slate-200 bg-white p-2">
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {visualTargets.map((target) => {
+                                                const isSelected = timingSourceId === target.id;
+                                                const isLinked = linkedSourceIds.has(target.id);
+                                                return (
+                                                    <button
+                                                        key={target.id}
+                                                        type="button"
+                                                        onClick={() => setTimingSourceId(target.id)}
+                                                        className={cn(
+                                                            "rounded-full border px-2 py-1 text-[11px] transition-colors",
+                                                            isSelected
+                                                                ? "border-violet-600 bg-violet-600 text-white"
+                                                                : isLinked
+                                                                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                                                    : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                                                        )}
+                                                        title={target.text}
+                                                    >
+                                                        [{target.type}] {target.text.slice(0, 24)}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-slate-500">Narration Scrubber</label>
+                                    {narrationTokens.length === 0 ? (
+                                        <p className="text-xs text-slate-500">No narration words available.</p>
+                                    ) : (
+                                        <>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={Math.max(0, narrationTokens.length - 1)}
+                                                value={timingTokenIndex}
+                                                onChange={(e) => setTimingTokenIndex(Number(e.target.value))}
+                                                className="w-full"
+                                            />
+                                            <p className="text-xs text-slate-600">
+                                                Selected token: #{timingTokenIndex}{" "}
+                                                <span className="font-semibold">{narrationTokens[timingTokenIndex]?.word || ""}</span>
+                                            </p>
+                                            <div className="max-h-32 overflow-y-auto rounded-md border border-slate-200 bg-white p-2">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {narrationTokens.map((token) => {
+                                                        const isSelected = token.index === timingTokenIndex;
+                                                        const isLinked = linkedTokenIndices.has(token.index);
+                                                        return (
+                                                            <button
+                                                                key={`token-chip-${token.index}`}
+                                                                type="button"
+                                                                onClick={() => setTimingTokenIndex(token.index)}
+                                                                className={cn(
+                                                                    "rounded px-1.5 py-0.5 text-[11px] border transition-colors",
+                                                                    isSelected
+                                                                        ? "border-violet-600 bg-violet-600 text-white"
+                                                                        : isLinked
+                                                                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                                                            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                                                )}
+                                                            >
+                                                                {token.word}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-slate-500">Animation Preset</label>
+                                    <select
+                                        value={timingPreset}
+                                        onChange={(e) => setTimingPreset(e.target.value)}
+                                        className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm"
+                                    >
+                                        <option value="appear">Appear</option>
+                                        <option value="emphasis">Emphasis</option>
+                                        <option value="slide-up">Slide Up</option>
+                                        <option value="fade">Fade</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={addManualTimingLink}
+                                        className="bg-violet-600 hover:bg-violet-700"
+                                    >
+                                        Add Manual Link
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={clearManualTimingLinks}
+                                    >
+                                        Clear Manual
+                                    </Button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-slate-500">Manual Links</label>
+                                    {manualTimingLinks.length === 0 ? (
+                                        <p className="text-xs text-slate-500">No manual links yet.</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {manualTimingLinks.map((link) => (
+                                                <div
+                                                    key={link.id || `${link.source?.id}-${link.target?.token_index}`}
+                                                    className={cn(
+                                                        "rounded-md border bg-white p-2 cursor-pointer",
+                                                        link.source?.id === timingSourceId || link.target?.token_index === timingTokenIndex
+                                                            ? "border-violet-400 bg-violet-50/50"
+                                                            : "border-slate-200"
+                                                    )}
+                                                    onClick={() => {
+                                                        if (link.source?.id) setTimingSourceId(link.source.id);
+                                                        if (typeof link.target?.token_index === "number") {
+                                                            setTimingTokenIndex(link.target.token_index);
+                                                        }
+                                                    }}
+                                                >
+                                                    <p className="text-xs font-medium text-slate-700">
+                                                        {`${link.source?.type || "?"}:${link.source?.id || "?"} -> token #${link.target?.token_index ?? "?"}`}
+                                                    </p>
+                                                    <div className="mt-1 flex items-center justify-between">
+                                                        <span className="text-[11px] text-slate-500">{link.animation?.preset || "appear"}</span>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-6 px-2 text-xs text-red-600 hover:bg-red-50"
+                                                            onClick={() => link.id && removeManualTimingLink(link.id)}
+                                                        >
+                                                            Remove
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </SidebarSection>
                         )}
 

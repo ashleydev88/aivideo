@@ -33,6 +33,7 @@ from backend.services.audio import generate_audio
 from backend.services.storage import upload_asset_throttled, handle_failure, get_asset_url
 from backend.services.sqs_producer import send_render_job_async
 from backend.services.slide_data import normalize_slides, sign_slide_assets_inplace
+from backend.services.timing import build_slide_timing_plan
 from backend.utils.helpers import extract_json_from_response, parse_alignment_to_words
 from backend.schemas import ScriptRequest
 from backend.services.logic_extraction import logic_extractor
@@ -1035,10 +1036,28 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
                     visual_text=visual_text
                 )
 
+            timing_plan = await asyncio.to_thread(
+                build_slide_timing_plan,
+                slide=slide,
+                alignment=alignment,
+                course_id=course_id,
+                user_id=user_id
+            )
+            if not bool(timing_plan.get("timing_policy_ok", True)):
+                policy_errors = timing_plan.get("timing_policy_errors", [])
+                raise Exception(
+                    f"Timing policy violation on slide {i + 1}: "
+                    f"{'; '.join(str(err) for err in policy_errors) or 'Unknown timing policy error'}"
+                )
+
             slide["audio"] = audio_url
             slide["duration"] = duration_ms
             slide["timestamps"] = alignment
             slide["kinetic_events"] = kinetic_events
+            slide["timing_links_manual"] = timing_plan.get("timing_links_manual", [])
+            slide["timing_links_auto"] = timing_plan.get("timing_links_auto", [])
+            slide["timing_resolved"] = timing_plan.get("timing_resolved", [])
+            slide["timing_meta"] = timing_plan.get("timing_meta", {})
             slide["accent_color"] = accent_color
             return slide
 

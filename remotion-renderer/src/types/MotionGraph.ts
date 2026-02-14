@@ -44,3 +44,19 @@ export interface MotionGraph {
     layoutWidth?: number;
     layoutHeight?: number;
 }
+
+export interface TimingResolvedEntry {
+    id: string;
+    origin?: string;
+    source_type: 'word' | 'paragraph' | 'heading' | 'node' | 'edge';
+    source_id: string;
+    source_text?: string;
+    token_index?: number | null;
+    token_word?: string;
+    start_ms: number;
+    end_ms?: number;
+    animation?: {
+        preset?: string;
+        duration_ms?: number;
+    };
+}

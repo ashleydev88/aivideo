@@ -1,11 +1,12 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
-import { MotionEdge, MotionNode, MotionArchetype } from '../../types/MotionGraph';
+import { MotionEdge, MotionNode, MotionArchetype, TimingResolvedEntry } from '../../types/MotionGraph';
 
 interface EdgeRendererProps {
     edges: MotionEdge[];
     nodes: MotionNode[]; // Needed for positions
     archetype: MotionArchetype;
+    timingResolved?: TimingResolvedEntry[];
 }
 
 const getHandle = (node: MotionNode, type: 'source' | 'target', archetype: MotionArchetype) => {
@@ -48,9 +49,16 @@ const getPath = (source: { x: number, y: number }, target: { x: number, y: numbe
     }
 }
 
-export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ edges, nodes, archetype }) => {
+export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ edges, nodes, archetype, timingResolved = [] }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
+    const edgeDelayById = new Map<string, number>();
+    timingResolved
+        .filter((item) => item?.source_type === 'edge' && typeof item?.source_id === 'string')
+        .forEach((item) => {
+            const startMs = Number(item.start_ms || 0);
+            edgeDelayById.set(item.source_id, Math.max(0, Math.floor((startMs / 1000) * fps)));
+        });
 
     return (
         <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
@@ -75,7 +83,8 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ edges, nodes, archet
                 // Nodes appear at i*15. Edges should appear between i and i+1?
                 // Let's assume edge takes 'delay' from the TARGET node's appearance time
                 const targetIndex = nodes.indexOf(targetNode);
-                const delay = (targetIndex * 15) + 10; // 10 frames after target starts appearing
+                const fallbackDelay = (targetIndex * 15) + 10; // 10 frames after target starts appearing
+                const delay = edgeDelayById.get(edge.id) ?? fallbackDelay;
 
                 const spr = spring({
                     frame: frame - delay,

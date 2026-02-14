@@ -197,7 +197,10 @@ export const MainComposition: React.FC<{
                             <AbsoluteFill className="flex items-center justify-center p-8">
                                 {/* Support both legacy ChartData and new MotionGraph shapes */}
                                 {slide.chart_data?.nodes && slide.chart_data?.archetype ? (
-                                    <MotionChart data={slide.chart_data as MotionGraph} />
+                                    <MotionChart
+                                        data={slide.chart_data as MotionGraph}
+                                        timingResolved={slide.timing_resolved}
+                                    />
                                 ) : (
                                     <Chart
                                         data={slide.chart_data}
@@ -278,7 +281,10 @@ export const MainComposition: React.FC<{
                                     </>
                                 )}
                                 <div className="z-20 w-full h-full">
-                                    <MotionChart data={motionGraphData} />
+                                    <MotionChart
+                                        data={motionGraphData}
+                                        timingResolved={slide.timing_resolved}
+                                    />
                                 </div>
                             </AbsoluteFill>
                         )}
@@ -292,6 +298,7 @@ export const MainComposition: React.FC<{
                                     accent_color={accent_color}
                                     fullScreen={true}
                                     kinetic_events={slide.kinetic_events}
+                                    timing_resolved={slide.timing_resolved}
                                     custom_bg_color={customBg}
                                     custom_text_color={customText}
                                 />
@@ -313,6 +320,7 @@ export const MainComposition: React.FC<{
                                             accent_color={accent_color}
                                             fullScreen={false}
                                             kinetic_events={slide.kinetic_events}
+                                            timing_resolved={slide.timing_resolved}
                                             custom_text_color={customText}
                                         />
                                     )}

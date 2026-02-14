@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
-import { MotionGraph } from '../types/MotionGraph';
+import { MotionGraph, TimingResolvedEntry } from '../types/MotionGraph';
 import { calculateLayout } from '../utils/layoutEngine';
 import { ProcessBox } from '../components/MotionBoxes/ProcessBox';
 import { ComparisonBox } from '../components/MotionBoxes/ComparisonBox';
@@ -23,10 +23,11 @@ import { Background } from '../components/Background';
 
 interface MotionChartProps {
     data: MotionGraph;
+    timingResolved?: TimingResolvedEntry[];
 }
 
-export const MotionChart: React.FC<MotionChartProps> = ({ data }) => {
-    const { width, height } = useVideoConfig();
+export const MotionChart: React.FC<MotionChartProps> = ({ data, timingResolved = [] }) => {
+    const { width, height, fps } = useVideoConfig();
     const [layoutGraph, setLayoutGraph] = useState<MotionGraph | null>(null);
 
     // Calculate layout on mount
@@ -43,6 +44,14 @@ export const MotionChart: React.FC<MotionChartProps> = ({ data }) => {
     const scaleX = (width - padding) / contentWidth;
     const scaleY = (height - padding) / contentHeight;
     const scale = Math.min(scaleX, scaleY, 1); // Ensure it fits, don't upscale beyond 1x
+
+    const nodeDelayById = new Map<string, number>();
+    timingResolved
+        .filter((item) => item?.source_type === 'node' && typeof item?.source_id === 'string')
+        .forEach((item) => {
+            const startMs = Number(item.start_ms || 0);
+            nodeDelayById.set(item.source_id, Math.max(0, Math.floor((startMs / 1000) * fps)));
+        });
 
     return (
         <AbsoluteFill className="bg-slate-50">
@@ -64,11 +73,12 @@ export const MotionChart: React.FC<MotionChartProps> = ({ data }) => {
                     edges={layoutGraph.edges}
                     nodes={layoutGraph.nodes}
                     archetype={data.archetype}
+                    timingResolved={timingResolved}
                 />
 
                 {layoutGraph.nodes.map((node, i) => {
                     // Staggered animation: 15 frames per item
-                    const delay = i * 15;
+                    const delay = nodeDelayById.get(node.id) ?? (i * 15);
 
                     return (
                         <div
