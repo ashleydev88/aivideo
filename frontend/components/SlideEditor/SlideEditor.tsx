@@ -630,7 +630,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             return { sourceId, tokenIndex };
         })
         .filter((entry): entry is { sourceId: string; tokenIndex: number } => !!entry);
-    const sidebarPanelLabel = "Menu";
 
     const upsertManualTimingLink = (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading" | "node" | "edge"; sourceText: string; tokenIndex: number }) => {
         const nextSlides = [...slides];
@@ -679,9 +678,9 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                         size="sm"
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                         className="text-slate-600 hover:text-teal-600 hover:bg-teal-50"
+                        aria-label="Toggle menu"
                     >
                         {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                        <span className="ml-2 hidden sm:inline">{isSidebarOpen ? `Close ${sidebarPanelLabel}` : `Open ${sidebarPanelLabel}`}</span>
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
