@@ -66,6 +66,7 @@ interface BackgroundEditWrapperProps {
     onBackgroundChange?: (newColor: string) => void;
     backgroundColor?: string;
     isContextualOverlayType: boolean;
+    controlPositionClassName?: string;
 }
 
 const BackgroundEditWrapper: React.FC<BackgroundEditWrapperProps> = ({
@@ -73,33 +74,36 @@ const BackgroundEditWrapper: React.FC<BackgroundEditWrapperProps> = ({
     className,
     onBackgroundChange,
     backgroundColor,
-    isContextualOverlayType
+    isContextualOverlayType,
+    controlPositionClassName
 }) => {
+    const [isPopoverOpen, setIsPopoverOpen] = useState(false);
     if (!onBackgroundChange) return <>{children}</>;
     const isLightBg = isLightColor(backgroundColor);
 
     return (
         <div className={`relative group/bg ${className}`}>
             {children}
-            <div className="absolute top-4 right-4 z-50 opacity-0 group-hover/bg:opacity-100 transition-opacity">
-                <Popover>
+            <div className={cn(
+                "absolute top-4 left-4 z-50 pointer-events-auto transition-opacity",
+                isPopoverOpen ? "opacity-100" : "opacity-0 group-hover/bg:opacity-100",
+                controlPositionClassName
+            )}>
+                <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                     <PopoverTrigger asChild>
                         <button
                             className={cn(
-                                "backdrop-blur-md border p-2 rounded-full shadow-sm transition-colors cursor-pointer",
+                                "backdrop-blur-md border p-4 rounded-full shadow-sm transition-colors cursor-pointer",
                                 isLightBg
                                     ? "bg-black/5 border-black/10 hover:bg-black/10"
                                     : "bg-white/10 border-white/20 hover:bg-white/20"
                             )}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <Palette className={cn(
-                                "w-4 h-4 drop-shadow-md",
-                                isLightBg ? "text-slate-900" : "text-white"
-                            )} />
+                            <Palette className="w-8 h-8 drop-shadow-md text-slate-900" />
                         </button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-64 p-3" align="end" side="bottom">
+                    <PopoverContent className="w-64 p-3 z-[70]" align="end" side="bottom" sideOffset={8} portalled={false}>
                         <div className="space-y-2">
                             <label className="text-xs font-semibold text-slate-500">
                                 {isContextualOverlayType ? 'Overlay Color' : 'Background Color'}
