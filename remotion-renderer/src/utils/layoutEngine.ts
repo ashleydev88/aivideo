@@ -5,14 +5,44 @@ import { getNormalizedProcessSize } from './processNodeSizing';
 const elk = new ELK();
 
 export const calculateLayout = async (graph: MotionGraph, width: number, height: number): Promise<MotionGraph> => {
-    const isProcessArchetype = graph.archetype === 'process' || graph.archetype === 'cycle';
-    const normalizedProcessSize = isProcessArchetype ? getNormalizedProcessSize(graph.nodes) : null;
+    const isHorizontalFlowArchetype =
+        graph.archetype === 'process' || graph.archetype === 'cycle' || graph.archetype === 'timeline';
+    const normalizedProcessSize = isHorizontalFlowArchetype ? getNormalizedProcessSize(graph.nodes) : null;
     const sizedNodes = graph.nodes.map(node => ({
         ...node,
-        nodeSize: isProcessArchetype
+        nodeSize: isHorizontalFlowArchetype
             ? normalizedProcessSize!
             : (node.nodeSize || { width: 250, height: 180 })
     }));
+
+    // Use deterministic centering for horizontal flows to match editor preview.
+    // ELK can include routing extents that visually shift rows off-center.
+    if (isHorizontalFlowArchetype) {
+        const nodeCount = sizedNodes.length;
+        const arrowCount = Math.max(0, nodeCount - 1);
+        const arrowSlotWidth = 56;
+        const includeCycleReturn = graph.archetype === 'cycle' && nodeCount > 1;
+        const cycleReturnWidth = includeCycleReturn ? (arrowSlotWidth + 24) : 0;
+        const nodeWidth = normalizedProcessSize!.width;
+        const nodeHeight = normalizedProcessSize!.height;
+        const rowWidth = (nodeCount * nodeWidth) + (arrowCount * arrowSlotWidth) + cycleReturnWidth;
+        const rowHeight = nodeHeight + 24;
+        const startX = (width / 2) - (rowWidth / 2);
+        const nodeY = ((height / 2) - (rowHeight / 2)) + 12;
+
+        return {
+            ...graph,
+            nodes: sizedNodes.map((node, index) => ({
+                ...node,
+                position: {
+                    x: startX + (index * (nodeWidth + arrowSlotWidth)),
+                    y: nodeY
+                }
+            })),
+            layoutWidth: rowWidth,
+            layoutHeight: rowHeight
+        };
+    }
 
     // 1. Transform MotionGraph to ELK Graph
     // Helper to get layout options based on archetype

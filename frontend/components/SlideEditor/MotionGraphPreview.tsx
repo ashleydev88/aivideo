@@ -183,19 +183,16 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
         const availableHeight = Math.max(220, flowViewport.height - safeVerticalPadding);
 
         const arrowSlotWidth = 56;
-        const minRequiredWidth = (nodeCount * normalizedProcessSize.width) + (arrowCount * arrowSlotWidth);
+        const cycleReturnWidth = includeCycleReturn ? (arrowSlotWidth + 24) : 0;
+        const minRequiredWidth = (nodeCount * normalizedProcessSize.width) + (arrowCount * arrowSlotWidth) + cycleReturnWidth;
         const requiredHeight = normalizedProcessSize.height + 24;
 
         // Scale the full row so both dimensions fit inside the slide viewport.
         const fitScale = Math.min(1, availableWidth / minRequiredWidth, availableHeight / requiredHeight);
         const scale = Math.max(0.35, fitScale);
-        const rowWidth = availableWidth / scale;
+        const rowWidth = minRequiredWidth;
         const rowHeight = requiredHeight;
         const iconSize = 48;
-        const freeSpace = Math.max(0, rowWidth - minRequiredWidth);
-        const segmentExtra = freeSpace / (nodeCount + 1);
-        const edgePad = segmentExtra;
-        const betweenNodeExtra = segmentExtra;
 
         return (
             <div
@@ -203,9 +200,9 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                 style={{ height: `${rowHeight * scale}px` }}
             >
                 <div
-                    className="relative"
+                    className="relative flex items-center justify-center"
                     style={{
-                        width: `${availableWidth}px`,
+                        width: `${rowWidth * scale}px`,
                         height: `${(rowHeight * scale) + 6}px`,
                         overflow: 'visible'
                     }}
@@ -218,7 +215,6 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                             transform: `scale(${scale})`
                         }}
                     >
-                        <div style={{ width: `${edgePad}px`, minWidth: `${edgePad}px` }} />
                         {nodes.map((node, i) => (
                             <React.Fragment key={node.id}>
                                 <PreviewMotionBox
@@ -235,14 +231,13 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                 {i < nodeCount - 1 && (
                                     <div
                                         className="flex items-center justify-center"
-                                        style={{ width: `${arrowSlotWidth + betweenNodeExtra}px`, minWidth: `${arrowSlotWidth}px` }}
+                                        style={{ width: `${arrowSlotWidth}px`, minWidth: `${arrowSlotWidth}px` }}
                                     >
                                         <Lucide.ArrowRight size={iconSize} color={textColor + 'aa'} strokeWidth={3} />
                                     </div>
                                 )}
                             </React.Fragment>
                         ))}
-                        <div style={{ width: `${edgePad}px`, minWidth: `${edgePad}px` }} />
                         {includeCycleReturn && (
                             <div className="flex items-center justify-center ml-6" style={{ width: `${arrowSlotWidth}px` }}>
                                 <Lucide.RotateCcw size={iconSize} color={accentColor} strokeWidth={3} />
