@@ -356,7 +356,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         setSlides(updatedSlides);
         setCurrentSlideIndex(currentSlideIndex + 1);
         setIsSidebarOpen(true);
-        setOpenSections((prev) => ({ ...prev, narration: true, assessment: true }));
+        setOpenSections((prev) => ({ ...prev, narration: false, assessment: true }));
     };
 
     const handleDeleteCurrentSlide = () => {
@@ -480,6 +480,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     };
 
     const currentAssessment = currentSlide?.is_assessment ? getAssessmentData(currentSlide) : null;
+    const sidebarPanelLabel = currentSlide?.is_assessment ? "Assessment" : "Narration";
 
     return (
         <div className="flex flex-col h-[calc(100vh-100px)] max-h-[900px] bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -503,7 +504,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                         className="text-slate-600 hover:text-teal-600 hover:bg-teal-50"
                     >
                         {isSidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                        <span className="ml-2 hidden sm:inline">{isSidebarOpen ? "Close Narration" : "Open Narration"}</span>
+                        <span className="ml-2 hidden sm:inline">{isSidebarOpen ? `Close ${sidebarPanelLabel}` : `Open ${sidebarPanelLabel}`}</span>
                     </Button>
                     <Button
                         variant="ghost"
@@ -594,26 +595,28 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                     <div className="space-y-4 max-w-lg mx-auto min-w-[300px]">
 
                         {/* 1. NARRATION SCRIPT */}
-                        <SidebarSection
-                            title="Narration Script"
-                            icon={FileText}
-                            iconColor="text-emerald-500"
-                            isOpen={openSections.narration}
-                            onToggle={() => toggleSection('narration')}
-                            rightElement={
-                                <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-5">
-                                    {currentSlide.text.split(" ").length} w
-                                </Badge>
-                            }
-                        >
-                            <Textarea
-                                ref={narrationRef}
-                                value={currentSlide.text}
-                                onChange={(e) => handleUpdateSlide("text", e.target.value)}
-                                className={cn(commonTextAreaClass, "max-h-[40vh] overflow-y-auto")}
-                                placeholder="Enter the narration script for this slide..."
-                            />
-                        </SidebarSection>
+                        {!currentSlide.is_assessment && (
+                            <SidebarSection
+                                title="Narration Script"
+                                icon={FileText}
+                                iconColor="text-emerald-500"
+                                isOpen={openSections.narration}
+                                onToggle={() => toggleSection('narration')}
+                                rightElement={
+                                    <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-5">
+                                        {currentSlide.text.split(" ").length} w
+                                    </Badge>
+                                }
+                            >
+                                <Textarea
+                                    ref={narrationRef}
+                                    value={currentSlide.text}
+                                    onChange={(e) => handleUpdateSlide("text", e.target.value)}
+                                    className={cn(commonTextAreaClass, "max-h-[40vh] overflow-y-auto")}
+                                    placeholder="Enter the narration script for this slide..."
+                                />
+                            </SidebarSection>
+                        )}
 
                         {currentSlide.is_assessment && currentAssessment && (
                             <SidebarSection
