@@ -11,6 +11,7 @@ import * as Lucide from 'lucide-react';
 import { MotionGraph, getVariantColor } from '@/lib/types/MotionGraph';
 import { PreviewMotionBox, PreviewStatBox } from './PreviewMotionBox';
 import RichTextEditor from './RichTextEditor';
+import { getNormalizedProcessSize } from '@/lib/utils/processNodeSizing';
 
 interface MotionGraphPreviewProps {
     data: MotionGraph;
@@ -40,6 +41,26 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     backgroundImage,
     onUpdate,
 }) => {
+    const flowViewportRef = React.useRef<HTMLDivElement | null>(null);
+    const [flowViewport, setFlowViewport] = React.useState({ width: 1600, height: 700 });
+
+    React.useEffect(() => {
+        const element = flowViewportRef.current;
+        if (!element || typeof ResizeObserver === 'undefined') return;
+
+        const observer = new ResizeObserver((entries) => {
+            const entry = entries[0];
+            if (!entry) return;
+            const { width, height } = entry.contentRect;
+            if (width > 0 && height > 0) {
+                setFlowViewport({ width, height });
+            }
+        });
+
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, []);
+
     if (!data || !data.nodes || data.nodes.length === 0) {
         return (
             <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -52,14 +73,14 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     const title = metadata?.title || '';
 
     // Render title
-    const renderTitle = () => {
+    const renderTitle = (floating = false) => {
         if (!title) return null;
         const isHtml = /<[a-z][\s\S]*>/i.test(title);
 
         return (
-            <div className="w-full flex flex-col items-center justify-center mb-16">
+            <div className={`w-full flex flex-col items-center justify-center ${floating ? '' : 'mb-16'}`}>
                 {onUpdate ? (
-                    <div className="text-7xl font-black tracking-tight uppercase text-center max-w-7xl mx-auto" style={{ color: textColor }}>
+                    <div className="motion-graph-title text-7xl font-black tracking-tight uppercase text-center max-w-7xl mx-auto" style={{ color: textColor }}>
                         <RichTextEditor
                             value={title}
                             onChange={handleTitleUpdate}
@@ -72,8 +93,14 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                         style={{ color: textColor }}
                     >
                         {isHtml ? (
-                            <div className="prose prose-2xl max-w-none dark:prose-invert">
-                                <style>{`h1, h2, h3, p { margin: 0; font-size: inherit; font-weight: inherit; } strong { color: ${accentColor}; }`}</style>
+                            <div className="motion-graph-title prose prose-2xl max-w-none dark:prose-invert">
+                                <style>{`
+                                    .motion-graph-title h1,
+                                    .motion-graph-title h2,
+                                    .motion-graph-title h3,
+                                    .motion-graph-title p { margin: 0; font-size: inherit; font-weight: inherit; }
+                                    .motion-graph-title strong { color: ${accentColor}; }
+                                `}</style>
                                 {parse(title)}
                             </div>
                         ) : (
@@ -144,51 +171,85 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     // Horizontal flow (process, cycle, timeline)
     const renderHorizontalFlow = () => {
         const nodeCount = nodes.length;
+        const normalizedProcessSize = getNormalizedProcessSize(nodes);
+        const arrowCount = Math.max(0, nodeCount - 1);
+        const includeCycleReturn = archetype === 'cycle' && nodeCount > 1;
 
-        // Calculate scale factor to fit within available width
-        // Assume available width ~1000px (standard preview width is often smaller in split view, but we scale relative to a "full" canvas)
-        // Base node width: ~280px + 32px gap = 312px
-        const availableWidth = 1000;
-        const baseNodeWidth = 312;
-        const requiredWidth = nodeCount * baseNodeWidth;
-        // Add some padding buffer
-        const scaleFactor = Math.min(1, availableWidth / (requiredWidth + 100));
-        const clampedScale = Math.max(0.4, scaleFactor);
+        // Keep process rows inside a visual safe area so they appear centered
+        // within the editable slide region (away from side controls / logo zone).
+        const safeHorizontalPadding = 440; // 220px each side
+        const safeVerticalPadding = 220; // top+bottom combined
+        const availableWidth = Math.max(400, flowViewport.width - safeHorizontalPadding);
+        const availableHeight = Math.max(220, flowViewport.height - safeVerticalPadding);
 
-        // Scaled values
-        const gap = Math.round(32 * clampedScale);
-        const iconSize = Math.round(48 * clampedScale); // Passed to arrow
+        const arrowSlotWidth = 56;
+        const minRequiredWidth = (nodeCount * normalizedProcessSize.width) + (arrowCount * arrowSlotWidth);
+        const requiredHeight = normalizedProcessSize.height + 24;
+
+        // Scale the full row so both dimensions fit inside the slide viewport.
+        const fitScale = Math.min(1, availableWidth / minRequiredWidth, availableHeight / requiredHeight);
+        const scale = Math.max(0.35, fitScale);
+        const rowWidth = availableWidth / scale;
+        const rowHeight = requiredHeight;
+        const iconSize = 48;
+        const freeSpace = Math.max(0, rowWidth - minRequiredWidth);
+        const segmentExtra = freeSpace / (nodeCount + 1);
+        const edgePad = segmentExtra;
+        const betweenNodeExtra = segmentExtra;
 
         return (
             <div
-                className="flex flex-row items-center justify-center w-full"
-                style={{ gap: `${gap}px` }}
+                className="w-full flex items-center justify-center"
+                style={{ height: `${rowHeight * scale}px` }}
             >
-                {nodes.map((node, i) => (
-                    <React.Fragment key={node.id}>
-                        {i > 0 && (
-                            <div className="flex-shrink-0">
-                                <Lucide.ArrowRight size={iconSize} color={textColor + 'aa'} strokeWidth={3} />
+                <div
+                    className="relative"
+                    style={{
+                        width: `${availableWidth}px`,
+                        height: `${(rowHeight * scale) + 6}px`,
+                        overflow: 'visible'
+                    }}
+                >
+                    <div
+                        className="flex flex-row items-center origin-left-top"
+                        style={{
+                            width: `${rowWidth}px`,
+                            height: `${rowHeight}px`,
+                            transform: `scale(${scale})`
+                        }}
+                    >
+                        <div style={{ width: `${edgePad}px`, minWidth: `${edgePad}px` }} />
+                        {nodes.map((node, i) => (
+                            <React.Fragment key={node.id}>
+                                <PreviewMotionBox
+                                    label={node.data.label}
+                                    subLabel={node.data.subLabel}
+                                    description={node.data.description}
+                                    icon={node.data.icon}
+                                    variant={node.data.variant}
+                                    isEditable={!!onUpdate}
+                                    onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
+                                    width={normalizedProcessSize.width}
+                                    height={normalizedProcessSize.height}
+                                />
+                                {i < nodeCount - 1 && (
+                                    <div
+                                        className="flex items-center justify-center"
+                                        style={{ width: `${arrowSlotWidth + betweenNodeExtra}px`, minWidth: `${arrowSlotWidth}px` }}
+                                    >
+                                        <Lucide.ArrowRight size={iconSize} color={textColor + 'aa'} strokeWidth={3} />
+                                    </div>
+                                )}
+                            </React.Fragment>
+                        ))}
+                        <div style={{ width: `${edgePad}px`, minWidth: `${edgePad}px` }} />
+                        {includeCycleReturn && (
+                            <div className="flex items-center justify-center ml-6" style={{ width: `${arrowSlotWidth}px` }}>
+                                <Lucide.RotateCcw size={iconSize} color={accentColor} strokeWidth={3} />
                             </div>
                         )}
-                        <div style={{ transform: `scale(${clampedScale})`, transformOrigin: 'center' }}>
-                            <PreviewMotionBox
-                                label={node.data.label}
-                                subLabel={node.data.subLabel}
-                                description={node.data.description}
-                                icon={node.data.icon}
-                                variant={node.data.variant}
-                                isEditable={!!onUpdate}
-                                onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
-                            />
-                        </div>
-                    </React.Fragment>
-                ))}
-                {archetype === 'cycle' && nodes.length > 1 && (
-                    <div className="flex-shrink-0">
-                        <Lucide.RotateCcw size={iconSize} color={accentColor} strokeWidth={3} />
                     </div>
-                )}
+                </div>
             </div>
         );
     };
@@ -979,10 +1040,11 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
 
     // Check for full-bleed archetypes
     const isFullBleed = archetype === 'contextual-overlay';
+    const isHorizontalFlow = archetype === 'process' || archetype === 'cycle' || archetype === 'timeline';
 
     return (
         <div
-            className={`flex flex-col items-center justify-center w-[1920px] h-[1080px] absolute inset-0 ${isFullBleed ? 'p-0' : 'p-12'}`}
+            className={`relative flex flex-col items-center justify-center w-[1920px] h-[1080px] absolute inset-0 ${isFullBleed ? 'p-0' : 'p-12'}`}
             style={{ backgroundColor }}
         >
             {/* Subtle background grid - hide on full bleed */}
@@ -996,9 +1058,17 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                 />
             )}
 
-            {!isFullBleed && renderTitle()}
+            {!isFullBleed && !isHorizontalFlow && renderTitle()}
+            {!isFullBleed && isHorizontalFlow && (
+                <div className="absolute top-20 left-0 right-0 z-10 flex justify-center">
+                    {renderTitle(true)}
+                </div>
+            )}
 
-            <div className={`w-full flex justify-center items-center ${isFullBleed ? 'h-full' : ''}`}>
+            <div
+                ref={flowViewportRef}
+                className={`w-full flex justify-center items-center ${isFullBleed ? 'h-full' : 'h-full'}`}
+            >
                 {renderNodes()}
             </div>
         </div>

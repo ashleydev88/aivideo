@@ -9,9 +9,9 @@ interface EdgeRendererProps {
 }
 
 const getHandle = (node: MotionNode, type: 'source' | 'target', archetype: MotionArchetype) => {
-    // Default node dimensions (must match layoutEngine or be dynamic)
-    const W = 250;
-    const H = 150;
+    // Use measured node dimensions when available.
+    const W = node.nodeSize?.width || 250;
+    const H = node.nodeSize?.height || 180;
 
     // Default: Process = Left-to-Right, Hierarchy = Top-to-Down
     const isHorizontal = archetype === 'process' || archetype === 'cycle';

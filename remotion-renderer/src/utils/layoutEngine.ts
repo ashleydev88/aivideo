@@ -1,9 +1,19 @@
 import ELK from 'elkjs/lib/elk.bundled';
-import { MotionGraph, MotionNode, MotionEdge } from '../types/MotionGraph';
+import { MotionGraph } from '../types/MotionGraph';
+import { getNormalizedProcessSize } from './processNodeSizing';
 
 const elk = new ELK();
 
 export const calculateLayout = async (graph: MotionGraph, width: number, height: number): Promise<MotionGraph> => {
+    const isProcessArchetype = graph.archetype === 'process' || graph.archetype === 'cycle';
+    const normalizedProcessSize = isProcessArchetype ? getNormalizedProcessSize(graph.nodes) : null;
+    const sizedNodes = graph.nodes.map(node => ({
+        ...node,
+        nodeSize: isProcessArchetype
+            ? normalizedProcessSize!
+            : (node.nodeSize || { width: 250, height: 180 })
+    }));
+
     // 1. Transform MotionGraph to ELK Graph
     // Helper to get layout options based on archetype
     const getLayoutOptions = (archetype: string) => {
@@ -72,10 +82,10 @@ export const calculateLayout = async (graph: MotionGraph, width: number, height:
     const elkGraph = {
         id: 'root',
         layoutOptions: getLayoutOptions(graph.archetype),
-        children: graph.nodes.map(node => ({
+        children: sizedNodes.map(node => ({
             id: node.id,
-            width: 250, // Standard width for our boxes
-            height: 150
+            width: node.nodeSize?.width || 250,
+            height: node.nodeSize?.height || 180
         })),
         edges: graph.edges.map(edge => ({
             id: edge.id,
@@ -91,7 +101,7 @@ export const calculateLayout = async (graph: MotionGraph, width: number, height:
     const rootWidth = (layout as any).width || width;
     const rootHeight = (layout as any).height || height;
 
-    const positionedNodes = graph.nodes.map(node => {
+    const positionedNodes = sizedNodes.map(node => {
         const layoutNode = layout.children?.find(n => n.id === node.id);
 
         return {

@@ -18,6 +18,8 @@ interface PreviewMotionBoxProps {
     variant?: 'neutral' | 'primary' | 'secondary' | 'accent' | 'positive' | 'negative' | 'warning';
     className?: string;
     isEditable?: boolean;
+    width?: number | string;
+    height?: number | string;
     onUpdate?: (field: string, value: string) => void;
 }
 
@@ -34,24 +36,32 @@ const getIconComponent = (iconName?: string) => {
 
 export const PreviewMotionBox: React.FC<PreviewMotionBoxProps> = ({
     label,
+    subLabel,
     description,
     icon,
     variant = 'neutral',
     className = '',
     isEditable = false,
     onUpdate,
+    width,
+    height,
 }) => {
     const color = getVariantColor(variant);
     return (
         <div
-            className={`bg-white rounded-3xl shadow-xl border-2 border-slate-100 overflow-hidden ${className}`}
-            style={{ minWidth: 280 }}
+            className={`bg-white rounded-3xl shadow-xl border-2 border-slate-300 overflow-hidden ${className}`}
+            style={{
+                minWidth: width || 280,
+                width,
+                height,
+                boxSizing: 'border-box'
+            }}
         >
             {/* Color accent bar */}
             <div className="h-3 w-full" style={{ backgroundColor: color }} />
 
             {/* Content */}
-            <div className="p-8 flex flex-col items-center text-center gap-4">
+            <div className="p-5 flex flex-col items-center text-center gap-4">
                 {/* Icon */}
                 <div
                     className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-md mb-2"
@@ -74,6 +84,10 @@ export const PreviewMotionBox: React.FC<PreviewMotionBoxProps> = ({
                         <div className="font-black text-slate-800 text-2xl leading-tight mb-2">{parse(label)}</div>
                     )}
 
+                    {subLabel && (
+                        <div className="text-sm font-semibold text-slate-500 uppercase tracking-wide">{parse(subLabel)}</div>
+                    )}
+
                     {(description || isEditable) && (
                         isEditable ? (
                             <div className="text-lg text-slate-500 mt-2 leading-relaxed">
@@ -84,7 +98,7 @@ export const PreviewMotionBox: React.FC<PreviewMotionBoxProps> = ({
                                 />
                             </div>
                         ) : (
-                            <div className="text-lg text-slate-500 mt-2 line-clamp-3 leading-relaxed">{parse(description || '')}</div>
+                            <div className="text-lg text-slate-500 mt-2 leading-relaxed">{parse(description || '')}</div>
                         )
                     )}
                 </div>

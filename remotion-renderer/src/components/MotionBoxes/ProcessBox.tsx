@@ -1,14 +1,16 @@
 import React from 'react';
 import { BaseMotionBox } from './BaseMotionBox';
 import * as Lucide from 'lucide-react';
-import { MotionEdge } from '../../types/MotionGraph';
 
 interface ProcessBoxProps {
     label: string;
     subLabel?: string;
+    description?: string;
     icon?: string;
     variant?: 'neutral' | 'primary' | 'secondary' | 'accent' | 'positive' | 'negative' | 'warning';
     delay?: number;
+    width?: number;
+    height?: number;
 }
 
 const getColor = (variant: string) => {
@@ -23,14 +25,14 @@ const getColor = (variant: string) => {
     }
 };
 
-export const ProcessBox: React.FC<ProcessBoxProps> = ({ label, subLabel, icon, variant = 'neutral', delay }) => {
+export const ProcessBox: React.FC<ProcessBoxProps> = ({ label, subLabel, description, icon, variant = 'neutral', delay, width, height }) => {
     const color = getColor(variant);
 
     // Dynamic Icon
     const IconComponent = icon && (Lucide as any)[icon.charAt(0).toUpperCase() + icon.slice(1).replace(/-./g, x => x[1].toUpperCase())] || Lucide.Box;
 
     return (
-        <BaseMotionBox delay={delay} className="min-w-[180px] p-0" enterEffect="scale">
+        <BaseMotionBox delay={delay} className="min-w-[180px] p-0" enterEffect="scale" width={width || 250} height={height || 180}>
             {/* Header / Icon Area */}
             <div className="h-2 w-full" style={{ backgroundColor: color }} />
             <div className="p-5 flex flex-col items-center text-center gap-3">
@@ -43,6 +45,7 @@ export const ProcessBox: React.FC<ProcessBoxProps> = ({ label, subLabel, icon, v
                 <div>
                     <h3 className="font-bold text-slate-800 text-lg leading-tight">{label}</h3>
                     {subLabel && <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-1">{subLabel}</p>}
+                    {description && <p className="text-xs text-slate-600 mt-2 leading-relaxed">{description}</p>}
                 </div>
             </div>
         </BaseMotionBox>

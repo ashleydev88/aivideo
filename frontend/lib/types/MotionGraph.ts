@@ -27,6 +27,7 @@ export interface MotionNode {
     type: 'motion-card' | 'motion-stat';
     data: MotionNodeData;
     position?: { x: number; y: number };
+    nodeSize?: { width: number; height: number };
 }
 
 export interface MotionEdge {

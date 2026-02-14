@@ -21,6 +21,7 @@ export interface MotionNode {
     // Position is optional because it might not be present in the initial AI output, 
     // but will be injected by the Layout Engine.
     position?: { x: number; y: number };
+    nodeSize?: { width: number; height: number };
 }
 
 export interface MotionEdge {

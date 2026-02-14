@@ -86,9 +86,12 @@ export const MotionChart: React.FC<MotionChartProps> = ({ data }) => {
                                         <ProcessBox
                                             label={node.data.label}
                                             subLabel={node.data.subLabel}
+                                            description={node.data.description}
                                             icon={node.data.icon}
                                             variant={node.data.variant}
                                             delay={delay}
+                                            width={node.nodeSize?.width}
+                                            height={node.nodeSize?.height}
                                         />
                                     );
                                 } else if (data.archetype === 'hierarchy') {
