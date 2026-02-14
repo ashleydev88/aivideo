@@ -130,6 +130,25 @@ interface SlideEditorProps {
 
 const commonTextAreaClass = "min-h-[120px] w-full p-3 rounded-md border border-slate-200 text-base text-slate-800 leading-relaxed shadow-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:border-transparent transition-all resize-y";
 const IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080' viewBox='0 0 1920 1080'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%23111827'/%3E%3Cstop offset='100%25' stop-color='%23334155'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1920' height='1080' fill='url(%23g)'/%3E%3Ccircle cx='620' cy='380' r='110' fill='%2338bdf8' fill-opacity='0.25'/%3E%3Ccircle cx='1320' cy='720' r='180' fill='%2322d3ee' fill-opacity='0.15'/%3E%3Crect x='510' y='310' width='900' height='460' rx='28' fill='%230f172a' fill-opacity='0.5' stroke='%2394a3b8' stroke-opacity='0.35' stroke-width='4'/%3E%3Ctext x='960' y='520' text-anchor='middle' fill='white' font-family='Arial,sans-serif' font-size='64' font-weight='700'%3EImage Placeholder%3C/text%3E%3Ctext x='960' y='590' text-anchor='middle' fill='%23cbd5e1' font-family='Arial,sans-serif' font-size='32'%3EAdd prompt or regenerate visual later%3C/text%3E%3C/svg%3E";
+const DEFAULT_ASSESSMENT_QUESTION = "Knowledge Check: insert your question here";
+const DEFAULT_ASSESSMENT_OPTIONS = ["Option A", "Option B", "Option C"];
+const DEFAULT_ASSESSMENT_EXPLANATION = "Replace this with the rationale for the correct answer.";
+
+const createDefaultAssessmentData = (): AssessmentData => ({
+    question: DEFAULT_ASSESSMENT_QUESTION,
+    options: [...DEFAULT_ASSESSMENT_OPTIONS],
+    correct_index: 0,
+    explanation: DEFAULT_ASSESSMENT_EXPLANATION,
+    points: 1
+});
+
+const buildAssessmentVisualText = (assessment: AssessmentData): string => {
+    const optionsHtml = assessment.options
+        .map((option, idx) => `<p>${String.fromCharCode(65 + idx)}. ${option || "Option"}</p>`)
+        .join("");
+
+    return `<h2>${assessment.question || "Quick Check"}</h2>${optionsHtml}`;
+};
 
 // Reusable Collapsible Section Component
 const SidebarSection = ({
@@ -393,13 +412,13 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     };
 
     const handleAddAssessmentStep = () => {
-        const sourceSlide = slides[currentSlideIndex];
         const assessmentBackgroundColor = userBrandColor || "#ffffff";
         const assessmentTextColor = userBrandColor ? "#ffffff" : "#0f172a";
+        const defaultAssessment = createDefaultAssessmentData();
         const newSlide: Slide = {
             slide_number: currentSlideIndex + 2,
             text: "Quick check. Review the options and choose the best answer.",
-            visual_text: "<h2>Quick Check</h2><p>Read the question and choose one answer.</p>",
+            visual_text: buildAssessmentVisualText(defaultAssessment),
             layout: "text_only",
             visual_type: "title_card",
             prompt: "",
@@ -407,17 +426,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             background_color: assessmentBackgroundColor,
             text_color: assessmentTextColor,
             is_assessment: true,
-            assessment_data: {
-                question: `Which option best applies after "${(sourceSlide.visual_text || sourceSlide.text || "this step").toString().replace(/<[^>]*>/g, "").slice(0, 80)}"?`,
-                options: [
-                    "Option A",
-                    "Option B",
-                    "Option C"
-                ],
-                correct_index: 0,
-                explanation: "Replace this with the rationale for the correct answer.",
-                points: 1
-            }
+            assessment_data: defaultAssessment
         };
 
         const updatedSlides = renumberSlides([
@@ -559,21 +568,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     };
 
     const getAssessmentData = (slide: Slide): AssessmentData => {
-        return slide.assessment_data || {
-            question: "",
-            options: ["Option A", "Option B", "Option C"],
-            correct_index: 0,
-            explanation: "",
-            points: 1
-        };
-    };
-
-    const buildAssessmentVisualText = (assessment: AssessmentData): string => {
-        const optionsHtml = assessment.options
-            .map((option, idx) => `<p>${String.fromCharCode(65 + idx)}. ${option || "Option"}</p>`)
-            .join("");
-
-        return `<h2>${assessment.question || "Quick Check"}</h2>${optionsHtml}`;
+        return slide.assessment_data || createDefaultAssessmentData();
     };
 
     const updateAssessment = (updates: Partial<AssessmentData>) => {

@@ -258,6 +258,18 @@ export default function RichTextEditor({
 
     // Sync logic removed: We now rely on the parent to unmount/remount this component (via key prop)
     // when switching slides. This prevents focus loss/cursor jumping during typing.
+    React.useEffect(() => {
+        if (!editor) return;
+
+        const nextContent = processInitialValue(value);
+        const currentContent = editor.getHTML();
+        if (currentContent === nextContent) return;
+
+        // Allow sidebar-driven updates to refresh the preview without disrupting active typing.
+        if (!editor.isFocused) {
+            editor.commands.setContent(nextContent, false);
+        }
+    }, [editor, value]);
 
     if (!editor) {
         return null
