@@ -20,6 +20,10 @@ interface MotionGraphPreviewProps {
     textColor?: string;
     backgroundImage?: string | null;
     onUpdate?: (newData: MotionGraph) => void;
+    narrationTokens?: Array<{ index: number; word: string }>;
+    timingLinks?: Array<{ sourceId: string; tokenIndex: number }>;
+    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading"; sourceText: string; tokenIndex: number }) => void;
+    onTimingLinkRemove?: (sourceId: string) => void;
 }
 
 // Get icon component from kebab-case name
@@ -40,6 +44,10 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
     textColor = '#0f172a',
     backgroundImage,
     onUpdate,
+    narrationTokens = [],
+    timingLinks = [],
+    onTimingLinkAdd,
+    onTimingLinkRemove,
 }) => {
     const flowViewportRef = React.useRef<HTMLDivElement | null>(null);
     const [flowViewport, setFlowViewport] = React.useState({ width: 1600, height: 700 });
@@ -474,6 +482,11 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                     variant={node.data.variant}
                     isEditable={!!onUpdate}
                     onUpdate={(field, val) => handleNodeUpdate(node.id, field, val)}
+                    narrationTokens={narrationTokens}
+                    timingLinks={timingLinks}
+                    onTimingLinkAdd={onTimingLinkAdd}
+                    onTimingLinkRemove={onTimingLinkRemove}
+                    enableDescriptionTiming
                 />
             ))}
         </div>
@@ -828,6 +841,10 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                     value={quoteNode?.data.label || ''}
                                     onChange={(value) => handleNodeUpdate(quoteNode.id, 'label', value)}
                                     variant="minimal"
+                                    narrationTokens={narrationTokens}
+                                    timingLinks={timingLinks}
+                                    onTimingLinkAdd={onTimingLinkAdd}
+                                    onTimingLinkRemove={onTimingLinkRemove}
                                 />
                             </div>
                         ) : (
@@ -979,6 +996,10 @@ export const MotionGraphPreview: React.FC<MotionGraphPreviewProps> = ({
                                     value={mainNode?.data.label || ''}
                                     onChange={(value) => handleNodeUpdate(mainNode.id, 'label', value)}
                                     variant="minimal"
+                                    narrationTokens={narrationTokens}
+                                    timingLinks={timingLinks}
+                                    onTimingLinkAdd={onTimingLinkAdd}
+                                    onTimingLinkRemove={onTimingLinkRemove}
                                 />
                             </div>
                             <div className="description text-slate-200">

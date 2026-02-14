@@ -625,6 +625,12 @@ export default function VisualPreview({
             }
         };
 
+        const allowsTextTimingInGraph =
+            visual_type === 'document_anchor' ||
+            visual_type === 'contextual_overlay' ||
+            visual_type === 'contextual-overlay' ||
+            visual_type === 'key_stat_breakout';
+
         return (
             <ScaleContainer>
                 {/* Background editing for Chart might be complex due to canvas, putting wrapper around */}
@@ -640,6 +646,10 @@ export default function VisualPreview({
                         backgroundColor={slide.background_color}
                         textColor={slide.text_color}
                         backgroundImage={resolvedImage}
+                        narrationTokens={narrationTokens}
+                        timingLinks={timingLinks}
+                        onTimingLinkAdd={allowsTextTimingInGraph ? onTextTimingLinkAdd : undefined}
+                        onTimingLinkRemove={allowsTextTimingInGraph ? onTextTimingLinkRemove : undefined}
                         onUpdate={
                             visual_type === 'chart'
                                 ? onChartUpdate

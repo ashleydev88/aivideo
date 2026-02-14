@@ -21,6 +21,11 @@ interface PreviewMotionBoxProps {
     width?: number | string;
     height?: number | string;
     onUpdate?: (field: string, value: string) => void;
+    narrationTokens?: Array<{ index: number; word: string }>;
+    timingLinks?: Array<{ sourceId: string; tokenIndex: number }>;
+    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading"; sourceText: string; tokenIndex: number }) => void;
+    onTimingLinkRemove?: (sourceId: string) => void;
+    enableDescriptionTiming?: boolean;
 }
 
 // Convert kebab-case icon name to PascalCase for Lucide
@@ -117,6 +122,11 @@ export const PreviewStatBox: React.FC<PreviewMotionBoxProps & { value?: string |
     variant = 'primary',
     isEditable = false,
     onUpdate,
+    narrationTokens = [],
+    timingLinks = [],
+    onTimingLinkAdd,
+    onTimingLinkRemove,
+    enableDescriptionTiming = false,
 }) => {
     const color = getVariantColor(variant);
 
@@ -142,6 +152,10 @@ export const PreviewStatBox: React.FC<PreviewMotionBoxProps & { value?: string |
                         value={description || (value ? label : '')}
                         onChange={(nextValue) => onUpdate?.('description', nextValue)}
                         variant="minimal"
+                        narrationTokens={narrationTokens}
+                        timingLinks={timingLinks}
+                        onTimingLinkAdd={enableDescriptionTiming ? onTimingLinkAdd : undefined}
+                        onTimingLinkRemove={enableDescriptionTiming ? onTimingLinkRemove : undefined}
                     />
                 </div>
             ) : (

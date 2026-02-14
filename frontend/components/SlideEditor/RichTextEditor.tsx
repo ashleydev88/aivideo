@@ -8,6 +8,7 @@ import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
 import { Extension } from '@tiptap/core'
 import React from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
     Bold,
     Italic,
