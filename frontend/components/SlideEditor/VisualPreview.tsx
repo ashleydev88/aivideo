@@ -21,6 +21,10 @@ interface VisualPreviewProps {
     onTextChange?: (newText: string) => void;
     onBackgroundChange?: (newColor: string) => void;
     onSlideFieldChange?: (field: keyof SlidePreviewData, value: unknown) => void;
+    narrationTokens?: Array<{ index: number; word: string }>;
+    timingLinks?: Array<{ sourceId: string; tokenIndex: number }>;
+    onTextTimingLinkAdd?: (payload: { sourceId: string; sourceType: "word" | "paragraph" | "heading"; sourceText: string; tokenIndex: number }) => void;
+    onTextTimingLinkRemove?: (sourceId: string) => void;
 }
 
 interface SlideLayoutData {
@@ -298,7 +302,17 @@ const ScaleContainer = ({ children }: { children: React.ReactNode }) => {
     );
 };
 
-export default function VisualPreview({ slide, onChartUpdate, onTextChange, onBackgroundChange, onSlideFieldChange }: VisualPreviewProps) {
+export default function VisualPreview({
+    slide,
+    onChartUpdate,
+    onTextChange,
+    onBackgroundChange,
+    onSlideFieldChange,
+    narrationTokens = [],
+    timingLinks = [],
+    onTextTimingLinkAdd,
+    onTextTimingLinkRemove,
+}: VisualPreviewProps) {
     const { visual_type, image, chart_data } = slide;
     const isContextualOverlayType = visual_type === 'contextual_overlay' || visual_type === 'contextual-overlay';
     const [resolvedImage, setResolvedImage] = useState<string | null>(null);
@@ -697,6 +711,10 @@ export default function VisualPreview({ slide, onChartUpdate, onTextChange, onBa
                                     value={textContent}
                                     onChange={onTextChange}
                                     variant="minimal"
+                                    narrationTokens={narrationTokens}
+                                    timingLinks={timingLinks}
+                                    onTimingLinkAdd={onTextTimingLinkAdd}
+                                    onTimingLinkRemove={onTextTimingLinkRemove}
                                 />
                             ) : (
                                 <div className="prose-preview dark:prose-invert max-w-none">
@@ -745,6 +763,10 @@ export default function VisualPreview({ slide, onChartUpdate, onTextChange, onBa
                                         value={textContent}
                                         onChange={onTextChange}
                                         variant="minimal"
+                                        narrationTokens={narrationTokens}
+                                        timingLinks={timingLinks}
+                                        onTimingLinkAdd={onTextTimingLinkAdd}
+                                        onTimingLinkRemove={onTextTimingLinkRemove}
                                     />
                                 ) : (
                                     // Fallback read-only using same styles roughly
@@ -854,6 +876,10 @@ export default function VisualPreview({ slide, onChartUpdate, onTextChange, onBa
                                             value={textContent}
                                             onChange={onTextChange}
                                             variant="minimal"
+                                            narrationTokens={narrationTokens}
+                                            timingLinks={timingLinks}
+                                            onTimingLinkAdd={onTextTimingLinkAdd}
+                                            onTimingLinkRemove={onTextTimingLinkRemove}
                                         />
                                     ) : (
                                         <div className="max-w-none">
@@ -913,6 +939,10 @@ export default function VisualPreview({ slide, onChartUpdate, onTextChange, onBa
                                         value={slide.visual_text}
                                         onChange={onTextChange}
                                         variant="minimal"
+                                        narrationTokens={narrationTokens}
+                                        timingLinks={timingLinks}
+                                        onTimingLinkAdd={onTextTimingLinkAdd}
+                                        onTimingLinkRemove={onTextTimingLinkRemove}
                                     />
                                 ) : (
                                     <h1 className="text-6xl font-black text-white drop-shadow-xl leading-none">

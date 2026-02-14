@@ -17,7 +17,9 @@ import {
     AlignCenter,
     AlignRight,
     Type,
-    Palette
+    Palette,
+    Timer,
+    Unlink2
 } from 'lucide-react'
 
 // Custom Extension to handle Font Size
@@ -45,6 +47,30 @@ const FontSizeExtension = Extension.create({
                             }
                         },
                     },
+                    timingId: {
+                        default: null,
+                        parseHTML: element => element.getAttribute('data-timing-id'),
+                        renderHTML: attributes => {
+                            if (!attributes.timingId) {
+                                return {}
+                            }
+                            return {
+                                'data-timing-id': attributes.timingId,
+                            }
+                        },
+                    },
+                    timingType: {
+                        default: null,
+                        parseHTML: element => element.getAttribute('data-timing-type'),
+                        renderHTML: attributes => {
+                            if (!attributes.timingType) {
+                                return {}
+                            }
+                            return {
+                                'data-timing-type': attributes.timingType,
+                            }
+                        },
+                    },
                 },
             },
         ]
@@ -56,9 +82,21 @@ interface RichTextEditorProps {
     onChange: (value: string) => void;
     placeholder?: string;
     variant?: 'default' | 'minimal';
+    narrationTokens?: Array<{ index: number; word: string }>;
+    timingLinks?: Array<{ sourceId: string; tokenIndex: number }>;
+    onTimingLinkAdd?: (payload: { sourceId: string; sourceType: 'word' | 'paragraph' | 'heading'; sourceText: string; tokenIndex: number }) => void;
+    onTimingLinkRemove?: (sourceId: string) => void;
 }
 
-export default function RichTextEditor({ value, onChange, variant = 'default' }: RichTextEditorProps) {
+export default function RichTextEditor({
+    value,
+    onChange,
+    variant = 'default',
+    narrationTokens = [],
+    timingLinks = [],
+    onTimingLinkAdd,
+    onTimingLinkRemove,
+}: RichTextEditorProps) {
     // Basic Markdown-to-HTML converter for legacy slides
     const processInitialValue = (val: string) => {
         if (!val) return "";
@@ -129,12 +167,69 @@ export default function RichTextEditor({ value, onChange, variant = 'default' }:
         }
     })
 
+    const [timingMenuOpen, setTimingMenuOpen] = React.useState(false);
+    const timingEnabled = narrationTokens.length > 0 && !!onTimingLinkAdd;
+    const timingLinkMap = React.useMemo(() => {
+        const map = new Map<string, number>();
+        timingLinks.forEach((link) => {
+            map.set(link.sourceId, link.tokenIndex);
+        });
+        return map;
+    }, [timingLinks]);
+
     // Sync logic removed: We now rely on the parent to unmount/remount this component (via key prop)
     // when switching slides. This prevents focus loss/cursor jumping during typing.
 
     if (!editor) {
         return null
     }
+
+    const getSelectionTimingContext = () => {
+        const { from, to, empty } = editor.state.selection;
+        if (empty) return null;
+
+        const selectedText = editor.state.doc.textBetween(from, to, " ").trim();
+        if (!selectedText) return null;
+
+        const attrs = editor.getAttributes('textStyle') as { timingId?: string; timingType?: string };
+        const inferredType: 'word' | 'paragraph' | 'heading' =
+            editor.isActive('heading')
+                ? 'heading'
+                : selectedText.split(/\s+/).length > 1
+                    ? 'paragraph'
+                    : 'word';
+
+        return {
+            selectedText,
+            timingId: attrs.timingId || "",
+            timingType: (attrs.timingType as 'word' | 'paragraph' | 'heading' | undefined) || inferredType,
+        };
+    };
+
+    const applyTimingLink = (tokenIndex: number) => {
+        if (!timingEnabled) return;
+        const ctx = getSelectionTimingContext();
+        if (!ctx) return;
+
+        const { from, to } = editor.state.selection;
+        const sourceId = ctx.timingId || `timing-${from}-${to}-${ctx.timingType}`;
+        editor.chain().focus().setMark('textStyle', { timingId: sourceId, timingType: ctx.timingType }).run();
+        onTimingLinkAdd?.({
+            sourceId,
+            sourceType: ctx.timingType,
+            sourceText: ctx.selectedText,
+            tokenIndex,
+        });
+        setTimingMenuOpen(false);
+    };
+
+    const removeTimingLink = () => {
+        const ctx = getSelectionTimingContext();
+        if (!ctx || !ctx.timingId) return;
+        editor.chain().focus().setMark('textStyle', { timingId: null, timingType: null }).run();
+        onTimingLinkRemove?.(ctx.timingId);
+        setTimingMenuOpen(false);
+    };
 
     const setFontSize = (size: string) => {
         editor.chain().focus().setMark('textStyle', { fontSize: size }).run();
@@ -159,8 +254,12 @@ export default function RichTextEditor({ value, onChange, variant = 'default' }:
     )
 
     // Common toolbar content for reuse
-    const renderToolbarContent = () => (
-        <>
+    const renderToolbarContent = () => {
+        const timingCtx = getSelectionTimingContext();
+        const activeTimingToken = timingCtx?.timingId ? timingLinkMap.get(timingCtx.timingId) : undefined;
+
+        return (
+            <>
             <ToolbarButton
                 onClick={() => editor.chain().focus().toggleBold().run()}
                 isActive={editor.isActive('bold')}
@@ -253,8 +352,91 @@ export default function RichTextEditor({ value, onChange, variant = 'default' }:
                 icon={ListOrdered}
                 title="Numbered List"
             />
-        </>
-    );
+
+            {timingEnabled && (
+                <>
+                    <div className="w-px h-4 bg-slate-200 mx-1" />
+                    <div className="relative">
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (!timingCtx) return;
+                                setTimingMenuOpen((prev) => !prev);
+                            }}
+                            className={cn(
+                                "p-1.5 rounded transition-colors flex items-center gap-1",
+                                timingCtx?.timingId ? "bg-violet-100 text-violet-700" : "text-slate-500 hover:bg-slate-200",
+                                !timingCtx ? "opacity-40 cursor-not-allowed" : ""
+                            )}
+                            title="Link timing to narration"
+                            disabled={!timingCtx}
+                        >
+                            <Timer className="w-4 h-4" />
+                        </button>
+
+                        {timingMenuOpen && timingCtx && (
+                            <div className="absolute right-0 mt-2 w-72 rounded-md border bg-white shadow-lg p-3 z-[100000]">
+                                <p className="text-xs font-semibold text-slate-700 mb-1">Link to narration word</p>
+                                <p className="text-[11px] text-slate-500 mb-2 line-clamp-2">{timingCtx.selectedText}</p>
+                                {typeof activeTimingToken === "number" && narrationTokens[activeTimingToken] && (
+                                    <p className="text-[11px] text-violet-700 mb-2">
+                                        Linked: #{activeTimingToken} {narrationTokens[activeTimingToken].word}
+                                    </p>
+                                )}
+                                <div className="max-h-36 overflow-y-auto border rounded p-2 mb-2">
+                                    <div className="flex flex-wrap gap-1">
+                                        {narrationTokens.map((token) => (
+                                            <button
+                                                key={`timing-token-${token.index}`}
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    applyTimingLink(token.index);
+                                                }}
+                                                className={cn(
+                                                    "text-[11px] px-1.5 py-0.5 rounded border",
+                                                    activeTimingToken === token.index
+                                                        ? "border-violet-600 bg-violet-600 text-white"
+                                                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                                                )}
+                                            >
+                                                {token.word}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setTimingMenuOpen(false);
+                                        }}
+                                        className="text-xs text-slate-500 hover:text-slate-700"
+                                    >
+                                        Close
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            removeTimingLink();
+                                        }}
+                                        className="text-xs text-red-600 hover:text-red-700 inline-flex items-center gap-1"
+                                        disabled={!timingCtx.timingId}
+                                    >
+                                        <Unlink2 className="w-3 h-3" />
+                                        Remove timing
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+            </>
+        );
+    };
 
     if (variant === 'minimal') {
         return (
@@ -263,6 +445,10 @@ export default function RichTextEditor({ value, onChange, variant = 'default' }:
                 <style jsx global>{`
                     .ProseMirror p, .ProseMirror li {
                         font-size: var(--editor-default-size, 1.75rem); 
+                    }
+                    .ProseMirror [data-timing-id] {
+                        background: rgba(139, 92, 246, 0.12);
+                        border-bottom: 2px solid rgba(139, 92, 246, 0.45);
                     }
                     /* Minimal editor specific styles */
                     .minimal-editor .ProseMirror {
@@ -311,6 +497,10 @@ export default function RichTextEditor({ value, onChange, variant = 'default' }:
             <style jsx global>{`
                 .ProseMirror p, .ProseMirror li {
                     font-size: 1.75rem; 
+                }
+                .ProseMirror [data-timing-id] {
+                    background: rgba(139, 92, 246, 0.12);
+                    border-bottom: 2px solid rgba(139, 92, 246, 0.45);
                 }
             `}</style>
             <div className="flex items-center gap-1 border-b border-slate-100 bg-slate-50/50 p-1 px-2 flex-wrap">

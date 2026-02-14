@@ -79,9 +79,11 @@ Deliver a production-ready timing-link system where users can link visual elemen
   - chart slides must resolve at least one `node`/`edge` timing link
   - violations fail finalize with explicit slide-level error
 - [x] Upgraded Timing Studio interactions:
-  - clickable visual target chips with linked-state highlighting
-  - narration token scrubber (range + token chips)
-  - live highlight of selected/linked targets and token-linked manual entries
+  - inline BubbleMenu timing icon on text selection
+  - timing popover with narration token chips for link/relink
+  - remove timing action from same popover
+  - timing-marked text highlighting in editor via `data-timing-id`
+  - sidebar timing section simplified to status + guidance + manual link audit list
 - [x] Validation pass:
   - `cd frontend && npm run lint` (success with existing warnings only)
   - `cd remotion-renderer && npx tsc --noEmit` (success)

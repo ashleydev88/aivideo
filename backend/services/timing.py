@@ -46,6 +46,22 @@ def _extract_non_chart_targets(slide: dict[str, Any]) -> list[dict[str, str]]:
     has_html = bool(re.search(r"<[a-zA-Z][^>]*>", raw))
 
     if has_html:
+        timing_span_matches = re.findall(
+            r'<([^>]*)data-timing-id=["\']([^"\']+)["\']([^>]*)>(.*?)</[^>]+>',
+            raw,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        for pre_attrs, timing_id, post_attrs, fragment in timing_span_matches:
+            text = _strip_html_fragment(fragment)
+            if not text:
+                continue
+            attrs = f"{pre_attrs} {post_attrs}"
+            m = re.search(r'data-timing-type=["\']([^"\']+)["\']', attrs, flags=re.IGNORECASE)
+            timing_type = str((m.group(1) if m else "") or "")
+            if timing_type not in NON_CHART_SOURCE_TYPES:
+                timing_type = "paragraph" if len(text.split()) > 1 else "word"
+            targets.append({"type": timing_type, "id": str(timing_id), "text": text})
+
         heading_matches = re.findall(r"<h[1-6][^>]*>(.*?)</h[1-6]>", raw, flags=re.IGNORECASE | re.DOTALL)
         for idx, fragment in enumerate(heading_matches):
             text = _strip_html_fragment(fragment)
