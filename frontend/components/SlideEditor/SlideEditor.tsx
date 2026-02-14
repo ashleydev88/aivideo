@@ -13,9 +13,7 @@ import {
     Save,
     PlayCircle,
     Loader2,
-    RefreshCcw,
     FileText,
-    ImageIcon,
     PanelRightOpen,
     PanelRightClose,
     ListChecks,
@@ -79,6 +77,7 @@ interface SlideEditorProps {
 }
 
 const commonTextAreaClass = "min-h-[120px] w-full p-3 rounded-md border border-slate-200 text-base text-slate-800 leading-relaxed shadow-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:border-transparent transition-all resize-y";
+const IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080' viewBox='0 0 1920 1080'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%23111827'/%3E%3Cstop offset='100%25' stop-color='%23334155'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1920' height='1080' fill='url(%23g)'/%3E%3Ccircle cx='620' cy='380' r='110' fill='%2338bdf8' fill-opacity='0.25'/%3E%3Ccircle cx='1320' cy='720' r='180' fill='%2322d3ee' fill-opacity='0.15'/%3E%3Crect x='510' y='310' width='900' height='460' rx='28' fill='%230f172a' fill-opacity='0.5' stroke='%2394a3b8' stroke-opacity='0.35' stroke-width='4'/%3E%3Ctext x='960' y='520' text-anchor='middle' fill='white' font-family='Arial,sans-serif' font-size='64' font-weight='700'%3EImage Placeholder%3C/text%3E%3Ctext x='960' y='590' text-anchor='middle' fill='%23cbd5e1' font-family='Arial,sans-serif' font-size='32'%3EAdd prompt or regenerate visual later%3C/text%3E%3C/svg%3E";
 
 // Reusable Collapsible Section Component
 const SidebarSection = ({
@@ -131,7 +130,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
     const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
-    const [regeneratingSlideIndex, setRegeneratingSlideIndex] = useState<number | null>(null);
     const [userBrandColor, setUserBrandColor] = useState<string | null>(null);
     const narrationRef = useRef<HTMLTextAreaElement>(null);
 
@@ -260,42 +258,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         setSlides(newSlides);
     };
 
-    const handleRegenerateVisual = async () => {
-        if (!currentSlide.prompt) return;
-        setRegeneratingSlideIndex(currentSlideIndex);
-        try {
-            const supabase = createClient();
-            const { data: { session } } = await supabase.auth.getSession();
-
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-            const res = await fetch(`${API_BASE_URL}/api/course/regenerate-slide-visual/${courseId}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${session?.access_token}`
-                },
-                body: JSON.stringify({
-                    prompt: currentSlide.prompt,
-                    slide_index: currentSlideIndex
-                })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                handleUpdateSlide("image", data.image_url);
-                // Also update visual_type back to image/hybrid if it was defaulted to something else? 
-                // Actually the user intent is implicit.
-            } else {
-                alert("Failed to regenerate visual");
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Error regenerating visual");
-        } finally {
-            setRegeneratingSlideIndex(null);
-        }
-    };
-
     const handleSave = async (silent = false, slidesToSave?: Slide[]) => {
         setIsSaving(true);
         try {
@@ -420,6 +382,7 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
             visual_type: "image",
             prompt: "A clean, professional business scene that supports the narration.",
             duration: 7000,
+            image: IMAGE_PLACEHOLDER,
             background_color: "#000000",
             text_color: "#ffffff",
             is_assessment: false
@@ -444,6 +407,10 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         if (nextType === "chart" && !target.chart_data) {
             target.chart_data = buildDefaultChartData("process");
             if (!target.visual_text) target.visual_text = "<h2>Chart Slide</h2>";
+        }
+
+        if (["image", "hybrid", "contextual_overlay", "contextual-overlay"].includes(nextType) && !target.image) {
+            target.image = IMAGE_PLACEHOLDER;
         }
 
         if (["comparison_split", "key_stat_breakout", "document_anchor", "contextual_overlay", "contextual-overlay"].includes(nextType)) {
@@ -522,7 +489,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
         narration: true,
         assessment: true,
         onScreenText: false,
-        visualPrompt: false,
         styling: false
     });
 
@@ -905,36 +871,6 @@ export default function SlideEditor({ courseId, initialSlides, onFinalize }: Sli
                                         </select>
                                     </>
                                 )}
-                            </SidebarSection>
-                        )}
-
-                        {/* 3. VISUAL PROMPT / CHART CONFIG */}
-                        {['image', 'hybrid'].includes(currentSlide.visual_type) && (
-                            <SidebarSection
-                                title="Visual Prompt"
-                                icon={ImageIcon}
-                                iconColor="text-purple-500"
-                                isOpen={openSections.visualPrompt}
-                                onToggle={() => toggleSection('visualPrompt')}
-                                rightElement={
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => { e.stopPropagation(); handleRegenerateVisual(); }}
-                                        disabled={regeneratingSlideIndex === currentSlideIndex}
-                                        className="h-6 text-[10px] px-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                                    >
-                                        <RefreshCcw className={`h-3 w-3 mr-1 ${regeneratingSlideIndex === currentSlideIndex ? "animate-spin" : ""}`} />
-                                        {regeneratingSlideIndex === currentSlideIndex ? "Gen..." : "Regenerate"}
-                                    </Button>
-                                }
-                            >
-                                <Textarea
-                                    value={currentSlide.prompt}
-                                    onChange={(e) => handleUpdateSlide("prompt", e.target.value)}
-                                    className={commonTextAreaClass}
-                                    placeholder="Describe the image..."
-                                />
                             </SidebarSection>
                         )}
 

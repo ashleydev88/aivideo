@@ -28,3 +28,5 @@ Enable smoother slide customization in preview with support for inserting slides
   - `cd frontend && npm run lint` (success; existing warnings only, no errors).
   - `pytest` could not run because `pytest` is not installed in this environment.
 - [x] Updated sidebar toggle label to `Open Menu` / `Close Menu` to reflect expanded sidebar content.
+- [x] Removed Visual Prompt section from slide editor sidebar.
+- [x] Added built-in image placeholder for image-dependent slide types on insert/type-change.
