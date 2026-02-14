@@ -55,6 +55,7 @@ interface SlidePreviewData {
     text_color?: string;
     accent_color?: string;
     layout_data?: SlideLayoutData;
+    is_assessment?: boolean;
 }
 
 interface LogoCrop {
@@ -314,6 +315,11 @@ export default function VisualPreview({
     onTextTimingLinkRemove,
 }: VisualPreviewProps) {
     const { visual_type, image, chart_data } = slide;
+    const allowTimingLinks = !slide.is_assessment;
+    const effectiveNarrationTokens = allowTimingLinks ? narrationTokens : [];
+    const effectiveTimingLinks = allowTimingLinks ? timingLinks : [];
+    const handleTimingLinkAdd = allowTimingLinks ? onTextTimingLinkAdd : undefined;
+    const handleTimingLinkRemove = allowTimingLinks ? onTextTimingLinkRemove : undefined;
     const isContextualOverlayType = visual_type === 'contextual_overlay' || visual_type === 'contextual-overlay';
     const [resolvedImage, setResolvedImage] = useState<string | null>(null);
     const [brandColor, setBrandColor] = useState<string | null>(null);
@@ -631,7 +637,7 @@ export default function VisualPreview({
             visual_type === 'contextual-overlay' ||
             visual_type === 'key_stat_breakout';
         const allowsNodeTimingInGraph = visual_type === 'chart' || visual_type === 'comparison_split';
-        const allowTimingInGraph = allowsNodeTimingInGraph || allowsTextTimingInGraph;
+        const allowTimingInGraph = allowTimingLinks && (allowsNodeTimingInGraph || allowsTextTimingInGraph);
 
         return (
             <ScaleContainer>
@@ -648,10 +654,10 @@ export default function VisualPreview({
                         backgroundColor={slide.background_color}
                         textColor={slide.text_color}
                         backgroundImage={resolvedImage}
-                        narrationTokens={narrationTokens}
-                        timingLinks={timingLinks}
-                        onTimingLinkAdd={allowTimingInGraph ? onTextTimingLinkAdd : undefined}
-                        onTimingLinkRemove={allowTimingInGraph ? onTextTimingLinkRemove : undefined}
+                        narrationTokens={effectiveNarrationTokens}
+                        timingLinks={effectiveTimingLinks}
+                        onTimingLinkAdd={allowTimingInGraph ? handleTimingLinkAdd : undefined}
+                        onTimingLinkRemove={allowTimingInGraph ? handleTimingLinkRemove : undefined}
                         enableNodeTiming={allowsNodeTimingInGraph}
                         onUpdate={
                             visual_type === 'chart'
@@ -724,10 +730,10 @@ export default function VisualPreview({
                                     value={textContent}
                                     onChange={onTextChange}
                                     variant="minimal"
-                                    narrationTokens={narrationTokens}
-                                    timingLinks={timingLinks}
-                                    onTimingLinkAdd={onTextTimingLinkAdd}
-                                    onTimingLinkRemove={onTextTimingLinkRemove}
+                                    narrationTokens={effectiveNarrationTokens}
+                                    timingLinks={effectiveTimingLinks}
+                                    onTimingLinkAdd={handleTimingLinkAdd}
+                                    onTimingLinkRemove={handleTimingLinkRemove}
                                 />
                             ) : (
                                 <div className="prose-preview dark:prose-invert max-w-none">
@@ -776,10 +782,10 @@ export default function VisualPreview({
                                         value={textContent}
                                         onChange={onTextChange}
                                         variant="minimal"
-                                        narrationTokens={narrationTokens}
-                                        timingLinks={timingLinks}
-                                        onTimingLinkAdd={onTextTimingLinkAdd}
-                                        onTimingLinkRemove={onTextTimingLinkRemove}
+                                        narrationTokens={effectiveNarrationTokens}
+                                        timingLinks={effectiveTimingLinks}
+                                        onTimingLinkAdd={handleTimingLinkAdd}
+                                        onTimingLinkRemove={handleTimingLinkRemove}
                                     />
                                 ) : (
                                     // Fallback read-only using same styles roughly
@@ -889,10 +895,10 @@ export default function VisualPreview({
                                             value={textContent}
                                             onChange={onTextChange}
                                             variant="minimal"
-                                            narrationTokens={narrationTokens}
-                                            timingLinks={timingLinks}
-                                            onTimingLinkAdd={onTextTimingLinkAdd}
-                                            onTimingLinkRemove={onTextTimingLinkRemove}
+                                            narrationTokens={effectiveNarrationTokens}
+                                            timingLinks={effectiveTimingLinks}
+                                            onTimingLinkAdd={handleTimingLinkAdd}
+                                            onTimingLinkRemove={handleTimingLinkRemove}
                                         />
                                     ) : (
                                         <div className="max-w-none">
@@ -952,10 +958,10 @@ export default function VisualPreview({
                                         value={slide.visual_text}
                                         onChange={onTextChange}
                                         variant="minimal"
-                                        narrationTokens={narrationTokens}
-                                        timingLinks={timingLinks}
-                                        onTimingLinkAdd={onTextTimingLinkAdd}
-                                        onTimingLinkRemove={onTextTimingLinkRemove}
+                                        narrationTokens={effectiveNarrationTokens}
+                                        timingLinks={effectiveTimingLinks}
+                                        onTimingLinkAdd={handleTimingLinkAdd}
+                                        onTimingLinkRemove={handleTimingLinkRemove}
                                     />
                                 ) : (
                                     <h1 className="text-6xl font-black text-white drop-shadow-xl leading-none">
