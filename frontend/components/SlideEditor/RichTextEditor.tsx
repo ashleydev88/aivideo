@@ -98,6 +98,9 @@ export default function RichTextEditor({
     onTimingLinkAdd,
     onTimingLinkRemove,
 }: RichTextEditorProps) {
+    const editorWrapperRef = React.useRef<HTMLDivElement | null>(null);
+    const timingPopoverRef = React.useRef<HTMLDivElement | null>(null);
+
     // Basic Markdown-to-HTML converter for legacy slides
     const processInitialValue = (val: string) => {
         if (!val) return "";
@@ -179,6 +182,43 @@ export default function RichTextEditor({
         return map;
     }, [timingLinks]);
 
+    React.useEffect(() => {
+        if (!editor) return;
+        const closeTimingMenu = () => setTimingMenuOpen(false);
+        const closeOnEmptySelection = () => {
+            if (editor.state.selection.empty) {
+                setTimingMenuOpen(false);
+            }
+        };
+        editor.on('blur', closeTimingMenu);
+        editor.on('selectionUpdate', closeOnEmptySelection);
+        return () => {
+            editor.off('blur', closeTimingMenu);
+            editor.off('selectionUpdate', closeOnEmptySelection);
+        };
+    }, [editor]);
+
+    React.useEffect(() => {
+        if (!timingMenuOpen) return;
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node | null;
+            if (!target) return;
+            if (timingPopoverRef.current?.contains(target)) return;
+            setTimingMenuOpen(false);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setTimingMenuOpen(false);
+            }
+        };
+        document.addEventListener('pointerdown', handlePointerDown);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [timingMenuOpen]);
+
     // Sync logic removed: We now rely on the parent to unmount/remount this component (via key prop)
     // when switching slides. This prevents focus loss/cursor jumping during typing.
 
@@ -259,6 +299,7 @@ export default function RichTextEditor({
     const renderToolbarContent = () => {
         const timingCtx = getSelectionTimingContext();
         const activeTimingToken = timingCtx?.timingId ? timingLinkMap.get(timingCtx.timingId) : undefined;
+        const canUseTiming = hasNarrationTokens;
 
         return (
             <>
@@ -362,24 +403,26 @@ export default function RichTextEditor({
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
-                                if (!timingCtx) return;
+                                if (!canUseTiming) return;
                                 setTimingMenuOpen((prev) => !prev);
                             }}
                             className={cn(
                                 "p-1.5 rounded transition-colors flex items-center gap-1",
                                 timingCtx?.timingId ? "bg-violet-100 text-violet-700" : "text-slate-500 hover:bg-slate-200",
-                                !timingCtx ? "opacity-40 cursor-not-allowed" : ""
+                                !canUseTiming ? "opacity-40 cursor-not-allowed" : ""
                             )}
                             title="Link timing to narration"
-                            disabled={!timingCtx}
+                            disabled={!canUseTiming}
                         >
                             <Timer className="w-4 h-4" />
                         </button>
 
-                        {timingMenuOpen && timingCtx && (
-                            <div className="absolute right-0 mt-2 w-72 rounded-md border bg-white shadow-lg p-3 z-[100000]">
+                        {timingMenuOpen && (
+                            <div ref={timingPopoverRef} className="absolute right-0 mt-2 w-72 rounded-md border bg-white shadow-lg p-3 z-[100000]">
                                 <p className="text-xs font-semibold text-slate-700 mb-1">Link to narration word</p>
-                                <p className="text-[11px] text-slate-500 mb-2 line-clamp-2">{timingCtx.selectedText}</p>
+                                <p className="text-[11px] text-slate-500 mb-2 line-clamp-2">
+                                    {timingCtx?.selectedText || "Select one or more words in on-screen text to link timing."}
+                                </p>
                                 {typeof activeTimingToken === "number" && narrationTokens[activeTimingToken] && (
                                     <p className="text-[11px] text-violet-700 mb-2">
                                         Linked: #{activeTimingToken} {narrationTokens[activeTimingToken].word}
@@ -400,8 +443,10 @@ export default function RichTextEditor({
                                                         "text-[11px] px-1.5 py-0.5 rounded border",
                                                         activeTimingToken === token.index
                                                             ? "border-violet-600 bg-violet-600 text-white"
-                                                            : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                                                            : "border-slate-300 text-slate-700 hover:bg-slate-50",
+                                                        !timingCtx ? "opacity-50 cursor-not-allowed" : ""
                                                     )}
+                                                    disabled={!timingCtx}
                                                 >
                                                     {token.word}
                                                 </button>
@@ -431,7 +476,7 @@ export default function RichTextEditor({
                                             removeTimingLink();
                                         }}
                                         className="text-xs text-red-600 hover:text-red-700 inline-flex items-center gap-1"
-                                        disabled={!timingCtx.timingId}
+                                        disabled={!timingCtx?.timingId}
                                     >
                                         <Unlink2 className="w-3 h-3" />
                                         Remove timing
@@ -448,7 +493,7 @@ export default function RichTextEditor({
 
     if (variant === 'minimal') {
         return (
-            <div className="w-full h-full relative group">
+            <div ref={editorWrapperRef} className="w-full h-full relative group">
                 {/* Global style override still needed for defaults */}
                 <style jsx global>{`
                     .ProseMirror p, .ProseMirror li {
@@ -484,6 +529,7 @@ export default function RichTextEditor({
                         editor={editor}
                         appendTo={() => document.body}
                         className="z-[99999]"
+                        shouldShow={({ editor: activeEditor, state }) => activeEditor.isFocused && !state.selection.empty}
                     >
                         <div className="flex items-center gap-1 border border-slate-200 bg-white shadow-lg rounded-full p-1.5 px-3 animate-in fade-in zoom-in duration-200">
                             {renderToolbarContent()}
@@ -500,7 +546,7 @@ export default function RichTextEditor({
     }
 
     return (
-        <div className="border border-slate-200 rounded-md overflow-hidden bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-transparent transition-all">
+        <div ref={editorWrapperRef} className="border border-slate-200 rounded-md overflow-hidden bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-transparent transition-all">
             {/* explicit style override to guarantee default size of 1.75rem for paragraphs/lists if no inline style is present */}
             <style jsx global>{`
                 .ProseMirror p, .ProseMirror li {
