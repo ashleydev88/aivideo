@@ -168,7 +168,8 @@ export default function RichTextEditor({
     })
 
     const [timingMenuOpen, setTimingMenuOpen] = React.useState(false);
-    const timingEnabled = narrationTokens.length > 0 && !!onTimingLinkAdd;
+    const timingEnabled = !!onTimingLinkAdd;
+    const hasNarrationTokens = narrationTokens.length > 0;
     const timingLinkMap = React.useMemo(() => {
         const map = new Map<string, number>();
         timingLinks.forEach((link) => {
@@ -207,7 +208,7 @@ export default function RichTextEditor({
     };
 
     const applyTimingLink = (tokenIndex: number) => {
-        if (!timingEnabled) return;
+        if (!timingEnabled || !hasNarrationTokens) return;
         const ctx = getSelectionTimingContext();
         if (!ctx) return;
 
@@ -383,28 +384,34 @@ export default function RichTextEditor({
                                         Linked: #{activeTimingToken} {narrationTokens[activeTimingToken].word}
                                     </p>
                                 )}
-                                <div className="max-h-36 overflow-y-auto border rounded p-2 mb-2">
-                                    <div className="flex flex-wrap gap-1">
-                                        {narrationTokens.map((token) => (
-                                            <button
-                                                key={`timing-token-${token.index}`}
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    applyTimingLink(token.index);
-                                                }}
-                                                className={cn(
-                                                    "text-[11px] px-1.5 py-0.5 rounded border",
-                                                    activeTimingToken === token.index
-                                                        ? "border-violet-600 bg-violet-600 text-white"
-                                                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
-                                                )}
-                                            >
-                                                {token.word}
-                                            </button>
-                                        ))}
+                                {hasNarrationTokens ? (
+                                    <div className="max-h-36 overflow-y-auto border rounded p-2 mb-2">
+                                        <div className="flex flex-wrap gap-1">
+                                            {narrationTokens.map((token) => (
+                                                <button
+                                                    key={`timing-token-${token.index}`}
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        applyTimingLink(token.index);
+                                                    }}
+                                                    className={cn(
+                                                        "text-[11px] px-1.5 py-0.5 rounded border",
+                                                        activeTimingToken === token.index
+                                                            ? "border-violet-600 bg-violet-600 text-white"
+                                                            : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                                                    )}
+                                                >
+                                                    {token.word}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="border rounded p-2 mb-2 text-[11px] text-slate-600 bg-slate-50">
+                                        Add narration text first, then select a word to link timing.
+                                    </div>
+                                )}
                                 <div className="flex items-center justify-between">
                                     <button
                                         type="button"
