@@ -481,6 +481,8 @@ async def generate_planner_module(
             "status": "generating_topics",
             "name": module_title,
             "user_id": user_id,
+            "course_plan_id": plan_id,
+            "course_module_id": module_id,
             "metadata": course_metadata,
             "target_audience": target_audience,
             "has_source_documents": bool(source_document_text),
