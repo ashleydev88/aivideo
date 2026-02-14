@@ -510,11 +510,11 @@ export default function SlideEditor({ courseId, initialSlides, brandColor, onFin
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
 
                 {/* LEFT: VISUAL PREVIEW */}
                 <div className={cn(
-                    "bg-slate-100 p-8 flex flex-col items-center justify-center relative border-r border-slate-200/50 transition-all duration-300 ease-in-out",
+                    "bg-slate-100 p-8 flex flex-col items-center justify-center relative border-r border-slate-200/50 transition-all duration-300 ease-in-out overflow-hidden",
                     isSidebarOpen ? "md:w-3/5" : "md:w-full"
                 )}>
                     <div className={cn(
@@ -563,8 +563,8 @@ export default function SlideEditor({ courseId, initialSlides, brandColor, onFin
 
                 {/* RIGHT: EDITOR PANEL */}
                 <div className={cn(
-                    "overflow-hidden transition-all duration-300 ease-in-out bg-white/50 scrollbar-thin scrollbar-thumb-slate-200",
-                    isSidebarOpen ? "md:w-2/5 p-6 opacity-100 border-l" : "w-0 p-0 opacity-0 border-none"
+                    "min-h-0 transition-all duration-300 ease-in-out bg-white/50 scrollbar-thin scrollbar-thumb-slate-200",
+                    isSidebarOpen ? "md:w-2/5 p-6 opacity-100 border-l overflow-y-auto overflow-x-hidden" : "w-0 p-0 opacity-0 border-none overflow-hidden"
                 )}>
                     <div className="space-y-4 max-w-lg mx-auto min-w-[300px]">
 
