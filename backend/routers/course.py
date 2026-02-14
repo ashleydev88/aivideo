@@ -31,6 +31,47 @@ from typing import List
 
 router = APIRouter()
 
+def build_assessment_entries(slides):
+    entries = []
+    for idx, slide in enumerate(slides or []):
+        if (slide.get("is_assessment") or slide.get("assessment_data")) and slide.get("assessment_data"):
+            entries.append({
+                "slide_number": idx + 1,
+                "assessment_data": slide.get("assessment_data")
+            })
+    return entries
+
+def derive_assessment_cues(slides, persisted_assessment_data=None):
+    persisted_map = {}
+    for entry in persisted_assessment_data or []:
+        slide_number = entry.get("slide_number")
+        if slide_number is None:
+            continue
+        persisted_map[slide_number] = entry.get("assessment_data")
+
+    elapsed_ms = 0
+    cues = []
+    for idx, slide in enumerate(slides or []):
+        slide_number = idx + 1
+        is_assessment = bool(slide.get("is_assessment") or slide.get("assessment_data"))
+        if is_assessment:
+            assessment_data = slide.get("assessment_data") or persisted_map.get(slide_number)
+            if assessment_data:
+                cues.append({
+                    "slide_number": slide_number,
+                    "at_ms": max(0, int(elapsed_ms)),
+                    "assessment_data": assessment_data,
+                })
+            continue
+
+        duration = slide.get("duration", 0)
+        try:
+            duration = int(duration)
+        except Exception:
+            duration = 0
+        elapsed_ms += max(0, duration)
+    return cues
+
 
 @router.post("/create")
 async def create_course(request: CourseRequest, background_tasks: BackgroundTasks):
@@ -464,11 +505,16 @@ async def finalize_course(course_id: str, request: Request, background_tasks: Ba
     if slide_data:
          supabase_admin.table("courses").update({
             "slide_data": slide_data,
+            "assessment_data": build_assessment_entries(slide_data),
             "status": "finalizing_assets"
         }).eq("id", course_id).execute()
     else:
         res = supabase_admin.table("courses").select("slide_data, metadata").eq("id", course_id).execute()
         slide_data = res.data[0].get("slide_data", [])
+        # Normalize assessment_data in DB even when reusing existing slide_data
+        supabase_admin.table("courses").update({
+            "assessment_data": build_assessment_entries(slide_data)
+        }).eq("id", course_id).execute()
 
     res = supabase_admin.table("courses").select("metadata").eq("id", course_id).execute()
     metadata = res.data[0]['metadata']
@@ -507,6 +553,33 @@ async def export_video(
         status_code=202,
         content={"status": "accepted", "jobId": job_id}
     )
+
+@router.get("/course/{course_id}/assessment-cues")
+async def get_assessment_cues(course_id: str, authorization: str = Header(None)):
+    user_id = get_user_id_from_token(authorization)
+
+    res = supabase_admin.table("courses").select(
+        "id, user_id, status, slide_data, assessment_data, metadata"
+    ).eq("id", course_id).single().execute()
+
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Course not found")
+    if res.data.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this course")
+
+    slide_data = res.data.get("slide_data") or []
+    assessment_data = res.data.get("assessment_data") or []
+    metadata = res.data.get("metadata") or {}
+    derived_cues = derive_assessment_cues(slide_data, assessment_data)
+
+    return {
+        "course_id": course_id,
+        "status": res.data.get("status"),
+        "slide_count": len(slide_data),
+        "assessment_data": assessment_data,
+        "metadata_assessment_cues": metadata.get("assessment_cues", []),
+        "derived_assessment_cues": derived_cues,
+    }
 
 @router.delete("/course/{course_id}")
 async def delete_course(course_id: str, authorization: str = Header(None)):

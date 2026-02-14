@@ -52,6 +52,79 @@ def convert_bytes_to_webp(image_bytes: bytes) -> bytes:
         return image_bytes
 
 
+def is_assessment_slide(slide: dict) -> bool:
+    return bool(slide.get("is_assessment") or slide.get("assessment_data"))
+
+
+def normalize_assessment_data(raw: dict | None) -> dict:
+    data = raw or {}
+    options = data.get("options")
+    if not isinstance(options, list) or len(options) < 2:
+        options = ["Option A", "Option B"]
+
+    correct_index = data.get("correct_index", 0)
+    if not isinstance(correct_index, int):
+        try:
+            correct_index = int(correct_index)
+        except Exception:
+            correct_index = 0
+    if correct_index < 0 or correct_index > len(options) - 1:
+        correct_index = 0
+
+    points = data.get("points", 1)
+    if not isinstance(points, int):
+        try:
+            points = int(points)
+        except Exception:
+            points = 1
+    if points < 1:
+        points = 1
+
+    return {
+        "question": str(data.get("question", "Quick check")),
+        "options": [str(o) for o in options],
+        "correct_index": correct_index,
+        "explanation": str(data.get("explanation", "")),
+        "points": points,
+    }
+
+
+def build_render_slides_and_assessment_cues(slides: list[dict]) -> tuple[list[dict], list[dict]]:
+    render_slides: list[dict] = []
+    assessment_cues: list[dict] = []
+    elapsed_ms = 0
+
+    for idx, slide in enumerate(slides or []):
+        if is_assessment_slide(slide):
+            assessment_cues.append({
+                "slide_number": idx + 1,
+                "at_ms": max(0, int(elapsed_ms)),
+                "assessment_data": normalize_assessment_data(slide.get("assessment_data")),
+            })
+            continue
+
+        render_slides.append(slide)
+        duration_ms = slide.get("duration", 0)
+        try:
+            duration_ms = int(duration_ms)
+        except Exception:
+            duration_ms = 0
+        elapsed_ms += max(0, duration_ms)
+
+    return render_slides, assessment_cues
+
+
+def build_assessment_entries(slides: list[dict]) -> list[dict]:
+    entries: list[dict] = []
+    for idx, slide in enumerate(slides or []):
+        if is_assessment_slide(slide) and slide.get("assessment_data"):
+            entries.append({
+                "slide_number": idx + 1,
+                "assessment_data": normalize_assessment_data(slide.get("assessment_data")),
+            })
+    return entries
+
+
 
 async def generate_draft_visuals(course_id: str, script_plan: list, style_prompt: str, user_id: str, seed: int = None, protagonist: str = ""):
     """
@@ -789,8 +862,15 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         res = supabase_admin.table("courses").select("slide_data, metadata").eq("id", course_id).execute()
         if not res.data: return
         course_data = res.data[0]
-        slides = course_data.get('slide_data', [])
+        slides = course_data.get('slide_data', []) or []
         metadata = course_data.get('metadata', {})
+        render_slides, assessment_cues = build_render_slides_and_assessment_cues(slides)
+        if not render_slides:
+            raise Exception("No non-assessment slides available to render.")
+
+        metadata["assessment_cues"] = assessment_cues
+        metadata["assessment_count"] = len(assessment_cues)
+        metadata["rendered_slide_count"] = len(render_slides)
         # Idempotency: compute digest of render payload to avoid duplicate enqueues
         def _normalize_for_digest(slides_list):
             norm = []
@@ -804,7 +884,7 @@ async def trigger_remotion_render(course_id: str, user_id: str):
             return norm
 
         digest_payload = {
-            "slides": _normalize_for_digest(slides),
+            "slides": _normalize_for_digest(render_slides),
             "accent_color": metadata.get("accent_color", "#14b8a6"),
             "logo_url": metadata.get("logo_url"),
             "logo_crop": metadata.get("logo_crop"),
@@ -823,6 +903,10 @@ async def trigger_remotion_render(course_id: str, user_id: str):
                 st = current_status.get("status")
                 m = current_status.get("metadata") or {}
                 if render_digest and m.get("last_render_digest") == render_digest and st in ["queued", "processing_render", "rendering"]:
+                    try:
+                        supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
+                    except Exception as _meta_e:
+                        print(f"   ⚠️ Failed to persist assessment cues during skip: {_meta_e}")
                     print(f"   🔁 Skipping duplicate enqueue for {course_id}; status={st}")
                     return m.get("last_job_id")
         except Exception as _e:
@@ -837,7 +921,7 @@ async def trigger_remotion_render(course_id: str, user_id: str):
         print("   🔑 Signing assets for Lambda...")
         # Use 5 hours (18000s) to ensure URLs remain valid during render
         SIGN_VALIDITY = 18000
-        for slide in slides:
+        for slide in render_slides:
             if slide.get("audio") and not slide["audio"].startswith("http"):
                  slide["audio"] = get_asset_url(slide["audio"], SIGN_VALIDITY)
             if slide.get("image") and not slide["image"].startswith("http"):
@@ -847,14 +931,14 @@ async def trigger_remotion_render(course_id: str, user_id: str):
              logo_url = get_asset_url(logo_url, SIGN_VALIDITY)
 
         payload = {
-            "slide_data": slides,
+            "slide_data": render_slides,
             "accent_color": accent_color,
             "logo_url": logo_url,
             "logo_crop": logo_crop
         }
         
-        total_duration_ms = sum(s.get('duration', 0) for s in slides)
-        print(f"   📊 Payload: {len(slides)} slides, total duration: {total_duration_ms}ms")
+        total_duration_ms = sum(s.get('duration', 0) for s in render_slides)
+        print(f"   📊 Payload: {len(render_slides)} slides, total duration: {total_duration_ms}ms")
 
         # Update metadata with actual duration
         metadata['actual_duration'] = total_duration_ms
@@ -959,12 +1043,23 @@ async def finalize_course_assets(course_id: str, script_plan: list, user_id: str
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
-            tasks = [process_audio_parallel(i, slide, temp_dir) for i, slide in enumerate(script_plan)]
-            final_slides = await asyncio.gather(*tasks)
-            final_slides.sort(key=lambda x: x.get("id", 0) if x.get("id") else 0)
+            render_indices = [i for i, slide in enumerate(script_plan) if not is_assessment_slide(slide)]
+            tasks = [process_audio_parallel(i, script_plan[i], temp_dir) for i in render_indices]
+            processed_render_slides = await asyncio.gather(*tasks)
+            processed_by_index = {i: slide for i, slide in zip(render_indices, processed_render_slides)}
+
+            final_slides = []
+            for i, slide in enumerate(script_plan):
+                if i in processed_by_index:
+                    final_slides.append(processed_by_index[i])
+                    continue
+                assessment_slide = dict(slide)
+                assessment_slide["accent_color"] = accent_color
+                final_slides.append(assessment_slide)
 
         supabase_admin.table("courses").update({
             "slide_data": final_slides, 
+            "assessment_data": build_assessment_entries(final_slides),
             "status": "compiling_video",
             "progress_phase": "compiling"
         }).eq("id", course_id).execute()

@@ -8,12 +8,30 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { SeamlessPlayer, Slide } from "@/components/SeamlessPlayer";
+import VideoAssessmentPlayer, { AssessmentCue } from "@/components/VideoAssessmentPlayer";
+
+interface SlideAssessmentData {
+    question: string;
+    options: string[];
+    correct_index: number;
+    explanation?: string;
+    points?: number;
+}
+
+interface SlideAssessmentEntry {
+    slide_number: number;
+    assessment_data: SlideAssessmentData;
+}
 
 interface Project {
     id: string;
     name: string;
     video_url?: string;
     slide_data?: Slide[];
+    assessment_data?: SlideAssessmentEntry[];
+    metadata?: {
+        assessment_cues?: AssessmentCue[];
+    };
     status: string;
 }
 
@@ -165,6 +183,34 @@ function PlayerContent() {
     // Determine which player to show
     const hasVideo = !!videoUrl;
     const hasSlides = project.slide_data && project.slide_data.length > 0;
+    const metadataCues = project.metadata?.assessment_cues || [];
+
+    // Fallback for legacy rows that have assessment_data but no metadata cues yet.
+    const fallbackCues: AssessmentCue[] = (() => {
+        if (!project.slide_data?.length || !project.assessment_data?.length) return [];
+        const assessmentBySlide = new Map(
+            project.assessment_data.map((entry) => [entry.slide_number, entry.assessment_data] as const)
+        );
+        let elapsedMs = 0;
+        const cues: AssessmentCue[] = [];
+        project.slide_data.forEach((slide: Slide & { slide_number?: number; duration?: number; is_assessment?: boolean }, index) => {
+            const slideNumber = slide.slide_number || index + 1;
+            const assessment = assessmentBySlide.get(slideNumber);
+            if (assessment || slide.is_assessment) {
+                if (assessment) {
+                    cues.push({
+                        slide_number: slideNumber,
+                        at_ms: Math.max(0, elapsedMs),
+                        assessment_data: assessment,
+                    });
+                }
+                return;
+            }
+            elapsedMs += Number(slide.duration || 0);
+        });
+        return cues;
+    })();
+    const assessmentCues = metadataCues.length > 0 ? metadataCues : fallbackCues;
 
     return (
         <div className="max-w-5xl mx-auto space-y-6">
@@ -185,17 +231,7 @@ function PlayerContent() {
                 <CardContent className="p-0">
                     {hasVideo ? (
                         /* Prefer pre-rendered video if available */
-                        <div className="aspect-video flex items-center justify-center bg-black">
-                            <video
-                                src={videoUrl}
-                                controls
-                                className="w-full h-full"
-                                playsInline
-                                autoPlay
-                            >
-                                Your browser does not support the video tag.
-                            </video>
-                        </div>
+                        <VideoAssessmentPlayer videoUrl={videoUrl} assessmentCues={assessmentCues} autoPlay={true} />
                     ) : hasSlides ? (
                         /* Use seamless player with slide_data */
                         <SeamlessPlayer slides={project.slide_data!} autoPlay={true} />
