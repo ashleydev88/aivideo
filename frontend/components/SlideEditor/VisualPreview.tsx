@@ -78,6 +78,8 @@ interface BackgroundEditWrapperProps {
     controlPositionClassName?: string;
 }
 
+const isDirectImageSource = (value: string) => /^(https?:|blob:|data:)/i.test(value);
+
 const BackgroundEditWrapper: React.FC<BackgroundEditWrapperProps> = ({
     children,
     className,
@@ -381,7 +383,7 @@ export default function VisualPreview({
                 return;
             }
 
-            if (image.startsWith("http") || image.startsWith("blob:")) {
+            if (isDirectImageSource(image)) {
                 if (isMounted) setResolvedImage(image);
                 return;
             }
@@ -530,7 +532,7 @@ export default function VisualPreview({
 
             // Iterate and sign images
             await Promise.all(newNodes.map(async (node: MotionNode, index: number) => {
-                if (node.data && node.data.image && !node.data.image.startsWith('http') && !node.data.image.startsWith('blob:')) {
+                if (node.data && node.data.image && !isDirectImageSource(node.data.image)) {
                     try {
                         const res = await fetch(`${API_BASE_URL}/api/course/get-signed-url`, {
                             method: "POST",
