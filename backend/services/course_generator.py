@@ -13,7 +13,6 @@ from backend.config import (
     DURATION_STRATEGIES,
     STYLE_MAPPING,
     MINIMALIST_PROMPT,
-    ENABLE_SCRIPT_VALIDATION,
     TOPIC_GENERATOR_MODEL,
     PEDAGOGY_INSTRUCTIONS,
     LEARNING_ARCS,
@@ -28,7 +27,7 @@ from backend.config import (
 )
 from backend.db import supabase_admin
 from backend.services.ai import anthropic_chat_completion, generate_image_replicate, extract_policy_essence
-from backend.services.pipeline import PipelineManager, validate_script
+from backend.services.pipeline import PipelineManager
 from backend.services.audio import generate_audio
 from backend.services.storage import upload_asset_throttled, handle_failure, get_asset_url
 from backend.services.sqs_producer import send_render_job_async
@@ -528,88 +527,20 @@ async def generate_structure_task(course_id: str, context_package: dict, request
             language_instruction=language_instruction
         )
         
-        messages = [{"role": "user", "content": base_prompt}]
-        script_plan = []
-        max_retries = 3
-        
-        for attempt in range(max_retries):
-            res_text = await asyncio.to_thread(
-                anthropic_chat_completion,
-                messages=messages,
-                max_tokens=20000,
-                model=LLM_MODEL_NAME,
-                telemetry={
-                    "course_id": course_id,
-                    "user_id": request.user_id,
-                    "stage": "script_generation",
-                    "agent_name": "script_generator",
-                    "metadata": {"attempt": attempt + 1}
-                }
-            )
-            data = extract_json_from_response(res_text)
-            script_plan = data.get("script", [])
-            
-            if not ENABLE_SCRIPT_VALIDATION:
-                break
-                
-            supabase_admin.table("courses").update({
-                "status": "validating",
-                "progress_phase": "validation"
-            }).eq("id", course_id).execute()
-            
-            validation_result = await asyncio.to_thread(validate_script, script_plan, context_package)
-            
-            if validation_result['approved']:
-                print("   ✅ Script Validation Passed")
-                break
-            
-            print(f"   ⚠️ Script Validation Failed (Attempt {attempt+1}/{max_retries})")
-            
-            # Print specific failure reasons to console
-            print(f"      Issues found: {len(validation_result.get('issues', []))}")
-            for issue in validation_result.get('issues', []):
-                print(f"      - {issue}")
-
-            if attempt < max_retries - 1:
-                supabase_admin.table("courses").update({"status": "generating_structure"}).eq("id", course_id).execute()
-                messages.append({"role": "assistant", "content": res_text})
-                
-                # Construct detailed feedback including scores
-                scores_summary = (
-                    f"Fact-Check: {validation_result.get('fact_check_score', 'N/A')}/10, "
-                    f"Completeness: {validation_result.get('completeness_score', 'N/A')}/10, "
-                    f"Coherence: {validation_result.get('coherence_score', 'N/A')}/10, "
-                    f"Accuracy: {validation_result.get('accuracy_score', 'N/A')}/10, "
-                    f"Image Diversity: {validation_result.get('image_diversity_score', 'N/A')}/10"
-                )
-                
-                feedback = (
-                    f"CRITICAL QUALITY FEEDBACK (Validation Failed):\n"
-                    f"SCORES: {scores_summary}\n"
-                    f"ISSUES: {json.dumps(validation_result.get('issues', []))}\n"
-                    f"Ungrounded Claims: {json.dumps(validation_result.get('ungrounded_claims', []))}\n"
-                    f"Constraint Reminder: Must be exactly {context_package['target_slides']} slides.\n"
-                    f"Fix these issues specifically. Ensure ALL scores are 7+ and Fact-Check is 8+."
-                )
-                messages.append({"role": "user", "content": feedback})
-            else:
-                # FINAL FAILURE - HALT PIPELINE
-                print(f"❌ Script Validation Failed after {max_retries} attempts. HALTING.")
-                metadata["validation_errors"] = validation_result.get("issues", [])
-                metadata["validation_last_result"] = validation_result
-                metadata["ungrounded_claims"] = validation_result.get("ungrounded_claims", [])
-                
-                supabase_admin.table("courses").update({
-                    "status": "needs_human_review",
-                    "metadata": metadata,
-                    "slide_data": script_plan # Save what we have so user can edit
-                }).eq("id", course_id).execute()
-                
-                return # STOP THE PIPELINE
-
-        if ENABLE_SCRIPT_VALIDATION and 'validation_result' in locals() and validation_result.get('approved', False):
-            metadata["validation_last_result"] = validation_result
-            supabase_admin.table("courses").update({"metadata": metadata}).eq("id", course_id).execute()
+        res_text = await asyncio.to_thread(
+            anthropic_chat_completion,
+            messages=[{"role": "user", "content": base_prompt}],
+            max_tokens=20000,
+            model=LLM_MODEL_NAME,
+            telemetry={
+                "course_id": course_id,
+                "user_id": request.user_id,
+                "stage": "script_generation",
+                "agent_name": "script_generator",
+            }
+        )
+        data = extract_json_from_response(res_text)
+        script_plan = data.get("script", [])
 
         # Visual Director
         print("   🎬 AI: Assigning Visual Types...")

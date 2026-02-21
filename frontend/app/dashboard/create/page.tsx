@@ -38,7 +38,6 @@ interface WizardState {
     logoCrop?: Record<string, unknown> | null;
     accentColor?: string;
     colorName?: string;
-    validationEnabled?: boolean;
     forcedFormat?: "single_video" | "multi_video_course";
     plannerRecommendation?: {
         format: "single_video" | "multi_video_course";
@@ -368,7 +367,6 @@ function DashboardCreatePageContent() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [generationPhase, setGenerationPhase] = useState<"script" | "designing">("script");
-    const [validationEnabled, setValidationEnabled] = useState(true);
 
     // Global context for background generation
     const { activeGeneration, startGeneration } = useCourseGeneration();
@@ -570,7 +568,6 @@ function DashboardCreatePageContent() {
             const data = await res.json();
             if (data.status === "started") {
                 setCourseId(data.course_id);
-                setValidationEnabled(data.validation_enabled ?? true);
 
                 // Start tracking in global context
                 // Start tracking in global context

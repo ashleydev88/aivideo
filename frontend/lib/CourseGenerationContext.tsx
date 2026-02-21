@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 export interface GenerationProgress {
     courseId: string;
     status: string;
-    phase: "script" | "validation" | "media" | "compiling" | null;
+    phase: "script" | "media" | "compiling" | null;
     progress: number;
     error: string | null;
     videoUrl: string | null;
